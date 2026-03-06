@@ -105,28 +105,18 @@ info "AdGuard Home binary installed"
 
 section "7. Configure AdGuard Home headlessly"
 # Start AdGuard temporarily to perform first-run setup via API
-"$ADGUARD_DIR/AdGuardHome" -s install 2>/dev/null || true
 "$ADGUARD_DIR/AdGuardHome" &
 AGH_PID=$!
 
 # Wait for port 3000 to open
 for i in $(seq 1 30); do
-    if curl -s http://127.0.0.1:3000 >/dev/null 2>&1; then
+    if curl -s -L http://127.0.0.1:3000 >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
 
 # Complete first-run setup via API
-curl -s -X POST http://127.0.0.1:3000/control/install/configure \
-    -H "Content-Type: application/json" \
-    -d '{
-        "web": {"ip": "127.0.0.1", "port": 3000},
-        "dns": {"ip": "0.0.0.0", "port": 53},
-        "username": "admin",
-        "password": "honeytrapai-setup"
-    }' >/dev/null 2>&1 || true
-
 sleep 2
 kill $AGH_PID 2>/dev/null || true
 wait $AGH_PID 2>/dev/null || true
@@ -195,7 +185,11 @@ EOF
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ADGUARD_DIR"
 info "AdGuard Home configured headlessly — web UI bound to localhost only"
 
+sudo apt install -y nginx
+sudo mkdir -p /etc/nginx/sites-available
+sudo mkdir -p /etc/nginx/sites-enabled
 section "8. Configure nginx reverse proxy"
+
 cat > /etc/nginx/sites-available/honeytrapai << 'EOF'
 server {
     listen 80 default_server;

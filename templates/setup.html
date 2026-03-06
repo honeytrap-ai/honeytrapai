@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HoneytrapAI — Setup</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+    .card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:2rem;
+          width:100%;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+    .logo-row{display:flex;align-items:center;gap:.8rem;margin-bottom:1.5rem}
+    .logo-row img{width:48px;height:48px;border-radius:8px}
+    .logo-row h1{font-size:1.3rem;color:#f5a623}
+    .logo-row .sub{font-size:.75rem;color:#888}
+    .steps{display:flex;gap:.5rem;margin-bottom:1.8rem}
+    .step{flex:1;height:4px;border-radius:2px;background:#2a2a4a}
+    .step.active{background:#f5a623}
+    .step.done{background:#27ae60}
+    h2{font-size:1rem;color:#f5a623;margin-bottom:.3rem}
+    .hint{font-size:.8rem;color:#888;margin-bottom:1.2rem;line-height:1.5}
+    label{display:block;font-size:.82rem;color:#aaa;margin-bottom:.35rem;margin-top:.9rem}
+    input[type=password],input[type=email],input[type=text]{
+      width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;
+      padding:.65rem .9rem;color:#e0e0e0;font-size:.95rem;outline:none;transition:border .2s}
+    input:focus{border-color:#f5a623}
+    .error{background:#2a1010;border:1px solid #c0392b;border-radius:6px;
+           color:#e74c3c;font-size:.82rem;padding:.5rem .8rem;margin-bottom:1rem}
+    .info-box{background:#12122a;border:1px solid #2a2a4a;border-radius:8px;
+              padding:.9rem 1rem;font-size:.82rem;color:#aaa;line-height:1.6;margin-bottom:1rem}
+    .info-box code{color:#f5a623;font-family:monospace}
+    button{width:100%;background:#f5a623;color:#1a1a2e;border:none;border-radius:6px;
+           padding:.75rem;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:1.2rem;
+           transition:background .2s}
+    button:hover{background:#e09400}
+    .skip{display:block;text-align:center;font-size:.78rem;color:#666;margin-top:.8rem;
+          cursor:pointer;text-decoration:underline}
+    .footer{margin-top:1.5rem;font-size:.72rem;color:#555;text-align:center;line-height:1.6}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-row">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 30 L50 70 M35 40 L65 40 M35 60 L65 60' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='14' fill='none' stroke='%23f5a623' stroke-width='3'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23f5a623'/%3E%3Ccircle cx='62' cy='26' r='6' fill='%23f5a623'/%3E%3Cline x1='58' y1='24' x2='55' y2='22' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='60' y1='21' x2='58' y2='18' stroke='%231a1a2e' stroke-width='1.5'/%3E%3C/svg%3E"
+         alt="HoneytrapAI">
+    <div>
+      <h1>HoneytrapAI Setup</h1>
+      <div class="sub">NO CLOUD · NO SUBSCRIPTION · OPEN SOURCE</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step {% if step >= 1 %}{% if step > 1 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="step {% if step >= 2 %}{% if step > 2 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="step {% if step >= 3 %}active{% endif %}"></div>
+  </div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if step == 1 %}
+  <h2>Step 1 of 3 — Set Dashboard Password</h2>
+  <p class="hint">Choose a password to protect your HoneytrapAI dashboard. Minimum 8 characters.</p>
+  <form method="POST" action="/setup">
+    <input type="hidden" name="step" value="1">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autofocus placeholder="Minimum 8 characters">
+    <label for="confirm">Confirm Password</label>
+    <input type="password" id="confirm" name="confirm" placeholder="Repeat password">
+    <button type="submit">Continue →</button>
+  </form>
+
+  {% elif step == 2 %}
+  <h2>Step 2 of 3 — Network Interface</h2>
+  <p class="hint">HoneytrapAI needs to know which network interface to monitor. On a Raspberry Pi 4B this is almost always <code style="color:#f5a623">eth0</code>.</p>
+  <div class="info-box">
+    To verify your interface name, run:<br>
+    <code>ip link show</code><br>
+    Look for the interface connected to your router.
+  </div>
+  <form method="POST" action="/setup">
+    <input type="hidden" name="step" value="2">
+    <label for="interface">Network Interface</label>
+    <input type="text" id="interface" name="interface" value="eth0" placeholder="eth0">
+    <button type="submit">Continue →</button>
+  </form>
+
+  {% elif step == 3 %}
+  <h2>Step 3 of 3 — Email Alerts (Optional)</h2>
+  <p class="hint">Enter an email address to receive threat alert digests. You can configure your SMTP server from the dashboard Settings page after setup. Leave blank to skip for now.</p>
+  <form method="POST" action="/setup">
+    <input type="hidden" name="step" value="3">
+    <label for="alert_email">Alert Email Address</label>
+    <input type="email" id="alert_email" name="alert_email" placeholder="you@example.com">
+    <button type="submit">Complete Setup →</button>
+    <span class="skip" onclick="document.getElementById('alert_email').value='';document.querySelector('form').submit()">
+      Skip for now
+    </span>
+  </form>
+  {% endif %}
+
+  <div class="footer">
+    HoneytrapAI · No cloud · No subscription · No monthly fees. Ever.
+  </div>
+</div>
+</body>
+</html>

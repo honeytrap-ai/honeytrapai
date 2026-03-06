@@ -1,0 +1,28 @@
+# HoneytrapAI — Git ignore file
+# Prevents sensitive config and large build files from being committed
+
+# User config and secrets — never commit these
+config/config.json
+config/smtp.json
+config/secret_key
+config/notifier_state.json
+config/update_cache.json
+config/update_status.json
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.env
+
+# Production images — too large for Git
+dist/
+*.img
+*.img.xz
+
+# OS junk
+.DS_Store
+Thumbs.db

@@ -160,7 +160,7 @@ def perform_update():
 
         # Restart services
         set_status({"state": "restarting", "message": "Restarting services..."})
-        os.system("sudo systemctl restart honeytrapai gunicorn 2>/dev/null || true")
+        os.system("sudo systemctl restart honeytrapai honeytrapai-notifier 2>/dev/null || true")
 
         set_status({
             "state": "complete",

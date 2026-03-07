@@ -525,8 +525,34 @@ async function installUpdate() {
     const d = await fetch('/api/update/status').then(r => r.json());
     if (d.state === 'complete') {
       clearInterval(poll);
-      toast('Update complete! Reloading…');
-      setTimeout(() => location.reload(), 2000);
+      let countdown = 15;
+      document.body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;
+                    min-height:100vh;background:#0f0f1a;color:#e0e0e0;
+                    font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
+          <div>
+            <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
+            <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">
+              Update complete.
+            </div>
+            <div style="color:#888;font-size:.88rem">
+              Services are restarting. Reloading dashboard in
+              <span id="update-countdown" style="color:#f5a623">15</span> seconds…<br>
+              <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
+            </div>
+          </div>
+        </div>`;
+      setTimeout(() => {
+        const timer = setInterval(() => {
+          countdown--;
+          const el = document.getElementById('update-countdown');
+          if (el) el.textContent = countdown;
+          if (countdown <= 0) {
+            clearInterval(timer);
+            location.reload();
+          }
+        }, 1000);
+      }, 100);
     }
     if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
   }, 2000);
@@ -587,6 +613,7 @@ async function confirmReset() {
       btn.textContent = 'Reset & Reboot';
     } else {
       hideResetOverlay();
+      let countdown = 15;
       document.body.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;
                     min-height:100vh;background:#0f0f1a;color:#e0e0e0;
@@ -603,6 +630,17 @@ async function confirmReset() {
             </div>
           </div>
         </div>`;
+      setTimeout(() => {
+        const timer = setInterval(() => {
+          countdown--;
+          const el = document.getElementById('reset-countdown');
+          if (el) el.textContent = countdown;
+          if (countdown <= 0) {
+            clearInterval(timer);
+            location.replace('http://honeytrap.local');
+          }
+        }, 1000);
+      }, 100);
     }
   } catch(e) {
     errEl.textContent   = 'Network error. Please try again.';

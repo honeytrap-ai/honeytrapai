@@ -519,6 +519,7 @@ async function checkUpdate(force) {
 }
 
 async function installUpdate() {
+  clearInterval(statsInterval);
   toast('Starting update…');
   await fetch('/api/update/install', {method:'POST'});
   const poll = setInterval(async () => {
@@ -652,7 +653,7 @@ async function confirmReset() {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
-setInterval(loadStats, 30000);
+const statsInterval = setInterval(loadStats, 30000);
 checkUpdate(false);
 </script>
 </body>

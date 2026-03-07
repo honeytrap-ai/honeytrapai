@@ -1,3 +1,7 @@
+<!-- HoneytrapAI — setup.html
+     Version: v0.2.3
+     Revised: 2026-03-07
+     Rev: 1 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +13,7 @@
     body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
          display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
     .card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:2rem;
-          width:100%;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+          width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
     .logo-row{display:flex;align-items:center;gap:.8rem;margin-bottom:1.5rem}
     .logo-row img{width:48px;height:48px;border-radius:8px}
     .logo-row h1{font-size:1.3rem;color:#f5a623}
@@ -21,10 +25,10 @@
     h2{font-size:1rem;color:#f5a623;margin-bottom:.3rem}
     .hint{font-size:.8rem;color:#888;margin-bottom:1.2rem;line-height:1.5}
     label{display:block;font-size:.82rem;color:#aaa;margin-bottom:.35rem;margin-top:.9rem}
-    input[type=password],input[type=email],input[type=text]{
+    input[type=password],input[type=email],input[type=text],input[type=number],select{
       width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;
-      padding:.65rem .9rem;color:#e0e0e0;font-size:.95rem;outline:none;transition:border .2s}
-    input:focus{border-color:#f5a623}
+      padding:.65rem .9rem;color:#e0e0e0;font-size:.9rem;outline:none;transition:border .2s}
+    input:focus,select:focus{border-color:#f5a623}
     input[readonly]{color:#888;cursor:default}
     .error{background:#2a1010;border:1px solid #c0392b;border-radius:6px;
            color:#e74c3c;font-size:.82rem;padding:.5rem .8rem;margin-bottom:1rem}
@@ -36,12 +40,23 @@
     .info-box .lbl{color:#888}
     .info-box .val{color:#f5a623;font-family:monospace;font-size:.85rem}
     .info-box .val.missing{color:#888;font-style:italic}
+    .smtp-section{border-top:1px solid #2a2a4a;margin-top:1.2rem;padding-top:1.1rem}
+    .smtp-section h3{font-size:.85rem;color:#aaa;margin-bottom:.2rem}
+    .smtp-section .smtp-hint{font-size:.76rem;color:#666;margin-bottom:.6rem;line-height:1.5}
+    .smtp-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .7rem}
+    .smtp-grid .full{grid-column:1/-1}
+    .tls-row{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
+    .tls-row input[type=checkbox]{width:auto;accent-color:#f5a623;cursor:pointer;margin:0}
+    .tls-row label{margin:0;font-size:.82rem;color:#aaa;cursor:pointer}
     button{width:100%;background:#f5a623;color:#1a1a2e;border:none;border-radius:6px;
            padding:.75rem;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:1.2rem;
            transition:background .2s}
     button:hover{background:#e09400}
     .btn-skip{background:transparent;border:1px solid #444;color:#888;margin-top:.6rem;font-weight:400}
     .btn-skip:hover{background:#1e1e30;border-color:#666;color:#aaa}
+    .skip-link{display:block;text-align:center;font-size:.78rem;color:#666;
+               margin-top:.8rem;cursor:pointer;text-decoration:underline}
+    .skip-link:hover{color:#aaa}
     .footer{margin-top:1.5rem;font-size:.72rem;color:#555;text-align:center;line-height:1.6}
   </style>
 </head>
@@ -147,20 +162,94 @@
     }
   </script>
 
-  {# ── Step 3 — Email ────────────────────────────────── #}
+  {# ── Step 3 — Email + SMTP ─────────────────────────── #}
   {% elif step == 3 %}
-  <h2>Step 3 of 3 — Email Alerts (Optional)</h2>
-  <p class="hint">Enter an email address to receive threat alert digests. You can configure your SMTP server from the dashboard Settings page after setup. Leave blank to skip for now.</p>
-  <form method="POST" action="/setup">
+  <h2>Step 3 of 3 — Email Alerts</h2>
+  <p class="hint">
+    Configure where threat alert emails are sent and how to deliver them.
+    All fields are optional — you can finish this from Settings after setup.
+  </p>
+  <form method="POST" action="/setup" id="step3-form">
     <input type="hidden" name="step" value="3">
+
     <label for="alert_email">Alert Email Address</label>
-    <input type="email" id="alert_email" name="alert_email" placeholder="you@example.com">
+    <input type="email" id="alert_email" name="alert_email"
+           placeholder="you@example.com" autofocus>
+
+    <!-- SMTP section -->
+    <div class="smtp-section">
+      <h3>📧 SMTP Configuration</h3>
+      <p class="smtp-hint">
+        Works with any provider — Gmail, Outlook, Mailgun, Postmark, etc.<br>
+        For Gmail, use an <a href="https://myaccount.google.com/apppasswords"
+          style="color:#f5a623" target="_blank">App Password</a> with 2FA enabled.
+      </p>
+      <div class="smtp-grid">
+        <div>
+          <label for="smtp_host">SMTP Host</label>
+          <input type="text" id="smtp_host" name="smtp_host"
+                 placeholder="smtp.gmail.com">
+        </div>
+        <div>
+          <label for="smtp_port">Port</label>
+          <input type="number" id="smtp_port" name="smtp_port"
+                 placeholder="587" value="587">
+        </div>
+        <div>
+          <label for="smtp_user">Username</label>
+          <input type="text" id="smtp_user" name="smtp_user"
+                 placeholder="you@gmail.com" autocomplete="off">
+        </div>
+        <div>
+          <label for="smtp_pass">Password / App Password</label>
+          <input type="password" id="smtp_pass" name="smtp_pass"
+                 placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="full">
+          <label for="smtp_from">From Address</label>
+          <input type="text" id="smtp_from" name="smtp_from"
+                 placeholder="honeytrapai@yourdomain.com">
+        </div>
+      </div>
+        <div class="full">
+          <label for="smtp_enc">Encryption</label>
+          <select id="smtp_enc" name="smtp_enc" onchange="smtpEncChange(this)">
+            <option value="starttls" selected>STARTTLS — recommended (Gmail, Outlook, most providers)</option>
+            <option value="ssl">SSL / TLS — older hosts, port 465</option>
+            <option value="none">None — local/internal mail servers only</option>
+          </select>
+          <div id="smtp-enc-hint" style="font-size:.73rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Encrypts your login credentials in transit. Required by almost all email providers.
+          </div>
+        </div>
+    </div>
+
     <button type="submit">Complete Setup →</button>
-    <span class="skip" onclick="document.getElementById('alert_email').value='';document.querySelector('form').submit()"
-          style="display:block;text-align:center;font-size:.78rem;color:#666;margin-top:.8rem;cursor:pointer;text-decoration:underline">
-      Skip for now
-    </span>
+    <span class="skip-link" onclick="skipAll()">Skip for now</span>
   </form>
+
+  <script>
+    function smtpEncChange(sel) {
+      var port = document.getElementById('smtp_port');
+      var hint = document.getElementById('smtp-enc-hint');
+      var hints = {
+        starttls: 'Encrypts your login credentials in transit. Required by almost all email providers.',
+        ssl:      'Direct SSL connection. Use if your provider specifically requires port 465.',
+        none:     '⚠ No encryption. Only use for local or internal mail servers on a trusted network.'
+      };
+      var ports = { starttls: '587', ssl: '465', none: '25' };
+      port.value = ports[sel.value];
+      hint.textContent = hints[sel.value];
+      hint.style.color = sel.value === 'none' ? '#e74c3c' : '#666';
+    }
+    function skipAll() {
+      // Clear all optional fields and submit
+      ['alert_email','smtp_host','smtp_user','smtp_pass','smtp_from'].forEach(function(id) {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('step3-form').submit();
+    }
+  </script>
   {% endif %}
 
   <div class="footer">

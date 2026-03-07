@@ -185,7 +185,8 @@ EOF
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ADGUARD_DIR"
 info "AdGuard Home configured headlessly — web UI bound to localhost only"
 
-sudo apt install -y nginx
+sudo apt install -y nginx python3-pcapy
+echo "127.0.0.1 honeytrapai" >> /etc/hosts
 sudo mkdir -p /etc/nginx/sites-available
 sudo mkdir -p /etc/nginx/sites-enabled
 section "8. Configure nginx reverse proxy"

@@ -200,6 +200,7 @@ cfg['adguard_password'] = '${ADGUARD_PASSWORD}'
 json.dump(cfg, open(cfg_path, 'w'), indent=2)
 "
 info "AdGuard credentials written to config.json"
+chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/config/config.json"
 
 sudo apt install -y nginx python3-pcapy
 echo "127.0.0.1 honeytrapai" >> /etc/hosts

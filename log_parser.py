@@ -1,3 +1,7 @@
+# HoneytrapAI — log_parser.py
+# Version: v0.2.3
+# Revised: 2026-03-07
+# Rev: 1
 #!/usr/bin/env python3
 """
 HoneytrapAI — Maltrail log parser with severity scoring

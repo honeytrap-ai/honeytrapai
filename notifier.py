@@ -1,3 +1,7 @@
+# HoneytrapAI — notifier.py
+# Version: v0.2.3
+# Revised: 2026-03-07
+# Rev: 1
 #!/usr/bin/env python3
 """
 HoneytrapAI — Email alert daemon
@@ -190,16 +194,22 @@ def send_email(subject, text_body, html_body, smtp_cfg, to_addr):
     user = smtp_cfg.get("username", "")
     pw = smtp_cfg.get("password", "")
     use_tls = smtp_cfg.get("tls", True)
+    use_ssl = smtp_cfg.get("ssl", False)
 
     try:
-        with smtplib.SMTP(host, port, timeout=15) as s:
+        if use_ssl:
+            s = smtplib.SMTP_SSL(host, port, timeout=15)
+            s.ehlo()
+        else:
+            s = smtplib.SMTP(host, port, timeout=15)
             s.ehlo()
             if use_tls:
                 s.starttls()
                 s.ehlo()
-            if user and pw:
-                s.login(user, pw)
-            s.sendmail(msg["From"], [to_addr], msg.as_string())
+        if user and pw:
+            s.login(user, pw)
+        s.sendmail(msg["From"], [to_addr], msg.as_string())
+        s.quit()
         log.info(f"Alert email sent to {to_addr}")
         return True
     except Exception as e:

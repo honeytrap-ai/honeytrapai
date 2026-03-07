@@ -1,3 +1,7 @@
+# HoneytrapAI — app.py
+# Version: v0.2.3
+# Revised: 2026-03-07
+# Rev: 1
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -341,6 +345,28 @@ def setup():
             cfg["setup_complete"] = True
             cfg["setup_date"] = datetime.utcnow().isoformat()
             save_config(cfg)
+
+            # Save SMTP config if host was provided
+            smtp_host = request.form.get("smtp_host", "").strip()
+            if smtp_host:
+                smtp = {}
+                if os.path.exists(SMTP_PATH):
+                    with open(SMTP_PATH) as f:
+                        smtp = json.load(f)
+                smtp["host"]      = smtp_host
+                smtp["port"]      = int(request.form.get("smtp_port", 587) or 587)
+                smtp["username"]  = request.form.get("smtp_user", "").strip()
+                smtp["from_addr"] = request.form.get("smtp_from", "").strip()
+                enc = request.form.get("smtp_enc", "starttls")
+                smtp["tls"] = enc == "starttls"
+                smtp["ssl"] = enc == "ssl"
+                pw = request.form.get("smtp_pass", "").strip()
+                if pw:
+                    smtp["password"] = pw
+                os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
+                with open(SMTP_PATH, "w") as f:
+                    json.dump(smtp, f, indent=2)
+
             session["authenticated"] = True
             return redirect(url_for("dashboard"))
 
@@ -609,6 +635,202 @@ def _perform_factory_reset():
         capture_output=True
     )
 
+
+@app.route("/api/smtp", methods=["GET", "POST"])
+@login_required
+def api_smtp():
+    if request.method == "POST":
+        data = request.get_json() or {}
+        smtp = {}
+        # Load existing so we preserve the password if none was submitted
+        if os.path.exists(SMTP_PATH):
+            with open(SMTP_PATH) as f:
+                smtp = json.load(f)
+        smtp["host"]      = data.get("host", smtp.get("host", ""))
+        smtp["port"]      = int(data.get("port", smtp.get("port", 587)))
+        smtp["username"]  = data.get("username", smtp.get("username", ""))
+        smtp["from_addr"] = data.get("from_addr", smtp.get("from_addr", ""))
+        smtp["tls"]       = data.get("tls", smtp.get("tls", True))
+        smtp["ssl"]       = data.get("ssl", smtp.get("ssl", False))
+        if "password" in data and data["password"]:
+            smtp["password"] = data["password"]
+        os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
+        with open(SMTP_PATH, "w") as f:
+            json.dump(smtp, f, indent=2)
+        return jsonify({"status": "ok"})
+
+    # GET — return config but never expose password
+    smtp = {}
+    if os.path.exists(SMTP_PATH):
+        with open(SMTP_PATH) as f:
+            smtp = json.load(f)
+    return jsonify({
+        "host":      smtp.get("host", ""),
+        "port":      smtp.get("port", 587),
+        "username":  smtp.get("username", ""),
+        "from_addr": smtp.get("from_addr", ""),
+        "tls":       smtp.get("tls", True),
+        "ssl":       smtp.get("ssl", False),
+        "configured": bool(smtp.get("host")),
+    })
+
+@app.route("/api/email/test", methods=["POST"])
+@login_required
+def api_email_test():
+    """Send a test email to verify SMTP configuration."""
+    data  = request.get_json() or {}
+    email = data.get("email", "").strip()
+    if not email:
+        return jsonify({"error": "No email address provided."}), 400
+
+    smtp = {}
+    if os.path.exists(SMTP_PATH):
+        with open(SMTP_PATH) as f:
+            smtp = json.load(f)
+
+    if not smtp.get("host"):
+        return jsonify({"error": "SMTP is not configured. Add your SMTP settings first."}), 400
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "🐝 HoneytrapAI — Test Email"
+        msg["From"]    = smtp.get("from_address", smtp.get("username", ""))
+        msg["To"]      = email
+
+        body_text = (
+            "This is a test email from your HoneytrapAI appliance.\n\n"
+            "If you received this, your alert email settings are working correctly.\n\n"
+            "No cloud. No subscription. No monthly fees. Ever.\n"
+            "— HoneytrapAI"
+        )
+        body_html = """
+        <div style="font-family:-apple-system,sans-serif;background:#0f0f1a;color:#e0e0e0;
+                    padding:2rem;max-width:480px;margin:0 auto;border-radius:10px">
+          <div style="font-size:2rem;margin-bottom:.5rem">🐝</div>
+          <div style="color:#f5a623;font-size:1.1rem;font-weight:700;margin-bottom:.8rem">
+            HoneytrapAI — Test Email
+          </div>
+          <p style="color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:1rem">
+            This is a test email from your HoneytrapAI appliance.<br>
+            If you received this, your alert email settings are working correctly.
+          </p>
+          <hr style="border:none;border-top:1px solid #2a2a4a;margin:1rem 0">
+          <div style="font-size:.75rem;color:#555">
+            No cloud. No subscription. No monthly fees. Ever.
+          </div>
+        </div>"""
+
+        msg.attach(MIMEText(body_text, "plain"))
+        msg.attach(MIMEText(body_html, "html"))
+
+        use_tls = smtp.get("tls", True)
+        use_ssl = smtp.get("ssl", False)
+
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port, timeout=10)
+            server.ehlo()
+        else:
+            server = smtplib.SMTP(host, port, timeout=10)
+            server.ehlo()
+            if use_tls:
+                server.starttls()
+                server.ehlo()
+        if user and pw:
+            server.login(user, pw)
+        server.sendmail(msg["From"], [email], msg.as_string())
+        server.quit()
+
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/simulate/threat", methods=["POST"])
+@login_required
+def api_simulate_threat():
+    """Inject a synthetic Maltrail-format entry into the threat log for testing."""
+    import random
+    data = request.get_json() or {}
+    threat_type = data.get("threat_type", "malware")
+    src_ip_in   = data.get("src_ip") or None
+
+    # Threat type → (trail, info, severity)
+    THREAT_PROFILES = {
+        "malware":     (["evil-payload.ru", "malware-drop.cn", "bad-actor.xyz"],    "malware dropper",       "high"),
+        "c2":          (["c2-beacon.io",    "botnet-ctrl.net", "rat-server.ru"],    "C2 beacon",             "high"),
+        "ransomware":  (["ransom-key.org",  "lockbit-cdn.io",  "encrypt-srv.net"],  "ransomware C2",         "high"),
+        "phishing":    (["login-secure.xyz","paypal-verify.cc","account-check.net"],"phishing domain",       "medium"),
+        "scanner":     (["masscan.host",    "shodan.io",       "scanner-bot.net"],  "port scanner",          "medium"),
+        "tor":         (["tor-exit-42.org", "onion-relay.net", "tor-gw.io"],        "Tor exit node",         "medium"),
+        "tracker":     (["telemetry.co",    "analytics-cdn.io","track.pixel.net"],  "tracker / telemetry",   "low"),
+    }
+    trails, info, severity = THREAT_PROFILES.get(threat_type, THREAT_PROFILES["malware"])
+    trail = random.choice(trails)
+
+    # Random source IP from a realistic external range if not provided
+    if not src_ip_in:
+        src_ip = f"{random.randint(1,223)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+    else:
+        src_ip = src_ip_in
+
+    dst_ip   = "192.168.1.1"
+    src_port = random.randint(1024, 65535)
+    dst_port = random.choice([53, 80, 443, 8080])
+    proto    = random.choice(["DNS", "TCP", "UDP"])
+    sensor   = "honeytrap"
+    ref      = "https://honeytrap.ai/simulate"
+    ts       = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    line = f"{ts} {sensor} {src_ip} {src_port} {dst_ip} {dst_port} {proto} {trail} {info};{ref}\n"
+
+    try:
+        with open(LOG_PATH, "a") as f:
+            f.write(line)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({
+        "status":   "ok",
+        "trail":    trail,
+        "src_ip":   src_ip,
+        "severity": severity,
+        "info":     info,
+    })
+
+@app.route("/api/threats/export")
+@login_required
+def api_threats_export():
+    """Export the Maltrail threat log as a CSV download."""
+    import csv, io
+    from log_parser import parse_logs, get_summary
+    events = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["timestamp","severity","src_ip","dst_ip","proto","trail","info","reference"])
+    writer.writeheader()
+    for e in events:
+        writer.writerow({k: e.get(k, "") for k in writer.fieldnames})
+    csv_bytes = output.getvalue().encode()
+    filename = f"honeytrapai-threats-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.csv"
+    return app.response_class(
+        response=csv_bytes,
+        status=200,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.route("/api/threats/purge", methods=["POST"])
+@login_required
+def api_threats_purge():
+    """Truncate the Maltrail log file."""
+    try:
+        open(LOG_PATH, "w").close()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/restore", methods=["POST"])
 @login_required

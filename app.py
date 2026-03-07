@@ -24,8 +24,6 @@ SMTP_PATH = os.path.join(BASE_DIR, "config", "smtp.json")
 VERSION_PATH = os.path.join(BASE_DIR, "VERSION")
 LOG_PATH = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
 DEV_MODE = os.environ.get("HONEYTRAPAI_DEV", "0") == "1"
-DHCPCD_PATH = "/etc/dhcpcd.conf"
-DHCPCD_BLOCK_MARKER = "# HoneytrapAI static IP — do not edit this block manually"
 
 # --- Config helpers ---
 def load_config():
@@ -130,40 +128,16 @@ def validate_same_subnet(ip_str, network_str):
 def set_static_ip(iface, ip, prefix_len, gateway, dns):
     """
     Write (or replace) the HoneytrapAI static IP block in /etc/dhcpcd.conf.
-    Idempotent — removes any previous block before writing.
-    Raises on any I/O or subprocess error.
+    Delegates to set_static_ip_helper.py running as root via sudo.
+    Raises on any error.
     """
-    # Read existing file
-    if os.path.exists(DHCPCD_PATH):
-        with open(DHCPCD_PATH) as f:
-            lines = f.readlines()
-    else:
-        lines = []
-
-    # Strip any previous HoneytrapAI block
-    new_lines = []
-    skip = False
-    for line in lines:
-        if line.strip() == DHCPCD_BLOCK_MARKER:
-            skip = True
-        if not skip:
-            new_lines.append(line)
-        if skip and line.strip() == "# end HoneytrapAI static IP":
-            skip = False
-
-    # Append new block
-    block = (
-        f"\n{DHCPCD_BLOCK_MARKER}\n"
-        f"interface {iface}\n"
-        f"static ip_address={ip}/{prefix_len}\n"
-        f"static routers={gateway}\n"
-        f"static domain_name_servers={dns}\n"
-        f"# end HoneytrapAI static IP\n"
+    helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
+    result = subprocess.run(
+        ["sudo", "python3", helper, iface, ip, str(prefix_len), gateway, dns],
+        capture_output=True, text=True
     )
-    new_lines.append(block)
-
-    with open(DHCPCD_PATH, "w") as f:
-        f.writelines(new_lines)
+    if result.returncode != 0:
+        raise Exception(result.stderr.strip() or "set_static_ip_helper failed")
 
 
 # --- Auth decorators ---
@@ -301,11 +275,46 @@ def setup():
         net=net,
     )
 
+def terms_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        cfg = load_config()
+        if not cfg.get("terms_accepted"):
+            return redirect(url_for("terms"))
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route("/dashboard")
 @login_required
 @setup_required
+@terms_required
 def dashboard():
     return render_template("dashboard.html", version=get_version(), dev_mode=DEV_MODE)
+
+@app.route("/terms")
+@login_required
+@setup_required
+def terms():
+    cfg = load_config()
+    if cfg.get("terms_accepted"):
+        return redirect(url_for("dashboard"))
+    # Load TERMS.md from repo root
+    terms_path = os.path.join(BASE_DIR, "TERMS.md")
+    terms_text = ""
+    if os.path.exists(terms_path):
+        with open(terms_path) as f:
+            terms_text = f.read()
+    return render_template("terms.html", terms_text=terms_text, version=get_version())
+
+@app.route("/api/terms/accept", methods=["POST"])
+@login_required
+@setup_required
+def api_terms_accept():
+    cfg = load_config()
+    cfg["terms_accepted"] = True
+    cfg["terms_accepted_date"] = datetime.utcnow().isoformat()
+    save_config(cfg)
+    return jsonify({"status": "ok"})
 
 # --- API endpoints ---
 @app.route("/api/stats")
@@ -489,20 +498,12 @@ def _perform_factory_reset():
         if os.path.exists(path):
             os.remove(path)
 
-    # Remove HoneytrapAI static IP block from dhcpcd.conf
-    if os.path.exists(DHCPCD_PATH):
-        with open(DHCPCD_PATH) as f:
-            lines = f.readlines()
-        new_lines, skip = [], False
-        for line in lines:
-            if line.strip() == DHCPCD_BLOCK_MARKER:
-                skip = True
-            if not skip:
-                new_lines.append(line)
-            if skip and line.strip() == "# end HoneytrapAI static IP":
-                skip = False
-        with open(DHCPCD_PATH, "w") as f:
-            f.writelines(new_lines)
+    # Remove HoneytrapAI static IP block from dhcpcd.conf via privileged helper
+    helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
+    subprocess.run(
+        ["sudo", "python3", helper, "--remove"],
+        capture_output=True
+    )
 
 
 @app.route("/api/restore", methods=["POST"])

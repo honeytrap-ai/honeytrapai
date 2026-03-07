@@ -380,8 +380,12 @@ EOF
 
 echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/systemctl start honeytrapai-updater.service" \
     > /etc/sudoers.d/honeytrapai-updater
+echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/set_static_ip_helper.py" \
+    >> /etc/sudoers.d/honeytrapai-updater
+echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/reset_monitor.py" \
+    >> /etc/sudoers.d/honeytrapai-updater
 chmod 440 /etc/sudoers.d/honeytrapai-updater
-info "Sudoers rule added for update worker"
+info "Sudoers rules added"
 
 section "13. Enable and start services"
 systemctl daemon-reload

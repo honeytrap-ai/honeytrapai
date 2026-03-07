@@ -5,6 +5,7 @@ No cloud. No subscription. No monthly fees. Ever.
 """
 
 import os
+import re
 import json
 import hashlib
 import secrets
@@ -55,6 +56,92 @@ def verify_password(password, stored):
     except Exception:
         return False
 
+# --- Markdown renderer ---
+def render_markdown(text):
+    """
+    Lightweight markdown-to-HTML renderer for TERMS.md.
+    Handles: h1/h2/h3, bold, italic, inline code, bullet lists, hr, paragraphs.
+    No external dependencies.
+    """
+    import html as html_mod
+    lines = text.splitlines()
+    out = []
+    in_list = False
+    in_para = False
+
+    def close_list():
+        nonlocal in_list
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+
+    def close_para():
+        nonlocal in_para
+        if in_para:
+            out.append("</p>")
+            in_para = False
+
+    def inline(s):
+        # Escape HTML first, then apply inline markdown
+        s = html_mod.escape(s)
+        # Bold+italic ***text***
+        s = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', s)
+        # Bold **text**
+        s = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s)
+        # Italic *text*
+        s = re.sub(r'\*(.+?)\*', r'<em>\1</em>', s)
+        # Inline code `text`
+        s = re.sub(r'`(.+?)`', r'<code>\1</code>', s)
+        return s
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Blank line — close open blocks
+        if not stripped:
+            close_list()
+            close_para()
+            continue
+
+        # HR ---
+        if re.match(r'^-{3,}$', stripped):
+            close_list()
+            close_para()
+            out.append("<hr>")
+            continue
+
+        # Headings
+        m = re.match(r'^(#{1,3})\s+(.*)', stripped)
+        if m:
+            close_list()
+            close_para()
+            lvl = len(m.group(1))
+            out.append(f"<h{lvl}>{inline(m.group(2))}</h{lvl}>")
+            continue
+
+        # Bullet list item
+        m = re.match(r'^[-*]\s+(.*)', stripped)
+        if m:
+            close_para()
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append(f"<li>{inline(m.group(1))}</li>")
+            continue
+
+        # Regular paragraph text
+        close_list()
+        if not in_para:
+            out.append("<p>")
+            in_para = True
+        else:
+            out.append(" ")
+        out.append(inline(stripped))
+
+    close_list()
+    close_para()
+    return "\n".join(out)
+
 # --- Network helpers ---
 def get_network_info(iface="eth0"):
     """
@@ -71,7 +158,6 @@ def get_network_info(iface="eth0"):
         }
     info = {"ip": "", "prefix_len": "", "gateway": "", "dns": "", "network": ""}
     try:
-        # IP + prefix length
         out = subprocess.check_output(
             ["ip", "-4", "addr", "show", iface], text=True, stderr=subprocess.DEVNULL
         )
@@ -79,7 +165,7 @@ def get_network_info(iface="eth0"):
             line = line.strip()
             if line.startswith("inet "):
                 parts = line.split()
-                cidr = parts[1]          # e.g. "192.168.1.199/24"
+                cidr = parts[1]
                 iface_obj = ipaddress.IPv4Interface(cidr)
                 info["ip"] = str(iface_obj.ip)
                 info["prefix_len"] = str(iface_obj.network.prefixlen)
@@ -88,7 +174,6 @@ def get_network_info(iface="eth0"):
     except Exception:
         pass
     try:
-        # Default gateway
         out = subprocess.check_output(
             ["ip", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL
         )
@@ -100,7 +185,6 @@ def get_network_info(iface="eth0"):
     except Exception:
         pass
     try:
-        # First nameserver from resolv.conf
         with open("/etc/resolv.conf") as f:
             for line in f:
                 line = line.strip()
@@ -113,10 +197,6 @@ def get_network_info(iface="eth0"):
 
 
 def validate_same_subnet(ip_str, network_str):
-    """
-    Return True if ip_str is a valid IPv4 address within network_str (e.g. '192.168.1.0/24').
-    Returns False on any parse error or if the IP is the network/broadcast address.
-    """
     try:
         ip = ipaddress.IPv4Address(ip_str)
         net = ipaddress.IPv4Network(network_str, strict=False)
@@ -126,11 +206,6 @@ def validate_same_subnet(ip_str, network_str):
 
 
 def set_static_ip(iface, ip, prefix_len, gateway, dns):
-    """
-    Write (or replace) the HoneytrapAI static IP block in /etc/dhcpcd.conf.
-    Delegates to set_static_ip_helper.py running as root via sudo.
-    Raises on any error.
-    """
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     result = subprocess.run(
         ["sudo", "python3", helper, iface, ip, str(prefix_len), gateway, dns],
@@ -155,6 +230,15 @@ def setup_required(f):
         cfg = load_config()
         if not cfg.get("setup_complete"):
             return redirect(url_for("setup"))
+        return f(*args, **kwargs)
+    return decorated
+
+def terms_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        cfg = load_config()
+        if not cfg.get("terms_accepted"):
+            return redirect(url_for("terms"))
         return f(*args, **kwargs)
     return decorated
 
@@ -198,8 +282,6 @@ def setup():
 
     error = None
     step = int(request.form.get("step", 1))
-
-    # Network info needed for step 2 (GET and POST re-render)
     net = get_network_info()
 
     if request.method == "POST":
@@ -218,19 +300,14 @@ def setup():
                 step = 2
 
         elif step == 2:
-            action = request.form.get("action", "save")   # "save" or "skip"
-
+            action = request.form.get("action", "save")
             if action == "skip":
-                # Stay on DHCP — record that the user skipped, move to step 3
                 cfg["static_ip_skipped"] = True
                 cfg["interface"] = "eth0"
                 save_config(cfg)
                 step = 3
-
             else:
                 entered_ip = request.form.get("static_ip", "").strip()
-
-                # Validate: must be a valid IPv4 in the same subnet
                 if not entered_ip:
                     error = "Please enter an IP address, or choose Skip."
                     step = 2
@@ -275,15 +352,6 @@ def setup():
         net=net,
     )
 
-def terms_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        cfg = load_config()
-        if not cfg.get("terms_accepted"):
-            return redirect(url_for("terms"))
-        return f(*args, **kwargs)
-    return decorated
-
 @app.route("/dashboard")
 @login_required
 @setup_required
@@ -298,13 +366,12 @@ def terms():
     cfg = load_config()
     if cfg.get("terms_accepted"):
         return redirect(url_for("dashboard"))
-    # Load TERMS.md from repo root
     terms_path = os.path.join(BASE_DIR, "TERMS.md")
-    terms_text = ""
+    terms_html = ""
     if os.path.exists(terms_path):
         with open(terms_path) as f:
-            terms_text = f.read()
-    return render_template("terms.html", terms_text=terms_text, version=get_version())
+            terms_html = render_markdown(f.read())
+    return render_template("terms.html", terms_html=terms_html, version=get_version())
 
 @app.route("/api/terms/accept", methods=["POST"])
 @login_required
@@ -443,7 +510,6 @@ def api_update_status():
 @app.route("/api/backup")
 @login_required
 def api_backup():
-    import io
     cfg = load_config()
     smtp = {}
     if os.path.exists(SMTP_PATH):
@@ -462,11 +528,6 @@ def api_backup():
 @app.route("/api/factory-reset", methods=["POST"])
 @login_required
 def api_factory_reset():
-    """
-    Password-protected factory reset.
-    Clears setup_complete, password hash, static IP config, alert settings.
-    Removes the HoneytrapAI dhcpcd block, then reboots.
-    """
     cfg = load_config()
     data = request.get_json()
     password = data.get("password", "")
@@ -476,7 +537,6 @@ def api_factory_reset():
 
     _perform_factory_reset()
 
-    # Reboot in a background thread so we can return the response first
     import threading
     def _reboot():
         import time, subprocess as sp
@@ -488,17 +548,9 @@ def api_factory_reset():
 
 
 def _perform_factory_reset():
-    """
-    Core reset logic — shared by dashboard reset and USB reset monitor.
-    Wipes config, removes static IP block from dhcpcd.conf.
-    Does NOT reboot — caller is responsible for that.
-    """
-    # Wipe config files
     for path in [CONFIG_PATH, SMTP_PATH]:
         if os.path.exists(path):
             os.remove(path)
-
-    # Remove HoneytrapAI static IP block from dhcpcd.conf via privileged helper
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     subprocess.run(
         ["sudo", "python3", helper, "--remove"],

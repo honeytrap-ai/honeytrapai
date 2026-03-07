@@ -37,6 +37,14 @@ def parse_version(v):
     except Exception:
         return (0, 0, 0)
 
+def clear_cache():
+    """Delete the update cache, e.g. after a successful install."""
+    if os.path.exists(CACHE_PATH):
+        try:
+            os.remove(CACHE_PATH)
+        except Exception:
+            pass
+
 def load_cache():
     if os.path.exists(CACHE_PATH):
         try:
@@ -69,11 +77,17 @@ def check_for_update(force=False):
     """Check GitHub for a newer release. Returns dict with update info."""
     cache = load_cache()
     now = time.time()
+    current = get_current_version()
 
     if not force and cache.get("checked_at", 0) + CACHE_TTL > now:
-        return cache.get("result", {"update_available": False})
-
-    current = get_current_version()
+        result = cache.get("result", {"update_available": False})
+        # Defence: if cache says an update is available but we're already on
+        # that version (e.g. just installed), invalidate and re-check live.
+        if result.get("update_available") and \
+                parse_version(result.get("latest_version", "")) <= parse_version(current):
+            clear_cache()
+            return check_for_update(force=True)
+        return result
 
     try:
         req = urllib.request.Request(

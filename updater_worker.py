@@ -36,6 +36,16 @@ def set_status(status):
         json.dump(status, f, indent=2)
 
 
+def clear_cache():
+    """Delete the update cache so the next check hits GitHub fresh."""
+    if os.path.exists(CACHE_PATH):
+        try:
+            os.remove(CACHE_PATH)
+            log.info("Update cache cleared.")
+        except Exception as e:
+            log.warning("Could not clear update cache: %s", e)
+
+
 def load_pending():
     """Load the pending update info written by updater.py."""
     try:
@@ -128,6 +138,9 @@ def run():
         shutil.rmtree(tmp_dir)
         if os.path.exists(PENDING_PATH):
             os.remove(PENDING_PATH)
+
+        # Clear the update cache so the dashboard doesn't show a stale banner
+        clear_cache()
 
         # Restart services
         set_status({"state": "restarting", "message": "Restarting services..."})

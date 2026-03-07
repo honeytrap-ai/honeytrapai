@@ -398,6 +398,52 @@ def api_stats():
         "version": get_version()
     })
 
+@app.route("/api/services/status")
+@login_required
+def api_services_status():
+    import shutil
+    statuses = {}
+
+    # Check systemd services
+    for svc in ["honeytrapai", "adguardhome", "maltrail-sensor", "nginx"]:
+        try:
+            r = subprocess.run(
+                ["systemctl", "is-active", svc],
+                capture_output=True, text=True
+            )
+            statuses[svc] = r.stdout.strip() == "active"
+        except Exception:
+            statuses[svc] = False
+
+    # Check DNS port 53 is responding
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(1)
+        # Send a minimal DNS query for "." (root)
+        query = b'\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01'
+        sock.sendto(query, ("127.0.0.1", 53))
+        sock.recv(512)
+        sock.close()
+        statuses["dns"] = True
+    except Exception:
+        statuses["dns"] = False
+
+    # Overall health
+    critical = ["adguardhome", "maltrail-sensor", "nginx"]
+    all_ok   = all(statuses.get(s) for s in critical) and statuses.get("dns")
+    any_down = not all_ok
+    critical_down = not all(statuses.get(s) for s in ["adguardhome", "maltrail-sensor"])
+
+    if critical_down:
+        overall = "red"
+    elif any_down:
+        overall = "amber"
+    else:
+        overall = "green"
+
+    return jsonify({"services": statuses, "overall": overall})
+
 @app.route("/api/adguard/stats")
 @login_required
 def api_adguard_stats():
@@ -420,10 +466,16 @@ def api_adguard_stats():
             ]
         })
     try:
-        import urllib.request
-        with urllib.request.urlopen(
-            "http://127.0.0.1:3000/control/stats", timeout=3
-        ) as r:
+        import urllib.request, base64
+        cfg = load_config()
+        ag_user = cfg.get("adguard_user", "admin")
+        ag_pass = cfg.get("adguard_password", "")
+        token = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+        req = urllib.request.Request(
+            "http://127.0.0.1:3000/control/stats",
+            headers={"Authorization": f"Basic {token}"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
             return jsonify(json.loads(r.read()))
     except Exception as e:
         return jsonify({"error": str(e)}), 503

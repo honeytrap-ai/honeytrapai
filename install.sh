@@ -121,8 +121,13 @@ sleep 2
 kill $AGH_PID 2>/dev/null || true
 wait $AGH_PID 2>/dev/null || true
 
+# Generate AdGuard credentials
+ADGUARD_PASSWORD="$(openssl rand -base64 12)"
+ADGUARD_HASH="$(python3 -c 'import bcrypt; print(bcrypt.hashpw(b"'"${ADGUARD_PASSWORD}"'", bcrypt.gensalt(10)).decode())')"
+info "AdGuard password generated"
+
 # Write baseline AdGuard config
-cat > "$ADGUARD_DIR/AdGuardHome.yaml" << 'EOF'
+cat > "$ADGUARD_DIR/AdGuardHome.yaml" << EOF
 http:
   pprof:
     port: 6060
@@ -131,7 +136,7 @@ http:
   session_ttl: 720h
 users:
   - name: admin
-    password: $2a$10$placeholder_replace_on_first_run
+    password: ${ADGUARD_HASH}
 dns:
   bind_hosts:
     - 0.0.0.0
@@ -184,6 +189,17 @@ EOF
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ADGUARD_DIR"
 info "AdGuard Home configured headlessly — web UI bound to localhost only"
+
+# Write AdGuard credentials to config.json so the dashboard can authenticate
+python3 -c "
+import json, os
+cfg_path = '${APP_DIR}/config/config.json'
+cfg = json.load(open(cfg_path)) if os.path.exists(cfg_path) else {}
+cfg['adguard_user'] = 'admin'
+cfg['adguard_password'] = '${ADGUARD_PASSWORD}'
+json.dump(cfg, open(cfg_path, 'w'), indent=2)
+"
+info "AdGuard credentials written to config.json"
 
 sudo apt install -y nginx python3-pcapy
 echo "127.0.0.1 honeytrapai" >> /etc/hosts

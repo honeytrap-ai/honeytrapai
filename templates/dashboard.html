@@ -19,6 +19,11 @@
     .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
     .nav-right{display:flex;align-items:center;gap:.8rem}
     .nav-version{font-size:.72rem;color:#555}
+    /* Overall status dot in nav */
+    #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0;transition:background .4s,box-shadow .4s}
+    #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60}
+    #overall-dot.amber{background:#f39c12;box-shadow:0 0 7px #f39c12}
+    #overall-dot.red{background:#e74c3c;box-shadow:0 0 7px #e74c3c}
     .nav-logout{color:#888;font-size:.78rem;text-decoration:none}
     .nav-logout:hover{color:#f5a623}
     /* Update banner */
@@ -43,6 +48,16 @@
     .stat-card .val.green{color:#27ae60}
     .stat-card .val.blue{color:#3498db}
     .stat-card .lbl{font-size:.72rem;color:#888;margin-top:.2rem}
+    /* Sensor status bar */
+    #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
+                        background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
+                        padding:.6rem 1rem;margin-bottom:1.2rem;flex-wrap:wrap}
+    .sensor-item{display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:#888}
+    .sensor-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .sensor-dot.green{background:#27ae60;box-shadow:0 0 6px #27ae60}
+    .sensor-dot.red{background:#e74c3c;box-shadow:0 0 6px #e74c3c}
+    .sensor-dot.grey{background:#555}
+    .sensor-label{color:#aaa}
     /* Panels */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:700px){.grid-2{grid-template-columns:1fr}}
@@ -63,8 +78,10 @@
     .sev-high{background:#2a1010;color:#e74c3c;border-left:3px solid #e74c3c}
     .sev-medium{background:#2a1f10;color:#f39c12;border-left:3px solid #f39c12}
     .sev-low{background:#0f2a1a;color:#27ae60;border-left:3px solid #27ae60}
-    .empty-state{text-align:center;padding:2.5rem;color:#555}
+    .empty-state{text-align:center;padding:2.5rem 1rem;color:#555}
     .empty-state .icon{font-size:2.5rem;margin-bottom:.5rem}
+    .empty-state .empty-title{color:#27ae60;font-weight:bold;margin-bottom:.3rem}
+    .empty-state .empty-sub{font-size:.78rem;color:#555;line-height:1.6}
     /* Bar chart */
     .bar-item{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;font-size:.78rem}
     .bar-label{width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aaa;flex-shrink:0}
@@ -141,6 +158,10 @@
     <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
          alt="HoneytrapAI">
     <span>HoneytrapAI</span>
+    <div style="display:flex;align-items:center;gap:.4rem;margin-left:.6rem;padding-left:.8rem;border-left:1px solid #2a2a4a">
+      <div id="overall-dot" title="Overall system status"></div>
+      <span id="overall-label" style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.06em">System Status</span>
+    </div>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard',this)">Dashboard</button>
@@ -163,6 +184,35 @@
     <div class="stat-card"><div class="val green" id="s-low">—</div><div class="lbl">Low / Info</div></div>
     <div class="stat-card"><div class="val blue" id="s-dns-queries">—</div><div class="lbl">DNS Queries Today</div></div>
     <div class="stat-card"><div class="val" id="s-dns-blocked">—</div><div class="lbl">DNS Blocked Today</div></div>
+  </div>
+
+  <!-- Sensor status bar -->
+  <div id="sensor-status-bar">
+    <div class="sensor-item">
+      <div class="sensor-dot grey" id="dot-maltrail"></div>
+      <span class="sensor-label">Maltrail</span>
+      <span id="lbl-maltrail" style="color:#555">checking…</span>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-dot grey" id="dot-adguard"></div>
+      <span class="sensor-label">AdGuard</span>
+      <span id="lbl-adguard" style="color:#555">checking…</span>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-dot grey" id="dot-honeytrapai"></div>
+      <span class="sensor-label">HoneytrapAI</span>
+      <span id="lbl-honeytrapai" style="color:#555">checking…</span>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-dot grey" id="dot-nginx"></div>
+      <span class="sensor-label">nginx</span>
+      <span id="lbl-nginx" style="color:#555">checking…</span>
+    </div>
+    <div class="sensor-item">
+      <div class="sensor-dot grey" id="dot-dns"></div>
+      <span class="sensor-label">DNS</span>
+      <span id="lbl-dns" style="color:#555">checking…</span>
+    </div>
   </div>
 
   <div class="grid-2">
@@ -350,6 +400,39 @@ function toast(msg, err) {
   setTimeout(() => t.className = '', 3000);
 }
 
+// ── Sensor status ─────────────────────────────────────────────────────────
+async function updateSensorStatus() {
+  try {
+    const d = await fetch('/api/services/status').then(r => r.json());
+    const s = d.services || {};
+    setSensor('maltrail',    s['maltrail-sensor']);
+    setSensor('adguard',     s['adguardhome']);
+    setSensor('honeytrapai', s['honeytrapai']);
+    setSensor('nginx',       s['nginx']);
+    setSensor('dns',         s['dns']);
+    // Overall nav dot
+    const dot = document.getElementById('overall-dot');
+    if (dot) {
+      dot.className = d.overall || 'grey';
+      const labels = {green:'All systems operational', amber:'One or more services degraded', red:'Critical service down'};
+      dot.title = labels[d.overall] || 'Status unknown';
+    }
+  } catch(e) {
+    ['maltrail','adguard','honeytrapai','nginx','dns'].forEach(n => setSensor(n, false));
+    const dot = document.getElementById('overall-dot');
+    if (dot) { dot.className = 'red'; dot.title = 'Could not reach status API'; }
+  }
+}
+
+function setSensor(name, ok, state) {
+  const dot = document.getElementById('dot-' + name);
+  const lbl = document.getElementById('lbl-' + name);
+  if (!dot || !lbl) return;
+  dot.className = 'sensor-dot ' + (ok ? 'green' : 'red');
+  lbl.textContent = ok ? 'active' : 'not running';
+  lbl.style.color = ok ? '#27ae60' : '#e74c3c';
+}
+
 // ── Load stats ────────────────────────────────────────────────────────────
 async function loadStats() {
   try {
@@ -382,10 +465,16 @@ function renderAlerts() {
   const tbody    = document.getElementById('alert-tbody');
   const filtered = currentFilter === 'all' ? allEvents : allEvents.filter(e => e.severity === currentFilter);
   if (!filtered.length) {
+    const filterLabel = currentFilter === 'all' ? '' : currentFilter + ' ';
     tbody.innerHTML = `<tr><td colspan="5">
-      <div class="empty-state"><div class="icon">🐝</div>
-      <div style="color:#27ae60;font-weight:bold">HoneytrapAI is protecting your network.</div>
-      <div>No ${currentFilter === 'all' ? '' : currentFilter + ' '}threats detected yet.</div>
+      <div class="empty-state">
+        <div class="icon">🐝</div>
+        <div class="empty-title">HoneytrapAI is protecting your network.</div>
+        <div class="empty-sub">
+          No ${filterLabel}threats detected yet.<br>
+          This is normal on a clean network. Alerts will appear here when Maltrail<br>
+          identifies suspicious traffic from a known malicious source or domain.
+        </div>
       </div></td></tr>`;
     return;
   }
@@ -415,7 +504,18 @@ function renderOffenders() {
   if (offenderTab === 'sources') items = summaryData.top_sources       || [];
   if (offenderTab === 'trails')  items = summaryData.top_trails        || [];
   if (offenderTab === 'types')   items = summaryData.top_threat_types  || [];
-  if (!items.length) { el.innerHTML = '<div style="color:#555;text-align:center;padding:1.5rem">No data yet</div>'; return; }
+  if (!items.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🐝</div>
+        <div class="empty-title">Your network looks clean.</div>
+        <div class="empty-sub">
+          No threat sources detected yet.<br>
+          Offenders will appear here when Maltrail flags suspicious traffic.
+        </div>
+      </div>`;
+    return;
+  }
   const max = Math.max(...items.map(i => i.count), 1);
   el.innerHTML = items.map(i => {
     const lbl = i.ip || i.trail || i.type || '—';
@@ -653,7 +753,9 @@ async function confirmReset() {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
+updateSensorStatus();
 const statsInterval = setInterval(loadStats, 30000);
+setInterval(updateSensorStatus, 30000);
 checkUpdate(false);
 </script>
 </body>

@@ -138,7 +138,7 @@
 <!-- Nav -->
 <nav>
   <div class="nav-brand">
-    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 30 L50 70 M35 40 L65 40 M35 60 L65 60' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='14' fill='none' stroke='%23f5a623' stroke-width='3'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23f5a623'/%3E%3Ccircle cx='62' cy='26' r='6' fill='%23f5a623'/%3E%3Cline x1='58' y1='24' x2='55' y2='22' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='60' y1='21' x2='58' y2='18' stroke='%231a1a2e' stroke-width='1.5'/%3E%3C/svg%3E"
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
          alt="HoneytrapAI">
     <span>HoneytrapAI</span>
   </div>
@@ -242,7 +242,7 @@
     <button class="btn-save" onclick="changePassword()">Update Password</button>
   </div>
 
-  <!-- Software Update — ISSUE-05 -->
+  <!-- Software Update -->
   <div class="settings-section">
     <h3>⬆️ Software Update</h3>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
@@ -254,9 +254,7 @@
       </div>
       <button class="btn-secondary" onclick="checkUpdate(true)" id="btn-check-update">Check Now</button>
     </div>
-    <!-- Status message line (up to date / checking / error) -->
     <div id="update-status-msg" class="checking">Checking for updates…</div>
-    <!-- Update card — only shown when update is available -->
     <div id="update-card" style="display:none;background:#12122a;border:1px solid #27ae60;
          border-radius:6px;padding:.8rem;font-size:.8rem;margin-top:.8rem">
       <div style="color:#27ae60;margin-bottom:.4rem">
@@ -282,7 +280,7 @@
     </div>
   </div>
 
-  <!-- Factory Reset — ISSUE-04 -->
+  <!-- Factory Reset -->
   <div class="settings-section danger">
     <h3>⚠️ Factory Reset</h3>
     <p style="font-size:.8rem;color:#aaa;line-height:1.6;margin-bottom:1rem">
@@ -299,7 +297,7 @@
 </div>
 </div>
 
-<!-- Factory Reset confirm overlay — ISSUE-04 -->
+<!-- Factory Reset confirm overlay -->
 <div id="reset-overlay">
   <div class="reset-modal">
     <h3>⚠️ Factory Reset</h3>
@@ -469,7 +467,7 @@ async function changePassword() {
   }
 }
 
-// ── Update — ISSUE-05 ─────────────────────────────────────────────────────
+// ── Update ────────────────────────────────────────────────────────────────
 async function checkUpdate(force) {
   const msgEl  = document.getElementById('update-status-msg');
   const lcEl   = document.getElementById('update-last-check');
@@ -489,19 +487,16 @@ async function checkUpdate(force) {
     if (lcEl && d.checked_at) lcEl.textContent = 'Last checked: ' + d.checked_at;
 
     if (d.update_available) {
-      // Strip markdown for display
       const cleanNotes = (d.release_notes || '')
           .replace(/^#{1,3}\s+/gm, '')
           .replace(/\*\*/g, '')
           .split('\n').find(l => l.trim()) || '';
 
-      // Show banner + card
       document.getElementById('update-version').textContent      = d.latest_version;
       document.getElementById('update-notes').textContent        = cleanNotes.slice(0,80);
       document.getElementById('update-banner').classList.add('visible');
       document.getElementById('update-card').style.display       = 'block';
       document.getElementById('update-card-version').textContent = d.latest_version;
-      // For card, use full cleaned text up to 200 chars
       const fullClean = (d.release_notes || '')
           .replace(/^#{1,3}\s+/gm, '')
           .replace(/\*\*/g, '')
@@ -511,7 +506,6 @@ async function checkUpdate(force) {
       msgEl.className   = 'available';
       msgEl.textContent = `Update available: ${d.latest_version}`;
     } else {
-      // No update — show friendly confirmation — ISSUE-05 fix
       document.getElementById('update-card').style.display = 'none';
       msgEl.className   = 'uptodate';
       msgEl.textContent = '✓ Your HoneytrapAI appliance is up to date!';
@@ -548,7 +542,7 @@ async function restoreBackup(input) {
   if (r.ok) setTimeout(() => location.reload(), 1500);
 }
 
-// ── Factory Reset — ISSUE-04 ──────────────────────────────────────────────
+// ── Factory Reset ─────────────────────────────────────────────────────────
 function showResetOverlay() {
   document.getElementById('reset-pw').value = '';
   document.getElementById('reset-error').style.display = 'none';
@@ -560,7 +554,6 @@ function hideResetOverlay() {
   document.getElementById('reset-overlay').classList.remove('visible');
 }
 
-// Close overlay on backdrop click
 document.getElementById('reset-overlay').addEventListener('click', function(e) {
   if (e.target === this) hideResetOverlay();
 });
@@ -593,7 +586,6 @@ async function confirmReset() {
       btn.disabled    = false;
       btn.textContent = 'Reset & Reboot';
     } else {
-      // Success — appliance will reboot; show message and stop interacting
       hideResetOverlay();
       document.body.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;

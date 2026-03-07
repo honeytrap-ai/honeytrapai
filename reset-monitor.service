@@ -1,0 +1,17 @@
+[Unit]
+Description=HoneytrapAI USB Factory Reset Monitor
+# Run after local filesystems and USB storage are ready
+After=local-fs.target udisks2.service
+Wants=udisks2.service
+# Do not restart — this is a one-shot check at boot only
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/honeytrapai/reset_monitor.py
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

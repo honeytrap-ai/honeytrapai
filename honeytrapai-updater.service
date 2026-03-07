@@ -1,0 +1,12 @@
+[Unit]
+Description=HoneytrapAI OTA Update Worker
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/honeytrapai/updater_worker.py
+StandardOutput=journal
+StandardError=journal
+# Do not restart — if it fails the dashboard will show the error state
+Restart=no

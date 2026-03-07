@@ -5,7 +5,7 @@
 # No cloud. No subscription. No monthly fees. Ever.
 
 set -euo pipefail
-HONEYTRAPAI_VERSION="v0.1.0"
+HONEYTRAPAI_VERSION=$(cat VERSION)
 APP_DIR="/opt/honeytrapai"
 SERVICE_USER="honeytrapai"
 LOG_DIR="/var/log/maltrail"
@@ -343,8 +343,23 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# Privileged OTA update worker
+cat > /etc/systemd/system/honeytrapai-updater.service << 'EOF'
+[Unit]
+Description=HoneytrapAI OTA Update Worker
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/honeytrapai/updater_worker.py
+StandardOutput=journal
+StandardError=journal
+Restart=no
+EOF
+
 # USB factory reset monitor
-cp "$APP_DIR/reset_monitor.py" "$APP_DIR/reset_monitor.py"
+
 cat > /etc/systemd/system/reset-monitor.service << EOF
 [Unit]
 Description=HoneytrapAI USB Factory Reset Monitor
@@ -362,6 +377,11 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 EOF
+
+echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/systemctl start honeytrapai-updater.service" \
+    > /etc/sudoers.d/honeytrapai-updater
+chmod 440 /etc/sudoers.d/honeytrapai-updater
+info "Sudoers rule added for update worker"
 
 section "13. Enable and start services"
 systemctl daemon-reload

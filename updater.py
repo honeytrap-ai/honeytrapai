@@ -8,8 +8,6 @@ Never auto-installs — always prompts user via dashboard.
 import os
 import json
 import time
-import shutil
-import tarfile
 import logging
 import urllib.request
 from datetime import datetime
@@ -18,6 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VERSION_PATH = os.path.join(BASE_DIR, "VERSION")
 CACHE_PATH = os.path.join(BASE_DIR, "config", "update_cache.json")
 STATUS_PATH = os.path.join(BASE_DIR, "config", "update_status.json")
+PENDING_PATH = "/tmp/honeytrapai-update-pending"
 
 GITHUB_API = "https://api.github.com/repos/honeytrap-ai/honeytrapai/releases/latest"
 CACHE_TTL = 3600  # 1 hour cache
@@ -113,64 +112,32 @@ def check_for_update(force=False):
         }
 
 def perform_update():
-    """Download and install the latest release. Preserves user config."""
-    set_status({"state": "downloading", "message": "Downloading update..."})
+    """
+    Write pending update info and trigger the privileged updater worker
+    via systemd. The worker (updater_worker.py) runs as root and handles
+    the actual download, file swap, and service restart.
+    """
     try:
         info = check_for_update(force=True)
         if not info.get("update_available"):
             set_status({"state": "idle", "message": "Already up to date."})
             return
 
-        tarball_url = info["tarball_url"]
-        tmp_tar = "/tmp/honeytrapai-update.tar.gz"
-        tmp_dir = "/tmp/honeytrapai-update"
+        # Write pending info for the worker to consume
+        with open(PENDING_PATH, "w") as f:
+            json.dump({
+                "tarball_url": info["tarball_url"],
+                "latest_version": info["latest_version"],
+            }, f)
 
-        # Download
-        urllib.request.urlretrieve(tarball_url, tmp_tar)
-        set_status({"state": "installing", "message": "Installing update..."})
+        set_status({"state": "downloading", "message": "Downloading update..."})
 
-        # Extract
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        os.makedirs(tmp_dir)
-        with tarfile.open(tmp_tar, "r:gz") as t:
-            t.extractall(tmp_dir)
-
-        # Find extracted root dir (GitHub tarballs have a prefix dir)
-        extracted = [d for d in os.listdir(tmp_dir) if os.path.isdir(os.path.join(tmp_dir, d))]
-        if not extracted:
-            raise Exception("Unexpected tarball structure")
-        src = os.path.join(tmp_dir, extracted[0])
-
-        # Files to never overwrite (user data)
-        PRESERVE = {"config", "config.json", "smtp.json"}
-
-        # Swap files
-        for item in os.listdir(src):
-            if item in PRESERVE:
-                continue
-            src_path = os.path.join(src, item)
-            dst_path = os.path.join(BASE_DIR, item)
-            if os.path.isdir(src_path):
-                if os.path.exists(dst_path):
-                    shutil.rmtree(dst_path)
-                shutil.copytree(src_path, dst_path)
-            else:
-                shutil.copy2(src_path, dst_path)
-
-        # Restart services
-        set_status({"state": "restarting", "message": "Restarting services..."})
-        os.system("sudo systemctl restart honeytrapai honeytrapai-notifier 2>/dev/null || true")
-
-        set_status({
-            "state": "complete",
-            "message": f"Updated to {info['latest_version']}",
-            "new_version": info["latest_version"]
-        })
+        # Trigger the privileged worker service
+        os.system("sudo systemctl start honeytrapai-updater.service")
 
     except Exception as e:
-        log.error(f"Update failed: {e}")
-        set_status({"state": "error", "message": f"Update failed: {str(e)}"})
+        log.error(f"Failed to trigger update: {e}")
+        set_status({"state": "error", "message": f"Failed to trigger update: {str(e)}"})
 
 if __name__ == "__main__":
     result = check_for_update(force=True)

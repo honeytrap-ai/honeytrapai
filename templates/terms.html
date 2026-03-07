@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HoneytrapAI — Terms of Use</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         display:flex;align-items:flex-start;justify-content:center;min-height:100vh;padding:2rem 1rem}
+    .card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:2rem;
+          width:100%;max-width:680px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+    .logo-row{display:flex;align-items:center;gap:.8rem;margin-bottom:1.5rem}
+    .logo-row img{width:40px;height:40px;border-radius:8px}
+    .logo-row h1{font-size:1.2rem;color:#f5a623}
+    .logo-row .sub{font-size:.72rem;color:#888}
+    h2{font-size:1rem;color:#f5a623;margin-bottom:.5rem}
+    .intro{font-size:.82rem;color:#aaa;line-height:1.6;margin-bottom:1.2rem}
+    /* Terms scroll box */
+    .terms-box{background:#12122a;border:1px solid #2a2a4a;border-radius:8px;
+               padding:1.2rem 1.4rem;height:340px;overflow-y:auto;
+               font-size:.78rem;color:#aaa;line-height:1.7;margin-bottom:1.4rem}
+    .terms-box h1{font-size:.95rem;color:#f5a623;margin-bottom:.8rem}
+    .terms-box h2{font-size:.82rem;color:#ccc;margin-top:1.2rem;margin-bottom:.4rem}
+    .terms-box p{margin-bottom:.7rem}
+    .terms-box ul{padding-left:1.2rem;margin-bottom:.7rem}
+    .terms-box li{margin-bottom:.3rem}
+    .terms-box strong{color:#e0e0e0}
+    .terms-box hr{border:none;border-top:1px solid #2a2a4a;margin:1rem 0}
+    /* Scroll prompt */
+    .scroll-hint{font-size:.72rem;color:#555;text-align:center;margin-bottom:1rem}
+    /* Decline message */
+    #decline-msg{display:none;background:#2a1010;border:1px solid #c0392b;border-radius:8px;
+                 padding:1rem 1.2rem;margin-bottom:1rem}
+    #decline-msg p{color:#e74c3c;font-size:.82rem;line-height:1.6}
+    #decline-msg strong{color:#e74c3c}
+    /* Buttons */
+    .btn-row{display:flex;gap:.8rem}
+    .btn-agree{flex:2;background:#f5a623;color:#1a1a2e;border:none;border-radius:6px;
+               padding:.75rem;font-size:.95rem;font-weight:700;cursor:pointer;transition:background .2s}
+    .btn-agree:hover{background:#e09400}
+    .btn-agree:disabled{background:#555;color:#333;cursor:default}
+    .btn-decline{flex:1;background:transparent;border:1px solid #444;color:#888;border-radius:6px;
+                 padding:.75rem;font-size:.88rem;cursor:pointer;transition:all .2s}
+    .btn-decline:hover{border-color:#e74c3c;color:#e74c3c}
+    .footer{margin-top:1.5rem;font-size:.72rem;color:#555;text-align:center;line-height:1.6}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-row">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 30 L50 70 M35 40 L65 40 M35 60 L65 60' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='14' fill='none' stroke='%23f5a623' stroke-width='3'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23f5a623'/%3E%3Ccircle cx='62' cy='26' r='6' fill='%23f5a623'/%3E%3Cline x1='58' y1='24' x2='55' y2='22' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='60' y1='21' x2='58' y2='18' stroke='%231a1a2e' stroke-width='1.5'/%3E%3C/svg%3E"
+         alt="HoneytrapAI">
+    <div>
+      <h1>HoneytrapAI</h1>
+      <div class="sub">NO CLOUD · NO SUBSCRIPTION · OPEN SOURCE</div>
+    </div>
+  </div>
+
+  <h2>End User License Agreement</h2>
+  <p class="intro">
+    Before using your HoneytrapAI appliance, please read and agree to the terms below.
+    You must accept this agreement to access the dashboard.
+  </p>
+
+  <div class="terms-box" id="terms-box">
+    {{ terms_text | safe | replace('\n', '<br>') }}
+  </div>
+
+  <div class="scroll-hint" id="scroll-hint">↓ Scroll to read the full agreement</div>
+
+  <div id="decline-msg">
+    <p>
+      <strong>This device cannot be used without agreeing to the Terms of Use.</strong><br>
+      HoneytrapAI requires your acceptance before the dashboard can be accessed.
+      If you have questions about these terms, visit
+      <a href="https://honeytrap.ai/terms" style="color:#f5a623">honeytrap.ai/terms</a>
+      or contact us at
+      <a href="mailto:support@honeytrap.ai" style="color:#f5a623">support@honeytrap.ai</a>.
+    </p>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-agree" id="btn-agree" onclick="acceptTerms()">I Agree</button>
+    <button class="btn-decline" onclick="declineTerms()">Decline</button>
+  </div>
+
+  <div class="footer">
+    HoneytrapAI · No cloud · No subscription · No monthly fees. Ever.
+  </div>
+</div>
+
+<script>
+  // Hide scroll hint once user has scrolled to bottom
+  const box = document.getElementById('terms-box');
+  box.addEventListener('scroll', function() {
+    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 10) {
+      document.getElementById('scroll-hint').style.display = 'none';
+    }
+  });
+
+  function declineTerms() {
+    document.getElementById('decline-msg').style.display = 'block';
+    document.getElementById('btn-agree').disabled = false;
+    // Scroll decline message into view
+    document.getElementById('decline-msg').scrollIntoView({behavior:'smooth'});
+  }
+
+  async function acceptTerms() {
+    const btn = document.getElementById('btn-agree');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/terms/accept', {method:'POST'});
+      if (r.ok) {
+        window.location.href = '/dashboard';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'I Agree';
+      }
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = 'I Agree';
+    }
+  }
+</script>
+</body>
+</html>

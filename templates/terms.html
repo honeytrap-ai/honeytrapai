@@ -22,10 +22,13 @@
                font-size:.78rem;color:#aaa;line-height:1.7;margin-bottom:1.4rem}
     .terms-box h1{font-size:.95rem;color:#f5a623;margin-bottom:.8rem}
     .terms-box h2{font-size:.82rem;color:#ccc;margin-top:1.2rem;margin-bottom:.4rem}
+    .terms-box h3{font-size:.78rem;color:#ccc;margin-top:1rem;margin-bottom:.3rem}
     .terms-box p{margin-bottom:.7rem}
     .terms-box ul{padding-left:1.2rem;margin-bottom:.7rem}
     .terms-box li{margin-bottom:.3rem}
     .terms-box strong{color:#e0e0e0}
+    .terms-box em{color:#ccc}
+    .terms-box code{background:#1a1a3a;border-radius:3px;padding:.1rem .3rem;font-size:.75rem;color:#f5a623}
     .terms-box hr{border:none;border-top:1px solid #2a2a4a;margin:1rem 0}
     /* Scroll prompt */
     .scroll-hint{font-size:.72rem;color:#555;text-align:center;margin-bottom:1rem}
@@ -64,7 +67,7 @@
   </p>
 
   <div class="terms-box" id="terms-box">
-    {{ terms_text | safe | replace('\n', '<br>') }}
+    {{ terms_html | safe }}
   </div>
 
   <div class="scroll-hint" id="scroll-hint">↓ Scroll to read the full agreement</div>
@@ -91,7 +94,6 @@
 </div>
 
 <script>
-  // Hide scroll hint once user has scrolled to bottom
   const box = document.getElementById('terms-box');
   box.addEventListener('scroll', function() {
     if (box.scrollTop + box.clientHeight >= box.scrollHeight - 10) {
@@ -102,7 +104,6 @@
   function declineTerms() {
     document.getElementById('decline-msg').style.display = 'block';
     document.getElementById('btn-agree').disabled = false;
-    // Scroll decline message into view
     document.getElementById('decline-msg').scrollIntoView({behavior:'smooth'});
   }
 

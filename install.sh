@@ -359,7 +359,6 @@ Restart=no
 EOF
 
 # USB factory reset monitor
-
 cat > /etc/systemd/system/reset-monitor.service << EOF
 [Unit]
 Description=HoneytrapAI USB Factory Reset Monitor
@@ -378,12 +377,16 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/systemctl start honeytrapai-updater.service" \
-    > /etc/sudoers.d/honeytrapai-updater
-echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/set_static_ip_helper.py" \
-    >> /etc/sudoers.d/honeytrapai-updater
-echo "honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/reset_monitor.py" \
-    >> /etc/sudoers.d/honeytrapai-updater
+# Sudoers — allow honeytrapai service user to run privileged helpers without password
+# Defaults:honeytrapai !authenticate — required for locked service accounts (no password set)
+# Wildcard * on helper scripts — allows arguments to be passed
+cat > /etc/sudoers.d/honeytrapai-updater << EOF
+Defaults:honeytrapai !authenticate
+honeytrapai ALL=(root) NOPASSWD: /usr/bin/systemctl start honeytrapai-updater.service
+honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/set_static_ip_helper.py *
+honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/reset_monitor.py *
+EOF
+visudo -c -f /etc/sudoers.d/honeytrapai-updater || { error "Sudoers syntax check failed — aborting"; }
 chmod 440 /etc/sudoers.d/honeytrapai-updater
 info "Sudoers rules added"
 

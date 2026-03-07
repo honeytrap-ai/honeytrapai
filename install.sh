@@ -343,15 +343,37 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# USB factory reset monitor
+cp "$APP_DIR/reset_monitor.py" "$APP_DIR/reset_monitor.py"
+cat > /etc/systemd/system/reset-monitor.service << EOF
+[Unit]
+Description=HoneytrapAI USB Factory Reset Monitor
+After=local-fs.target udisks2.service
+Wants=udisks2.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 $APP_DIR/reset_monitor.py
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 section "13. Enable and start services"
 systemctl daemon-reload
 systemctl enable honeytrapai honeytrapai-notifier adguardhome maltrail-sensor honeytrapai-update.timer
+systemctl enable reset-monitor.service
 systemctl start adguardhome
 sleep 3
 systemctl start maltrail-sensor
 sleep 2
 systemctl start honeytrapai honeytrapai-notifier
 systemctl start honeytrapai-update.timer
+systemctl start reset-monitor.service
 
 section "Installation complete!"
 echo ""

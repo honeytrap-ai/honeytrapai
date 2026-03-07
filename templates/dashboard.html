@@ -23,7 +23,7 @@
     .nav-logout:hover{color:#f5a623}
     /* Update banner */
     #update-banner{display:none;background:#1a2a1a;border-bottom:1px solid #27ae60;
-                   padding:.6rem 1.2rem;display:none;align-items:center;justify-content:space-between}
+                   padding:.6rem 1.2rem;align-items:center;justify-content:space-between}
     #update-banner.visible{display:flex}
     #update-banner span{color:#27ae60;font-size:.82rem}
     .banner-actions{display:flex;gap:.5rem}
@@ -85,6 +85,34 @@
     .btn-save:hover{background:#e09400}
     .btn-secondary{background:#2a2a4a;color:#e0e0e0;border:none;border-radius:6px;
                    padding:.55rem 1.4rem;cursor:pointer;font-size:.85rem;margin-left:.5rem}
+    /* Danger zone */
+    .settings-section.danger{border-color:#3a1a1a}
+    .settings-section.danger h3{color:#e74c3c}
+    .btn-danger{background:#2a1010;color:#e74c3c;border:1px solid #3a1a1a;border-radius:6px;
+                padding:.55rem 1.4rem;cursor:pointer;font-size:.85rem;font-weight:700;transition:all .2s}
+    .btn-danger:hover{background:#e74c3c;color:#fff;border-color:#e74c3c}
+    /* Reset confirm overlay */
+    #reset-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+                   z-index:500;align-items:center;justify-content:center}
+    #reset-overlay.visible{display:flex}
+    .reset-modal{background:#1a1a2e;border:1px solid #e74c3c;border-radius:12px;
+                 padding:1.8rem;width:100%;max-width:400px;margin:1rem}
+    .reset-modal h3{color:#e74c3c;margin-bottom:.6rem;font-size:1rem}
+    .reset-modal p{font-size:.82rem;color:#aaa;line-height:1.6;margin-bottom:1rem}
+    .reset-modal .form-row label{color:#aaa}
+    .reset-modal .form-row input{margin-top:.3rem}
+    .reset-modal-actions{display:flex;gap:.6rem;margin-top:1.2rem}
+    .reset-modal-actions button{flex:1;padding:.65rem;border-radius:6px;
+                                font-size:.85rem;font-weight:700;cursor:pointer;border:none}
+    .btn-confirm-reset{background:#e74c3c;color:#fff}
+    .btn-confirm-reset:hover{background:#c0392b}
+    .btn-cancel-reset{background:#2a2a4a;color:#e0e0e0}
+    /* Update status line */
+    #update-status-msg{font-size:.78rem;margin-top:.5rem}
+    #update-status-msg.uptodate{color:#27ae60}
+    #update-status-msg.available{color:#f5a623}
+    #update-status-msg.checking{color:#888}
+    #update-status-msg.error{color:#e74c3c}
     /* Toast */
     #toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#27ae60;color:#fff;
            padding:.7rem 1.2rem;border-radius:8px;font-size:.85rem;opacity:0;
@@ -98,7 +126,7 @@
 </head>
 <body>
 
-<!-- Update banner -->
+<!-- Update banner (update available) -->
 <div id="update-banner">
   <span>🐝 Update available: <strong id="update-version"></strong> — <span id="update-notes"></span></span>
   <div class="banner-actions">
@@ -128,7 +156,6 @@
 <div id="page-dashboard" class="page active">
 <div class="container">
 
-  <!-- Stat cards -->
   <div class="stats-grid" id="stat-cards">
     <div class="stat-card"><div class="val" id="s-total">—</div><div class="lbl">Total Threats</div></div>
     <div class="stat-card"><div class="val red" id="s-high">—</div><div class="lbl">High Severity</div></div>
@@ -139,7 +166,6 @@
   </div>
 
   <div class="grid-2">
-    <!-- Top offenders -->
     <div class="panel">
       <div class="panel-title">
         Top Offenders
@@ -152,7 +178,6 @@
       <div id="offender-chart"></div>
     </div>
 
-    <!-- Recent alerts -->
     <div class="panel">
       <div class="panel-title">Recent Alerts</div>
       <div class="filter-bar">
@@ -165,11 +190,7 @@
         <table class="alert-table">
           <thead>
             <tr>
-              <th>Severity</th>
-              <th>Time</th>
-              <th>Source</th>
-              <th>Trail / Domain</th>
-              <th>Info</th>
+              <th>Severity</th><th>Time</th><th>Source</th><th>Trail / Domain</th><th>Info</th>
             </tr>
           </thead>
           <tbody id="alert-tbody"></tbody>
@@ -185,6 +206,7 @@
 <div id="page-settings" class="page">
 <div class="container">
 
+  <!-- Alert Settings -->
   <div class="settings-section">
     <h3>🔔 Alert Settings</h3>
     <div class="form-row">
@@ -202,6 +224,7 @@
     <button class="btn-save" onclick="saveSettings()">Save Settings</button>
   </div>
 
+  <!-- Change Password -->
   <div class="settings-section">
     <h3>🔑 Change Password</h3>
     <div class="form-row">
@@ -219,22 +242,32 @@
     <button class="btn-save" onclick="changePassword()">Update Password</button>
   </div>
 
+  <!-- Software Update — ISSUE-05 -->
   <div class="settings-section">
     <h3>⬆️ Software Update</h3>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
       <div>
-        <div style="font-size:.82rem;color:#aaa">Current version: <span style="color:#f5a623">{{ version }}</span></div>
-        <div style="font-size:.75rem;color:#666;margin-top:.2rem" id="update-last-check">Checking...</div>
+        <div style="font-size:.82rem;color:#aaa">
+          Current version: <span style="color:#f5a623">{{ version }}</span>
+        </div>
+        <div style="font-size:.75rem;color:#666;margin-top:.2rem" id="update-last-check"></div>
       </div>
-      <button class="btn-secondary" onclick="checkUpdate(true)">Check Now</button>
+      <button class="btn-secondary" onclick="checkUpdate(true)" id="btn-check-update">Check Now</button>
     </div>
-    <div id="update-card" style="display:none;background:#12122a;border:1px solid #27ae60;border-radius:6px;padding:.8rem;font-size:.8rem">
-      <div style="color:#27ae60;margin-bottom:.4rem">Update available: <strong id="update-card-version"></strong></div>
+    <!-- Status message line (up to date / checking / error) -->
+    <div id="update-status-msg" class="checking">Checking for updates…</div>
+    <!-- Update card — only shown when update is available -->
+    <div id="update-card" style="display:none;background:#12122a;border:1px solid #27ae60;
+         border-radius:6px;padding:.8rem;font-size:.8rem;margin-top:.8rem">
+      <div style="color:#27ae60;margin-bottom:.4rem">
+        Update available: <strong id="update-card-version"></strong>
+      </div>
       <div style="color:#aaa;margin-bottom:.8rem" id="update-card-notes"></div>
       <button class="btn-save" onclick="installUpdate()">Install Update</button>
     </div>
   </div>
 
+  <!-- Backup & Restore -->
   <div class="settings-section">
     <h3>💾 Backup &amp; Restore</h3>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
@@ -249,7 +282,43 @@
     </div>
   </div>
 
+  <!-- Factory Reset — ISSUE-04 -->
+  <div class="settings-section danger">
+    <h3>⚠️ Factory Reset</h3>
+    <p style="font-size:.8rem;color:#aaa;line-height:1.6;margin-bottom:1rem">
+      Resets all settings to factory defaults, clears the dashboard password, and reboots the appliance.
+      Threat logs are preserved. You will be redirected to the setup wizard on reboot.
+    </p>
+    <p style="font-size:.75rem;color:#666;margin-bottom:1rem">
+      Tip: You can also trigger a factory reset by placing a file named
+      <code style="color:#f5a623">honeytrap-reset.txt</code> on a USB drive and plugging it in at boot.
+    </p>
+    <button class="btn-danger" onclick="showResetOverlay()">Factory Reset…</button>
+  </div>
+
 </div>
+</div>
+
+<!-- Factory Reset confirm overlay — ISSUE-04 -->
+<div id="reset-overlay">
+  <div class="reset-modal">
+    <h3>⚠️ Factory Reset</h3>
+    <p>
+      This will clear your password, all configuration, and the static IP entry in
+      <code style="color:#f5a623">/etc/dhcpcd.conf</code>. The appliance will reboot and
+      return to the setup wizard.<br><br>
+      Enter your current password to confirm.
+    </p>
+    <div class="form-row">
+      <label>Current Password</label>
+      <input type="password" id="reset-pw" placeholder="Your dashboard password">
+    </div>
+    <div id="reset-error" style="display:none;color:#e74c3c;font-size:.78rem;margin-top:.5rem"></div>
+    <div class="reset-modal-actions">
+      <button class="btn-cancel-reset" onclick="hideResetOverlay()">Cancel</button>
+      <button class="btn-confirm-reset" onclick="confirmReset()">Reset &amp; Reboot</button>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -263,7 +332,7 @@
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────
 let allEvents = [], summaryData = {}, currentFilter = 'all', offenderTab = 'sources';
 
 // ── Page nav ──────────────────────────────────────────────────────────────
@@ -290,16 +359,14 @@ async function loadStats() {
       fetch('/api/stats').then(r => r.json()),
       fetch('/api/adguard/stats').then(r => r.json()).catch(() => ({}))
     ]);
-    allEvents = r1.events || [];
+    allEvents   = r1.events  || [];
     summaryData = r1.summary || {};
-
-    document.getElementById('s-total').textContent   = summaryData.total ?? 0;
-    document.getElementById('s-high').textContent    = summaryData.high ?? 0;
-    document.getElementById('s-medium').textContent  = summaryData.medium ?? 0;
-    document.getElementById('s-low').textContent     = summaryData.low ?? 0;
-    document.getElementById('s-dns-queries').textContent = r2.num_dns_queries?.toLocaleString() ?? '—';
-    document.getElementById('s-dns-blocked').textContent = r2.num_blocked_filtering?.toLocaleString() ?? '—';
-
+    document.getElementById('s-total').textContent        = summaryData.total  ?? 0;
+    document.getElementById('s-high').textContent         = summaryData.high   ?? 0;
+    document.getElementById('s-medium').textContent       = summaryData.medium ?? 0;
+    document.getElementById('s-low').textContent          = summaryData.low    ?? 0;
+    document.getElementById('s-dns-queries').textContent  = r2.num_dns_queries?.toLocaleString()       ?? '—';
+    document.getElementById('s-dns-blocked').textContent  = r2.num_blocked_filtering?.toLocaleString() ?? '—';
     renderAlerts();
     renderOffenders();
   } catch(e) { console.error('Stats error', e); }
@@ -314,7 +381,7 @@ function setFilter(f, btn) {
 }
 
 function renderAlerts() {
-  const tbody = document.getElementById('alert-tbody');
+  const tbody    = document.getElementById('alert-tbody');
   const filtered = currentFilter === 'all' ? allEvents : allEvents.filter(e => e.severity === currentFilter);
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="5">
@@ -347,10 +414,9 @@ function setOffenderTab(tab, btn) {
 function renderOffenders() {
   const el = document.getElementById('offender-chart');
   let items = [];
-  if (offenderTab === 'sources')  items = summaryData.top_sources  || [];
-  if (offenderTab === 'trails')   items = summaryData.top_trails   || [];
-  if (offenderTab === 'types')    items = summaryData.top_threat_types || [];
-
+  if (offenderTab === 'sources') items = summaryData.top_sources       || [];
+  if (offenderTab === 'trails')  items = summaryData.top_trails        || [];
+  if (offenderTab === 'types')   items = summaryData.top_threat_types  || [];
   if (!items.length) { el.innerHTML = '<div style="color:#555;text-align:center;padding:1.5rem">No data yet</div>'; return; }
   const max = Math.max(...items.map(i => i.count), 1);
   el.innerHTML = items.map(i => {
@@ -368,61 +434,100 @@ function renderOffenders() {
 async function loadSettings() {
   try {
     const d = await fetch('/api/settings').then(r => r.json());
-    document.getElementById('cfg-email').value = d.alert_email || '';
-    document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
+    document.getElementById('cfg-email').value     = d.alert_email      || '';
+    document.getElementById('cfg-threshold').value = d.alert_threshold  || 'medium';
   } catch(e) {}
   checkUpdate(false);
 }
 
 async function saveSettings() {
   const payload = {
-    alert_email: document.getElementById('cfg-email').value,
-    alert_threshold: document.getElementById('cfg-threshold').value
+    alert_email:      document.getElementById('cfg-email').value,
+    alert_threshold:  document.getElementById('cfg-threshold').value
   };
-  const r = await fetch('/api/settings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const r = await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+  });
   r.ok ? toast('Settings saved.') : toast('Error saving settings.', true);
 }
 
 async function changePassword() {
   const payload = {
-    current: document.getElementById('pw-current').value,
+    current:      document.getElementById('pw-current').value,
     new_password: document.getElementById('pw-new').value,
-    confirm: document.getElementById('pw-confirm').value
+    confirm:      document.getElementById('pw-confirm').value
   };
-  const r = await fetch('/api/password', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const r = await fetch('/api/password', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+  });
   const d = await r.json();
   if (r.ok) {
     toast('Password updated.');
-    ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value='');
+    ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = '');
   } else {
     toast(d.error || 'Error updating password.', true);
   }
 }
 
-// ── Update ────────────────────────────────────────────────────────────────
+// ── Update — ISSUE-05 ─────────────────────────────────────────────────────
 async function checkUpdate(force) {
-  const url = '/api/update/check' + (force ? '?force=1' : '');
+  const msgEl  = document.getElementById('update-status-msg');
+  const lcEl   = document.getElementById('update-last-check');
+  const btnEl  = document.getElementById('btn-check-update');
+
+  if (force) {
+    msgEl.className = 'checking';
+    msgEl.textContent = 'Checking for updates…';
+    btnEl.disabled = true;
+    btnEl.textContent = 'Checking…';
+  }
+
   try {
-    const d = await fetch(url).then(r => r.json());
-    const lc = document.getElementById('update-last-check');
-    if (lc) lc.textContent = 'Last checked: ' + (d.checked_at || 'now');
+    const url = '/api/update/check' + (force ? '?force=1' : '');
+    const d   = await fetch(url).then(r => r.json());
+
+    if (lcEl && d.checked_at) lcEl.textContent = 'Last checked: ' + d.checked_at;
+
     if (d.update_available) {
-      document.getElementById('update-version').textContent = d.latest_version;
-      document.getElementById('update-notes').textContent = d.release_notes?.slice(0,80) || '';
+      // Strip markdown for display
+      const cleanNotes = (d.release_notes || '')
+          .replace(/^#{1,3}\s+/gm, '')
+          .replace(/\*\*/g, '')
+          .split('\n').find(l => l.trim()) || '';
+
+      // Show banner + card
+      document.getElementById('update-version').textContent      = d.latest_version;
+      document.getElementById('update-notes').textContent        = cleanNotes.slice(0,80);
       document.getElementById('update-banner').classList.add('visible');
-      document.getElementById('update-card').style.display = 'block';
+      document.getElementById('update-card').style.display       = 'block';
       document.getElementById('update-card-version').textContent = d.latest_version;
-      document.getElementById('update-card-notes').textContent = d.release_notes?.slice(0,200) || '';
+      document.getElementById('update-card-notes').textContent   = cleanNotes.slice(0,200);
+      msgEl.className   = 'available';
+      msgEl.textContent = `Update available: ${d.latest_version}`;
+    } else {
+      // No update — show friendly confirmation — ISSUE-05 fix
+      document.getElementById('update-card').style.display = 'none';
+      msgEl.className   = 'uptodate';
+      msgEl.textContent = '✓ Your HoneytrapAI appliance is up to date!';
     }
-  } catch(e) {}
+  } catch(e) {
+    msgEl.className   = 'error';
+    msgEl.textContent = 'Could not check for updates. Check your network connection.';
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Check Now'; }
+  }
 }
 
 async function installUpdate() {
-  toast('Starting update...');
+  toast('Starting update…');
   await fetch('/api/update/install', {method:'POST'});
   const poll = setInterval(async () => {
     const d = await fetch('/api/update/status').then(r => r.json());
-    if (d.state === 'complete') { clearInterval(poll); toast('Update complete! Reloading...'); setTimeout(() => location.reload(), 2000); }
+    if (d.state === 'complete') {
+      clearInterval(poll);
+      toast('Update complete! Reloading…');
+      setTimeout(() => location.reload(), 2000);
+    }
     if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
   }, 2000);
 }
@@ -432,13 +537,86 @@ async function restoreBackup(input) {
   const f = input.files[0];
   if (!f) return;
   const fd = new FormData(); fd.append('backup', f);
-  const r = await fetch('/api/restore', {method:'POST', body:fd});
-  r.ok ? toast('Backup restored. Refreshing...', false, () => location.reload()) : toast('Restore failed.', true);
+  const r  = await fetch('/api/restore', {method:'POST', body:fd});
+  r.ok ? toast('Backup restored. Refreshing…') : toast('Restore failed.', true);
+  if (r.ok) setTimeout(() => location.reload(), 1500);
+}
+
+// ── Factory Reset — ISSUE-04 ──────────────────────────────────────────────
+function showResetOverlay() {
+  document.getElementById('reset-pw').value = '';
+  document.getElementById('reset-error').style.display = 'none';
+  document.getElementById('reset-overlay').classList.add('visible');
+  setTimeout(() => document.getElementById('reset-pw').focus(), 50);
+}
+
+function hideResetOverlay() {
+  document.getElementById('reset-overlay').classList.remove('visible');
+}
+
+// Close overlay on backdrop click
+document.getElementById('reset-overlay').addEventListener('click', function(e) {
+  if (e.target === this) hideResetOverlay();
+});
+
+async function confirmReset() {
+  const pw    = document.getElementById('reset-pw').value;
+  const errEl = document.getElementById('reset-error');
+  errEl.style.display = 'none';
+
+  if (!pw) {
+    errEl.textContent    = 'Please enter your current password.';
+    errEl.style.display  = 'block';
+    return;
+  }
+
+  const btn = document.querySelector('.btn-confirm-reset');
+  btn.disabled    = true;
+  btn.textContent = 'Resetting…';
+
+  try {
+    const r = await fetch('/api/factory-reset', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      errEl.textContent   = d.error || 'Reset failed.';
+      errEl.style.display = 'block';
+      btn.disabled    = false;
+      btn.textContent = 'Reset & Reboot';
+    } else {
+      // Success — appliance will reboot; show message and stop interacting
+      hideResetOverlay();
+      document.body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;
+                    min-height:100vh;background:#0f0f1a;color:#e0e0e0;
+                    font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
+          <div>
+            <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
+            <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">
+              Factory reset complete.
+            </div>
+            <div style="color:#888;font-size:.88rem">
+              The appliance is rebooting. Reconnect to the setup wizard at<br>
+              <a href="http://honeytrap.local" style="color:#f5a623">http://honeytrap.local</a>
+              in a few moments.
+            </div>
+          </div>
+        </div>`;
+    }
+  } catch(e) {
+    errEl.textContent   = 'Network error. Please try again.';
+    errEl.style.display = 'block';
+    btn.disabled    = false;
+    btn.textContent = 'Reset & Reboot';
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
-setInterval(loadStats, 30000); // refresh every 30s
+setInterval(loadStats, 30000);
 checkUpdate(false);
 </script>
 </body>

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.2.5
+# Version: v0.2.6
 # Revised: 2026-03-08
-# Rev: 1
+# Rev: 2
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 

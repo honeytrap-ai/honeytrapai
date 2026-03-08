@@ -1,253 +1,329 @@
 # HoneytrapAI — notifier.py
-# Version: v0.2.3
-# Revised: 2026-03-07
+# Version: v0.2.6
+# Revised: 2026-03-08
 # Rev: 1
 #!/usr/bin/env python3
 """
-HoneytrapAI — Email alert daemon
-Watches Maltrail logs and sends digest emails for high-severity threats.
-Runs as a systemd service. Batches alerts to avoid inbox flooding.
+HoneytrapAI — Email notifier daemon
+Polls the Maltrail log every 60s and sends digest alert emails for new threats.
+Responds immediately to a trigger file written by api_simulate_threat().
+No cloud. No subscription. No monthly fees. Ever.
 """
 
 import os
 import json
 import time
 import smtplib
-import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(BASE_DIR, "config", "config.json")
-SMTP_PATH = os.path.join(BASE_DIR, "config", "smtp.json")
-LOG_PATH = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
-STATE_PATH = os.path.join(BASE_DIR, "config", "notifier_state.json")
-
-BATCH_INTERVAL = 300       # seconds between digest sends (5 min)
-DEDUP_WINDOW = 3600        # seconds before same trail re-alerts (1 hour)
-MIN_SEVERITY = "medium"    # minimum severity to alert on
-SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2}
+# --- Paths ---
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH  = os.path.join(BASE_DIR, "config", "config.json")
+SMTP_PATH    = os.path.join(BASE_DIR, "config", "smtp.json")
+STATE_PATH   = os.path.join(BASE_DIR, "config", "notifier_state.json")
+TRIGGER_PATH = os.path.join(BASE_DIR, "config", "notifier_trigger")
+LOG_PATH     = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
+POLL_INTERVAL = 60  # seconds
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [notifier] %(levelname)s %(message)s"
+    format="%(asctime)s [notifier] %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
 )
-log = logging.getLogger(__name__)
+log = logging.getLogger("notifier")
 
-def load_json(path, default=None):
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
+# --- Config helpers ---
+def load_config():
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH) as f:
                 return json.load(f)
-        except Exception:
-            pass
-    return default if default is not None else {}
+    except Exception as e:
+        log.warning(f"Could not load config: {e}")
+    return {}
 
-def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+def load_smtp():
+    try:
+        if os.path.exists(SMTP_PATH):
+            with open(SMTP_PATH) as f:
+                return json.load(f)
+    except Exception as e:
+        log.warning(f"Could not load smtp config: {e}")
+    return {}
 
 def load_state():
-    return load_json(STATE_PATH, {"last_position": 0, "sent_hashes": {}, "last_send": 0})
+    try:
+        if os.path.exists(STATE_PATH):
+            with open(STATE_PATH) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {"log_position": 0}
 
 def save_state(state):
-    save_json(STATE_PATH, state)
-
-def event_hash(event):
-    key = f"{event['trail']}:{event['src_ip']}"
-    return hashlib.md5(key.encode()).hexdigest()
-
-def read_new_events(state):
-    """Read new lines from Maltrail log since last position."""
-    from log_parser import parse_line
-    if not os.path.exists(LOG_PATH):
-        return [], state["last_position"]
-
-    events = []
-    pos = state.get("last_position", 0)
-
     try:
-        with open(LOG_PATH) as f:
-            f.seek(pos)
-            for line in f:
-                ev = parse_line(line)
-                if ev:
-                    events.append(ev)
-            new_pos = f.tell()
+        os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+        with open(STATE_PATH, "w") as f:
+            json.dump(state, f, indent=2)
     except Exception as e:
-        log.error(f"Error reading log: {e}")
-        return [], pos
+        log.warning(f"Could not save state: {e}")
 
-    return events, new_pos
+# --- Log parsing ---
+SEVERITY_MAP = {
+    "malware dropper":     "high",
+    "ransomware":          "high",
+    "c2 beacon":           "high",
+    "ransomware c2":       "high",
+    "phishing domain":     "medium",
+    "port scanner":        "medium",
+    "tor exit node":       "medium",
+    "tracker":             "low",
+    "tracker / telemetry": "low",
+}
+SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
 
-def filter_events(events, state, min_severity):
-    """Filter events by severity and dedup window."""
-    now = time.time()
-    filtered = []
-    sent = state.get("sent_hashes", {})
-    min_level = SEVERITY_ORDER.get(min_severity, 1)
+def infer_severity(info):
+    info_lower = info.lower()
+    for key, sev in SEVERITY_MAP.items():
+        if key in info_lower:
+            return sev
+    return "low"
 
-    for ev in events:
-        if SEVERITY_ORDER.get(ev["severity"], 0) < min_level:
-            continue
-        h = event_hash(ev)
-        last_sent = sent.get(h, 0)
-        if now - last_sent > DEDUP_WINDOW:
-            filtered.append(ev)
-            sent[h] = now
+def meets_threshold(severity, threshold):
+    return SEVERITY_ORDER.get(severity, 0) >= SEVERITY_ORDER.get(threshold, 1)
 
-    state["sent_hashes"] = sent
-    return filtered
+def parse_new_lines(position):
+    """
+    Read new lines from the Maltrail log since the last known byte position.
+    Returns (events, new_position).
+    Each event: {timestamp, src_ip, trail, info, severity}
+    """
+    events = []
+    if not os.path.exists(LOG_PATH):
+        return events, position
+    try:
+        with open(LOG_PATH, "r", errors="replace") as f:
+            f.seek(position)
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                # Maltrail log format:
+                # timestamp sensor src_ip src_port dst_ip dst_port proto trail info;ref
+                if len(parts) < 9:
+                    continue
+                try:
+                    ts      = f"{parts[0]} {parts[1]}"
+                    src_ip  = parts[2]
+                    trail   = parts[7]
+                    info    = parts[8].split(";")[0] if ";" in parts[8] else parts[8]
+                    sev     = infer_severity(info)
+                    events.append({
+                        "timestamp": ts,
+                        "src_ip":    src_ip,
+                        "trail":     trail,
+                        "info":      info,
+                        "severity":  sev,
+                    })
+                except Exception:
+                    continue
+            new_position = f.tell()
+        return events, new_position
+    except Exception as e:
+        log.warning(f"Log read error: {e}")
+        return events, position
 
-def build_email_body(events):
-    """Build plain-text + HTML digest email."""
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    high = [e for e in events if e["severity"] == "high"]
-    medium = [e for e in events if e["severity"] == "medium"]
+# --- Email sending ---
+SEV_COLORS = {"high": "#e74c3c", "medium": "#f39c12", "low": "#27ae60"}
+SEV_BG     = {"high": "#2a1010", "medium": "#2a1f10", "low": "#0f2a1a"}
 
-    subject = f"🐝 HoneytrapAI Alert — {len(high)} high, {len(medium)} medium severity threats"
+def build_email_html(events):
+    count = len(events)
+    rows  = ""
+    for e in events:
+        col = SEV_COLORS.get(e["severity"], "#aaa")
+        bg  = SEV_BG.get(e["severity"], "#12122a")
+        rows += f"""
+        <tr>
+          <td style="padding:.4rem .6rem;border-bottom:1px solid #1a1a2e">
+            <span style="background:{bg};color:{col};border-left:3px solid {col};
+                         padding:.15rem .5rem;border-radius:3px;font-size:.75rem;
+                         font-weight:700">{e["severity"].upper()}</span>
+          </td>
+          <td style="padding:.4rem .6rem;border-bottom:1px solid #1a1a2e;
+                     color:#666;font-size:.8rem;white-space:nowrap">{e["timestamp"][11:19]}</td>
+          <td style="padding:.4rem .6rem;border-bottom:1px solid #1a1a2e;
+                     font-family:monospace;color:#aaa;font-size:.8rem">{e["src_ip"]}</td>
+          <td style="padding:.4rem .6rem;border-bottom:1px solid #1a1a2e;
+                     color:#f5a623;font-size:.8rem">{e["trail"]}</td>
+          <td style="padding:.4rem .6rem;border-bottom:1px solid #1a1a2e;
+                     color:#aaa;font-size:.8rem">{e["info"]}</td>
+        </tr>"""
 
-    # Plain text
-    text_lines = [
-        f"HoneytrapAI Threat Digest — {now}",
-        f"Total alerts: {len(events)} ({len(high)} high, {len(medium)} medium)",
-        "",
+    return f"""
+    <div style="font-family:-apple-system,sans-serif;background:#0f0f1a;color:#e0e0e0;
+                padding:2rem;max-width:620px;margin:0 auto;border-radius:10px">
+      <div style="font-size:2rem;margin-bottom:.5rem">🐝</div>
+      <div style="color:#f5a623;font-size:1.1rem;font-weight:700;margin-bottom:.4rem">
+        HoneytrapAI — {count} new threat{"s" if count != 1 else ""} detected
+      </div>
+      <p style="color:#aaa;font-size:.85rem;line-height:1.6;margin-bottom:1.2rem">
+        The following threat{"s were" if count != 1 else " was"} detected on your network.
+        Log in to your HoneytrapAI dashboard for full details.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem;
+                    background:#1a1a2e;border-radius:6px;overflow:hidden">
+        <thead>
+          <tr style="border-bottom:1px solid #2a2a4a">
+            <th style="padding:.4rem .6rem;text-align:left;color:#666;
+                       font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Severity</th>
+            <th style="padding:.4rem .6rem;text-align:left;color:#666;
+                       font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Time</th>
+            <th style="padding:.4rem .6rem;text-align:left;color:#666;
+                       font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Source IP</th>
+            <th style="padding:.4rem .6rem;text-align:left;color:#666;
+                       font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Trail</th>
+            <th style="padding:.4rem .6rem;text-align:left;color:#666;
+                       font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Info</th>
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
+      <hr style="border:none;border-top:1px solid #2a2a4a;margin:1.2rem 0">
+      <div style="font-size:.72rem;color:#555">
+        No cloud. No subscription. No monthly fees. Ever. — HoneytrapAI
+      </div>
+    </div>"""
+
+def build_email_text(events):
+    count = len(events)
+    lines = [
+        f"HoneytrapAI — {count} new threat{'s' if count != 1 else ''} detected",
+        "=" * 50,
+        ""
     ]
-    for ev in events:
-        sev = ev["severity"].upper()
-        text_lines.append(
-            f"[{sev}] {ev['timestamp']} | {ev['src_ip']} → {ev['trail']} | {ev['info']}"
+    for e in events:
+        lines.append(
+            f"[{e['severity'].upper()}] {e['timestamp'][11:19]}  "
+            f"{e['src_ip']}  {e['trail']}  {e['info']}"
         )
-    text_lines += [
-        "",
-        "View full details at http://honeytrap.local",
-        "",
-        "HoneytrapAI · No cloud · No subscription · No monthly fees. Ever.",
-        "🐝 Join the Pro Club — https://honeytrap.ai/community"
-    ]
-    text_body = "\n".join(text_lines)
+    lines += ["", "No cloud. No subscription. No monthly fees. Ever.", "— HoneytrapAI"]
+    return "\n".join(lines)
 
-    # HTML
-    rows = ""
-    for ev in events:
-        colour = {"high": "#c0392b", "medium": "#e67e22", "low": "#27ae60"}.get(ev["severity"], "#888")
-        rows += (
-            f"<tr>"
-            f"<td style='color:{colour};font-weight:bold;padding:4px 8px'>{ev['severity'].upper()}</td>"
-            f"<td style='padding:4px 8px'>{ev['timestamp']}</td>"
-            f"<td style='padding:4px 8px'>{ev['src_ip']}</td>"
-            f"<td style='padding:4px 8px'>{ev['trail']}</td>"
-            f"<td style='padding:4px 8px'>{ev['info']}</td>"
-            f"</tr>"
-        )
+def send_digest(events, cfg, smtp):
+    to_addr   = cfg.get("alert_email", "").strip()
+    from_addr = smtp.get("from_addr", smtp.get("username", "")).strip()
+    host      = smtp.get("host", "")
+    port      = int(smtp.get("port", 587))
+    user      = smtp.get("username", "")
+    pw        = smtp.get("password", "")
+    use_ssl   = smtp.get("ssl", False)
+    use_tls   = smtp.get("tls", True)
 
-    html_body = f"""
-<html><body style='font-family:sans-serif;color:#333'>
-<div style='max-width:700px;margin:0 auto'>
-  <div style='background:#1a1a2e;padding:16px;border-radius:8px 8px 0 0'>
-    <span style='color:#f5a623;font-size:1.3em;font-weight:bold'>🐝 HoneytrapAI Threat Digest</span>
-    <span style='color:#aaa;font-size:0.9em;margin-left:12px'>{now}</span>
-  </div>
-  <div style='background:#f9f9f9;padding:16px;border:1px solid #ddd'>
-    <p><strong>{len(events)} threats detected</strong> — {len(high)} high severity, {len(medium)} medium severity</p>
-    <table style='width:100%;border-collapse:collapse;font-size:0.9em'>
-      <thead>
-        <tr style='background:#eee'>
-          <th style='padding:4px 8px;text-align:left'>Severity</th>
-          <th style='padding:4px 8px;text-align:left'>Time</th>
-          <th style='padding:4px 8px;text-align:left'>Source IP</th>
-          <th style='padding:4px 8px;text-align:left'>Trail</th>
-          <th style='padding:4px 8px;text-align:left'>Info</th>
-        </tr>
-      </thead>
-      <tbody>{rows}</tbody>
-    </table>
-    <p style='margin-top:16px'>
-      <a href='http://honeytrap.local' style='background:#f5a623;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none'>
-        View Dashboard
-      </a>
-    </p>
-  </div>
-  <div style='background:#eee;padding:8px 16px;font-size:0.8em;color:#888;border-radius:0 0 8px 8px'>
-    HoneytrapAI · No cloud · No subscription · No monthly fees. Ever.<br>
-    🐝 <a href='https://honeytrap.ai/community'>Join the Pro Club</a>
-  </div>
-</div>
-</body></html>
-"""
-    return subject, text_body, html_body
+    if not to_addr or not host:
+        log.warning("Cannot send digest — alert_email or SMTP host not configured")
+        return False
 
-def send_email(subject, text_body, html_body, smtp_cfg, to_addr):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = smtp_cfg.get("from_addr", "noreply@honeytrap.ai")
-    msg["To"] = to_addr
-
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
-
-    host = smtp_cfg["host"]
-    port = int(smtp_cfg.get("port", 587))
-    user = smtp_cfg.get("username", "")
-    pw = smtp_cfg.get("password", "")
-    use_tls = smtp_cfg.get("tls", True)
-    use_ssl = smtp_cfg.get("ssl", False)
+    count = len(events)
+    msg   = MIMEMultipart("alternative")
+    msg["Subject"] = f"🐝 HoneytrapAI — {count} new threat{'s' if count != 1 else ''} detected"
+    msg["From"]    = from_addr
+    msg["To"]      = to_addr
+    msg.attach(MIMEText(build_email_text(events), "plain"))
+    msg.attach(MIMEText(build_email_html(events), "html"))
 
     try:
         if use_ssl:
-            s = smtplib.SMTP_SSL(host, port, timeout=15)
-            s.ehlo()
+            server = smtplib.SMTP_SSL(host, port, timeout=10)
+            server.ehlo()
         else:
-            s = smtplib.SMTP(host, port, timeout=15)
-            s.ehlo()
+            server = smtplib.SMTP(host, port, timeout=10)
+            server.ehlo()
             if use_tls:
-                s.starttls()
-                s.ehlo()
+                server.starttls()
+                server.ehlo()
         if user and pw:
-            s.login(user, pw)
-        s.sendmail(msg["From"], [to_addr], msg.as_string())
-        s.quit()
-        log.info(f"Alert email sent to {to_addr}")
+            server.login(user, pw)
+        server.sendmail(from_addr, [to_addr], msg.as_string())
+        server.quit()
+        log.info(f"Digest sent to {to_addr} — {count} event(s)")
         return True
     except Exception as e:
-        log.error(f"Failed to send email: {e}")
+        log.error(f"Failed to send digest: {e}")
         return False
 
-def run():
-    log.info("HoneytrapAI notifier daemon starting...")
-    while True:
+# --- Trigger file helpers ---
+def check_trigger():
+    if os.path.exists(TRIGGER_PATH):
         try:
-            cfg = load_json(CONFIG_PATH)
-            smtp_cfg = load_json(SMTP_PATH)
-            state = load_state()
+            os.remove(TRIGGER_PATH)
+        except Exception:
+            pass
+        return True
+    return False
 
-            to_addr = cfg.get("alert_email", "")
-            min_sev = cfg.get("alert_threshold", MIN_SEVERITY)
+# --- Main loop ---
+def run():
+    log.info("HoneytrapAI notifier started")
+    state = load_state()
 
-            if not to_addr or not smtp_cfg.get("host"):
-                time.sleep(BATCH_INTERVAL)
-                continue
-
-            events, new_pos = read_new_events(state)
-            state["last_position"] = new_pos
-
-            filtered = filter_events(events, state, min_sev)
-
-            now = time.time()
-            if filtered and (now - state.get("last_send", 0)) >= BATCH_INTERVAL:
-                subject, text_body, html_body = build_email_body(filtered)
-                if send_email(subject, text_body, html_body, smtp_cfg, to_addr):
-                    state["last_send"] = now
-
+    # On first start, fast-forward to end of log so we don't
+    # re-alert on historical entries
+    if state.get("log_position", 0) == 0 and os.path.exists(LOG_PATH):
+        try:
+            state["log_position"] = os.path.getsize(LOG_PATH)
             save_state(state)
+            log.info(f"Fast-forwarded log position to {state['log_position']} bytes")
+        except Exception:
+            pass
 
-        except Exception as e:
-            log.error(f"Notifier loop error: {e}")
+    last_run = 0
 
-        time.sleep(60)  # check every minute, batch every BATCH_INTERVAL
+    while True:
+        triggered  = check_trigger()
+        time_due   = (time.time() - last_run) >= POLL_INTERVAL
+
+        if not (triggered or time_due):
+            time.sleep(1)
+            continue
+
+        last_run = time.time()
+        cfg  = load_config()
+        smtp = load_smtp()
+
+        # Skip if emails disabled
+        if cfg.get("email_disabled", False):
+            state_now = load_state()
+            # Still advance position so we don't build up a backlog
+            _, new_pos = parse_new_lines(state_now.get("log_position", 0))
+            state_now["log_position"] = new_pos
+            save_state(state_now)
+            if triggered:
+                log.info("Trigger received but email_disabled — skipping")
+            time.sleep(1)
+            continue
+
+        threshold = cfg.get("alert_threshold", "medium")
+        position  = state.get("log_position", 0)
+
+        events, new_position = parse_new_lines(position)
+        state["log_position"] = new_position
+        state["last_run"]     = datetime.utcnow().isoformat()
+        save_state(state)
+
+        qualifying = [e for e in events if meets_threshold(e["severity"], threshold)]
+
+        if qualifying:
+            send_digest(qualifying, cfg, smtp)
+        elif triggered:
+            log.info(f"Trigger received — {len(events)} event(s) parsed, "
+                     f"none met threshold '{threshold}'")
+
+        time.sleep(1)
 
 if __name__ == "__main__":
     run()

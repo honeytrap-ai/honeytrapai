@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.2.5
+# Version: v0.2.6
 # Revised: 2026-03-08
-# Rev: 3
+# Rev: 2
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -374,7 +374,7 @@ def api_stats():
 @login_required
 def api_services_status():
     statuses = {}
-    for svc in ["honeytrapai", "adguardhome", "maltrail-sensor", "nginx"]:
+    for svc in ["honeytrapai", "adguardhome", "maltrail-sensor", "honeytrapai-notifier"]:
         try:
             r = subprocess.run(["systemctl", "is-active", svc],
                                capture_output=True, text=True)
@@ -394,9 +394,11 @@ def api_services_status():
     except Exception:
         statuses["dns"] = False
 
-    critical      = ["adguardhome", "maltrail-sensor", "nginx"]
-    all_ok        = all(statuses.get(s) for s in critical) and statuses.get("dns")
-    critical_down = not all(statuses.get(s) for s in ["adguardhome", "maltrail-sensor"])
+    # nginx removed — if it's down the dashboard is unreachable anyway
+    # notifier down = amber (detection still works, just no emails)
+    critical      = ["adguardhome", "maltrail-sensor"]
+    all_ok        = all(statuses.get(s) for s in critical) and statuses.get("dns") and statuses.get("honeytrapai-notifier")
+    critical_down = not all(statuses.get(s) for s in critical)
 
     if critical_down:
         overall = "red"
@@ -447,15 +449,17 @@ def api_settings():
         if "alert_email"     in data: cfg["alert_email"]     = data["alert_email"]
         if "interface"       in data: cfg["interface"]       = data["interface"]
         if "alert_threshold" in data: cfg["alert_threshold"] = data["alert_threshold"]
+        if "email_disabled"  in data: cfg["email_disabled"]  = bool(data["email_disabled"])
         save_config(cfg)
         return jsonify({"status": "ok"})
 
     return jsonify({
-        "alert_email":      cfg.get("alert_email", ""),
-        "interface":        cfg.get("interface", "eth0"),
-        "alert_threshold":  cfg.get("alert_threshold", "medium"),
-        "smtp_configured":  bool(smtp.get("host")),
-        "setup_date":       cfg.get("setup_date", "")
+        "alert_email":     cfg.get("alert_email", ""),
+        "interface":       cfg.get("interface", "eth0"),
+        "alert_threshold": cfg.get("alert_threshold", "medium"),
+        "email_disabled":  bool(cfg.get("email_disabled", False)),
+        "smtp_configured": bool(smtp.get("host")),
+        "setup_date":      cfg.get("setup_date", "")
     })
 
 @app.route("/api/password", methods=["POST"])
@@ -596,6 +600,10 @@ def api_email_test():
     if not email:
         return jsonify({"error": "No email address provided."}), 400
 
+    cfg = load_config()
+    if cfg.get("email_disabled", False):
+        return jsonify({"error": "Alert emails are disabled. Uncheck 'Disable Sending Alert Emails' in settings first."}), 400
+
     smtp = {}
     if os.path.exists(SMTP_PATH):
         with open(SMTP_PATH) as f:
@@ -604,7 +612,6 @@ def api_email_test():
     if not smtp.get("host"):
         return jsonify({"error": "SMTP is not configured. Add your SMTP settings first."}), 400
 
-    # Extract SMTP connection parameters from config
     host = smtp.get("host", "")
     port = int(smtp.get("port", 587))
     user = smtp.get("username", "")
@@ -711,6 +718,14 @@ def api_simulate_threat():
             raise Exception(result.stderr.strip() or "log_inject_helper failed")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    # Poke the notifier to run immediately rather than waiting for the 60s poll
+    trigger_path = os.path.join(BASE_DIR, "config", "notifier_trigger")
+    try:
+        os.makedirs(os.path.dirname(trigger_path), exist_ok=True)
+        open(trigger_path, "w").close()
+    except Exception:
+        pass  # Non-fatal — notifier will pick it up on next poll
 
     return jsonify({"status": "ok", "trail": trail, "src_ip": src_ip,
                     "severity": severity, "info": info})

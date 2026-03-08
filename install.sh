@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
+# Version: v0.2.5
+# Revised: 2026-03-08
+# Rev: 1
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -33,7 +36,6 @@ apt-get install -y -qq \
 pip3 install pyyaml --quiet 2>/dev/null || true
 
 section "2. Fix systemd-resolved port 53 conflict (Pi OS / Debian)"
-# This is the most common blocker for AdGuard Home on Pi OS
 if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
     warn "systemd-resolved is running — disabling stub listener to free port 53"
     mkdir -p /etc/systemd/resolved.conf.d
@@ -42,7 +44,6 @@ if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
 DNSStubListener=no
 EOF
     systemctl restart systemd-resolved
-    # Remove the symlink that points /etc/resolv.conf to stub
     rm -f /etc/resolv.conf
     ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
     info "systemd-resolved stub listener disabled"
@@ -61,12 +62,10 @@ mkdir -p "$APP_DIR/config"
 python3 -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --quiet flask gunicorn pyyaml
 
-# Generate secret key
 SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 echo "$SECRET_KEY" > "$APP_DIR/config/secret_key"
 chmod 600 "$APP_DIR/config/secret_key"
 
-# Write VERSION file
 echo "$HONEYTRAPAI_VERSION" > "$APP_DIR/VERSION"
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
@@ -79,14 +78,12 @@ fi
 mkdir -p "$LOG_DIR"
 chown "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
 
-# Maltrail sensor config
 cat > /etc/maltrail-sensor.conf << EOF
 SENSOR_INTERFACE eth0
 LOG_DIR $LOG_DIR
 USE_HEURISTICS true
 ENABLE_SUDO_INTERFACE true
 EOF
-
 info "Maltrail installed"
 
 section "6. Install AdGuard Home"
@@ -104,29 +101,22 @@ fi
 info "AdGuard Home binary installed"
 
 section "7. Configure AdGuard Home headlessly"
-# Start AdGuard temporarily to perform first-run setup via API
 "$ADGUARD_DIR/AdGuardHome" &
 AGH_PID=$!
 
-# Wait for port 3000 to open
 for i in $(seq 1 30); do
-    if curl -s -L http://127.0.0.1:3000 >/dev/null 2>&1; then
-        break
-    fi
+    if curl -s -L http://127.0.0.1:3000 >/dev/null 2>&1; then break; fi
     sleep 1
 done
 
-# Complete first-run setup via API
 sleep 2
 kill $AGH_PID 2>/dev/null || true
 wait $AGH_PID 2>/dev/null || true
 
-# Generate AdGuard credentials
 ADGUARD_PASSWORD="$(openssl rand -base64 12)"
 ADGUARD_HASH="$(python3 -c 'import bcrypt; print(bcrypt.hashpw(b"'"${ADGUARD_PASSWORD}"'", bcrypt.gensalt(10)).decode())')"
 info "AdGuard password generated"
 
-# Write baseline AdGuard config
 cat > "$ADGUARD_DIR/AdGuardHome.yaml" << EOF
 http:
   pprof:
@@ -190,7 +180,6 @@ EOF
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ADGUARD_DIR"
 info "AdGuard Home configured headlessly — web UI bound to localhost only"
 
-# Write AdGuard credentials to config.json so the dashboard can authenticate
 python3 -c "
 import json, os
 cfg_path = '${APP_DIR}/config/config.json'
@@ -206,8 +195,8 @@ sudo apt install -y nginx python3-pcapy
 echo "127.0.0.1 honeytrapai" >> /etc/hosts
 sudo mkdir -p /etc/nginx/sites-available
 sudo mkdir -p /etc/nginx/sites-enabled
-section "8. Configure nginx reverse proxy"
 
+section "8. Configure nginx reverse proxy"
 cat > /etc/nginx/sites-available/honeytrapai << 'EOF'
 server {
     listen 80 default_server;
@@ -232,7 +221,6 @@ info "nginx configured"
 section "9. Configure mDNS (honeytrap.local)"
 hostname honeytrapai
 echo "honeytrapai" > /etc/hostname
-# Enable avahi for .local mDNS resolution
 systemctl enable avahi-daemon
 systemctl start avahi-daemon
 info "mDNS configured — device accessible at http://honeytrap.local"
@@ -335,7 +323,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# OTA update check timer (daily, randomised offset)
+# OTA update check timer
 cat > /etc/systemd/system/honeytrapai-update.service << EOF
 [Unit]
 Description=HoneytrapAI Update Check
@@ -402,6 +390,7 @@ Defaults:honeytrapai !authenticate
 honeytrapai ALL=(root) NOPASSWD: /usr/bin/systemctl start honeytrapai-updater.service
 honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/set_static_ip_helper.py *
 honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/reset_monitor.py *
+honeytrapai ALL=(root) NOPASSWD: /usr/bin/python3 $APP_DIR/log_inject_helper.py *
 EOF
 visudo -c -f /etc/sudoers.d/honeytrapai-updater || { error "Sudoers syntax check failed — aborting"; }
 chmod 440 /etc/sudoers.d/honeytrapai-updater

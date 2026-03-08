@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
      Version: v0.2.5
      Revised: 2026-03-08
-     Rev: 3 -->
+     Rev: 4 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,7 +58,15 @@
     .sensor-dot.green{background:#27ae60;box-shadow:0 0 6px #27ae60}
     .sensor-dot.red{background:#e74c3c;box-shadow:0 0 6px #e74c3c}
     .sensor-dot.grey{background:#555}
-    .sensor-label{color:#aaa}
+    .sensor-label{color:#aaa;border-bottom:1px dotted #444;cursor:default;position:relative}
+    .sensor-label .tip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;
+                       transform:translateX(-50%);background:#2a2a4a;color:#ccc;
+                       font-size:.7rem;line-height:1.4;white-space:nowrap;padding:.35rem .6rem;
+                       border-radius:5px;border:1px solid #3a3a5a;pointer-events:none;z-index:200}
+    .sensor-label .tip::after{content:'';position:absolute;top:100%;left:50%;
+                              transform:translateX(-50%);border:5px solid transparent;
+                              border-top-color:#2a2a4a}
+    .sensor-label:hover .tip{display:block}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:700px){.grid-2{grid-template-columns:1fr}}
     .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem}
@@ -138,6 +146,9 @@
     #toast.error{background:#c0392b}
     .footer{text-align:center;padding:1.5rem;font-size:.72rem;color:#444;line-height:1.8}
     .footer a{color:#666;text-decoration:none}.footer a:hover{color:#f5a623}
+    /* ── Email disabled overlay ── */
+    .smtp-fields-wrap{position:relative;transition:opacity .2s}
+    .smtp-fields-wrap.disabled{opacity:.35;pointer-events:none;user-select:none}
   </style>
 </head>
 <body>
@@ -186,27 +197,27 @@
   <div id="sensor-status-bar">
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-maltrail"></div>
-      <span class="sensor-label">Maltrail</span>
+      <span class="sensor-label">Maltrail<span class="tip">Threat detection engine — monitors traffic for known malicious sources and domains</span></span>
       <span id="lbl-maltrail" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-adguard"></div>
-      <span class="sensor-label">AdGuard</span>
+      <span class="sensor-label">AdGuard<span class="tip">DNS-based ad and tracker blocker — handles all DNS queries for your network</span></span>
       <span id="lbl-adguard" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-honeytrapai"></div>
-      <span class="sensor-label">HoneytrapAI</span>
+      <span class="sensor-label">HoneytrapAI<span class="tip">The main dashboard and control interface you are using right now</span></span>
       <span id="lbl-honeytrapai" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
-      <div class="sensor-dot grey" id="dot-nginx"></div>
-      <span class="sensor-label">nginx</span>
-      <span id="lbl-nginx" style="color:#555">checking…</span>
+      <div class="sensor-dot grey" id="dot-notifier"></div>
+      <span class="sensor-label">Notifier<span class="tip">Sends alert emails when new threats are detected on your network</span></span>
+      <span id="lbl-notifier" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-dns"></div>
-      <span class="sensor-label">DNS</span>
+      <span class="sensor-label">DNS<span class="tip">Confirms DNS resolution is working — required for AdGuard to block threats</span></span>
       <span id="lbl-dns" style="color:#555">checking…</span>
     </div>
   </div>
@@ -258,80 +269,86 @@
       Required for threat alert emails. Works with any SMTP provider —
       Gmail, Outlook, Hotmail, Live, etc.
     </p>
-    <div class="form-row">
-      <label>Alert Email Address</label>
-      <input type="email" id="cfg-email" placeholder="you@gmail.com"
-             onblur="validateEmailField(this,'cfg-email-err')">
-      <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-        The email address where threat alerts will be sent. This does not need to be the same
-        account used to send — it can be any address you check regularly.
-      </div>
-      <div id="cfg-email-err" class="field-err"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem .8rem">
-      <div class="form-row" style="margin:0">
-        <label>SMTP Host</label>
-        <input type="text" id="smtp-host" placeholder="smtp.gmail.com"
-               onblur="validateSmtpHost(this)">
+
+    <!-- SMTP fields — greyed out when emails disabled -->
+    <div class="smtp-fields-wrap" id="smtp-fields-wrap">
+      <div class="form-row">
+        <label>Alert Email Address</label>
+        <input type="email" id="cfg-email" placeholder="you@gmail.com"
+               onblur="validateEmailField(this,'cfg-email-err')">
         <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          Your email provider's outgoing mail server. Common examples:
-          <code style="color:#f5a623">smtp.gmail.com</code> (Gmail),
-          <code style="color:#f5a623">smtp-mail.outlook.com</code> (Outlook / Hotmail / Live).
-          Check your provider's support pages if unsure.
+          The email address where threat alerts will be sent. This does not need to be the same
+          account used to send — it can be any address you check regularly.
         </div>
-        <div id="smtp-host-err" class="field-err"></div>
+        <div id="cfg-email-err" class="field-err"></div>
       </div>
-      <div class="form-row" style="margin:0">
-        <label>Port</label>
-        <input type="number" id="smtp-port" placeholder="587" value="587">
-        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          Set automatically based on your encryption choice. Only change this if your
-          provider specifically requires a different port.
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem .8rem">
+        <div class="form-row" style="margin:0">
+          <label>SMTP Host</label>
+          <input type="text" id="smtp-host" placeholder="smtp.gmail.com"
+                 onblur="validateSmtpHost(this)">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Your email provider's outgoing mail server. Common examples:
+            <code style="color:#f5a623">smtp.gmail.com</code> (Gmail),
+            <code style="color:#f5a623">smtp-mail.outlook.com</code> (Outlook / Hotmail / Live).
+            Check your provider's support pages if unsure.
+          </div>
+          <div id="smtp-host-err" class="field-err"></div>
+        </div>
+        <div class="form-row" style="margin:0">
+          <label>Port</label>
+          <input type="number" id="smtp-port" placeholder="587">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Set automatically based on your encryption choice. Only change this if your
+            provider specifically requires a different port.
+          </div>
+        </div>
+        <div class="form-row" style="margin:0">
+          <label>Username</label>
+          <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off"
+                 onblur="validateEmailField(this,'smtp-user-err')">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Usually your full email address. For Gmail and Outlook this is
+            <code style="color:#f5a623">you@gmail.com</code>, not just <code style="color:#f5a623">you</code>.
+          </div>
+          <div id="smtp-user-err" class="field-err"></div>
+        </div>
+        <div class="form-row" style="margin:0">
+          <label>Your Email Account Password</label>
+          <input type="password" id="smtp-pass" placeholder="••••••••" autocomplete="new-password">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Enter your email account password. If you use Gmail or Outlook with two-factor
+            authentication enabled, you'll need to generate an App Password in your account's
+            security settings and enter that here instead.
+          </div>
+        </div>
+        <div class="form-row" style="margin:0">
+          <label>From Address</label>
+          <input type="text" id="smtp-from" placeholder="you@gmail.com"
+                 onblur="validateFromAddr(this)">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            The address that appears in the From: field of alert emails. Usually the same as
+            your username — if unsure, enter the same address.
+          </div>
+          <div id="smtp-from-err" class="field-err"></div>
+        </div>
+        <div class="form-row" style="margin:0">
+          <label>Encryption</label>
+          <select id="smtp-enc" onchange="smtpEncChange(this, true)"
+                  style="width:100%;background:#12122a;border:1px solid #2a2a4a;
+                  border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
+            <option value="starttls">STARTTLS — recommended (Gmail, Outlook, most providers)</option>
+            <option value="ssl">SSL / TLS — older hosts, port 465</option>
+            <option value="none">None — local/internal mail servers only</option>
+          </select>
+          <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
+            Encrypts your login credentials in transit. Required by almost all email providers.
+          </div>
         </div>
       </div>
-      <div class="form-row" style="margin:0">
-        <label>Username</label>
-        <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off"
-               onblur="validateEmailField(this,'smtp-user-err')">
-        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          Usually your full email address. For Gmail and Outlook this is
-          <code style="color:#f5a623">you@gmail.com</code>, not just <code style="color:#f5a623">you</code>.
-        </div>
-        <div id="smtp-user-err" class="field-err"></div>
-      </div>
-      <div class="form-row" style="margin:0">
-        <label>Your Email Account Password</label>
-        <input type="password" id="smtp-pass" placeholder="••••••••" autocomplete="new-password">
-        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          Enter your email account password. If you use Gmail or Outlook with two-factor
-          authentication enabled, you'll need to generate an App Password in your account's
-          security settings and enter that here instead.
-        </div>
-      </div>
-      <div class="form-row" style="margin:0">
-        <label>From Address</label>
-        <input type="text" id="smtp-from" placeholder="you@gmail.com"
-               onblur="validateFromAddr(this)">
-        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          The address that appears in the From: field of alert emails. Usually the same as
-          your username — if unsure, enter the same address.
-        </div>
-        <div id="smtp-from-err" class="field-err"></div>
-      </div>
-      <div class="form-row" style="margin:0">
-        <label>Encryption</label>
-        <select id="smtp-enc" onchange="smtpEncChange(this)"
-                style="width:100%;background:#12122a;border:1px solid #2a2a4a;
-                border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
-          <option value="starttls">STARTTLS — recommended (Gmail, Outlook, most providers)</option>
-          <option value="ssl">SSL / TLS — older hosts, port 465</option>
-          <option value="none">None — local/internal mail servers only</option>
-        </select>
-        <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          Encrypts your login credentials in transit. Required by almost all email providers.
-        </div>
-      </div>
-    </div>
+    </div><!-- /smtp-fields-wrap -->
+
+    <!-- Save row + disable checkbox -->
     <div style="display:flex;gap:.6rem;margin-top:.9rem;flex-wrap:wrap;align-items:center">
       <button class="btn-save" onclick="saveSmtp()">Save SMTP</button>
       <button class="btn-secondary" id="btn-test-email" onclick="sendTestEmail()" style="margin:0">
@@ -339,6 +356,19 @@
       </button>
       <span id="smtp-saved-indicator" style="font-size:.75rem;color:#555"></span>
     </div>
+
+    <!-- Disable emails checkbox -->
+    <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;
+                  cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
+      <input type="checkbox" id="chk-disable-email" onchange="toggleEmailDisabled(this)"
+             style="width:15px;height:15px;accent-color:#f5a623;cursor:pointer;flex-shrink:0">
+      Disable Sending Alert Emails
+    </label>
+    <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">
+      When checked, HoneytrapAI will still detect threats but will not send any email notifications.
+      Your SMTP settings are saved and will be used again when re-enabled.
+    </div>
+
     <div id="smtp-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
          border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
 
@@ -578,7 +608,7 @@ async function updateSensorStatus() {
     setSensor('maltrail',    s['maltrail-sensor']);
     setSensor('adguard',     s['adguardhome']);
     setSensor('honeytrapai', s['honeytrapai']);
-    setSensor('nginx',       s['nginx']);
+    setSensor('notifier',    s['honeytrapai-notifier']);
     setSensor('dns',         s['dns']);
     const dot = document.getElementById('overall-dot');
     if (dot) {
@@ -699,8 +729,11 @@ function renderOffenders() {
 async function loadSettings() {
   try {
     const d = await fetch('/api/settings').then(r => r.json());
-    document.getElementById('cfg-email').value     = d.alert_email     || '';
-    document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
+    if (d.alert_email) document.getElementById('cfg-email').value = d.alert_email;
+    document.getElementById('cfg-threshold').value    = d.alert_threshold   || 'medium';
+    const chk = document.getElementById('chk-disable-email');
+    chk.checked = !!d.email_disabled;
+    applyEmailDisabledState(chk.checked);
   } catch(e) {}
   loadSmtp();
   checkUpdate(false);
@@ -709,7 +742,8 @@ async function loadSettings() {
 async function saveSettings() {
   const payload = {
     alert_email:     document.getElementById('cfg-email').value,
-    alert_threshold: document.getElementById('cfg-threshold').value
+    alert_threshold: document.getElementById('cfg-threshold').value,
+    email_disabled:  document.getElementById('chk-disable-email').checked
   };
   const r = await fetch('/api/settings', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
@@ -876,14 +910,15 @@ async function confirmReset() {
   }
 }
 
-function smtpEncChange(sel) {
+// ── SMTP encryption change — userTriggered flag prevents port stomping on load ──
+function smtpEncChange(sel, userTriggered) {
   const hints = {
     starttls: 'Encrypts your login credentials in transit. Required by almost all email providers.',
     ssl:      'Direct SSL connection. Use if your provider specifically requires port 465.',
     none:     '⚠ No encryption. Only use for local or internal mail servers on a trusted network.'
   };
   const ports = {starttls:'587', ssl:'465', none:'25'};
-  document.getElementById('smtp-port').value = ports[sel.value];
+  if (userTriggered) document.getElementById('smtp-port').value = ports[sel.value];
   const hint = document.getElementById('smtp-enc-hint');
   hint.textContent = hints[sel.value];
   hint.style.color = sel.value === 'none' ? '#e74c3c' : '#666';
@@ -892,15 +927,15 @@ function smtpEncChange(sel) {
 async function loadSmtp() {
   try {
     const d = await fetch('/api/smtp').then(r => r.json());
-    document.getElementById('smtp-host').value = d.host      || '';
-    document.getElementById('smtp-port').value = d.port      || 587;
-    document.getElementById('smtp-user').value = d.username  || '';
-    document.getElementById('smtp-from').value = d.from_addr || '';
+    if (d.host)      document.getElementById('smtp-host').value = d.host;
+    if (d.port)      document.getElementById('smtp-port').value = d.port;
+    if (d.username)  document.getElementById('smtp-user').value = d.username;
+    if (d.from_addr) document.getElementById('smtp-from').value = d.from_addr;
     const enc = document.getElementById('smtp-enc');
     if (d.ssl)      enc.value = 'ssl';
     else if (d.tls) enc.value = 'starttls';
     else            enc.value = 'none';
-    smtpEncChange(enc);
+    smtpEncChange(enc, false); // update hint text only — do not stomp port
     const ind = document.getElementById('smtp-saved-indicator');
     if (d.host) { ind.textContent = '✓ SMTP configured'; ind.style.color = '#27ae60'; }
   } catch(e) {}
@@ -965,6 +1000,36 @@ async function sendTestEmail() {
     result.textContent = '✗ Network error.'; result.style.display = 'block';
   } finally {
     btn.disabled = false; btn.textContent = 'Send Test Email';
+  }
+}
+
+// ── Disable email checkbox ────────────────────────────────────────────────
+function applyEmailDisabledState(disabled) {
+  const wrap    = document.getElementById('smtp-fields-wrap');
+  const testBtn = document.getElementById('btn-test-email');
+  const saveBtn = document.querySelector('button[onclick="saveSmtp()"]');
+  wrap.classList.toggle('disabled', disabled);
+  if (testBtn) { testBtn.disabled = disabled; }
+  if (saveBtn) { saveBtn.disabled = disabled; }
+}
+
+async function toggleEmailDisabled(chk) {
+  applyEmailDisabledState(chk.checked);
+  // Auto-save the flag immediately so it persists without requiring "Save Settings"
+  const payload = {
+    alert_email:     document.getElementById('cfg-email').value,
+    alert_threshold: document.getElementById('cfg-threshold').value,
+    email_disabled:  chk.checked
+  };
+  const r = await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+  });
+  if (r.ok) {
+    toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
+  } else {
+    toast('Failed to save preference.', true);
+    chk.checked = !chk.checked; // revert on failure
+    applyEmailDisabledState(chk.checked);
   }
 }
 

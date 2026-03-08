@@ -1,8 +1,10 @@
-# HoneytrapAI — notifier.py
-# Version: v0.2.6
-# Revised: 2026-03-08
-# Rev: 1
 #!/usr/bin/env python3
+# HoneytrapAI — notifier.py
+# Copyright (c) 2026 HoneytrapAI / Anthony Watts
+# Licensed under the HoneytrapAI Source Available License — see LICENSE file for details
+# Version: v0.2.7
+# Revised: 2026-03-08 18:00 PST
+# Rev: 2
 """
 HoneytrapAI — Email notifier daemon
 Polls the Maltrail log every 60s and sends digest alert emails for new threats.
@@ -15,17 +17,17 @@ import json
 import time
 import smtplib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # --- Paths ---
-BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH  = os.path.join(BASE_DIR, "config", "config.json")
-SMTP_PATH    = os.path.join(BASE_DIR, "config", "smtp.json")
-STATE_PATH   = os.path.join(BASE_DIR, "config", "notifier_state.json")
-TRIGGER_PATH = os.path.join(BASE_DIR, "config", "notifier_trigger")
-LOG_PATH     = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
+BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH   = os.path.join(BASE_DIR, "config", "config.json")
+SMTP_PATH     = os.path.join(BASE_DIR, "config", "smtp.json")
+STATE_PATH    = os.path.join(BASE_DIR, "config", "notifier_state.json")
+TRIGGER_PATH  = os.path.join(BASE_DIR, "config", "notifier_trigger")
+LOG_PATH      = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
 POLL_INTERVAL = 60  # seconds
 
 logging.basicConfig(
@@ -114,14 +116,17 @@ def parse_new_lines(position):
                 parts = line.split()
                 # Maltrail log format:
                 # timestamp sensor src_ip src_port dst_ip dst_port proto trail info;ref
+                # Note: info field may contain spaces (e.g. "malware dropper") so
+                # we must rejoin everything from field 8 onward before splitting on ";"
                 if len(parts) < 9:
                     continue
                 try:
-                    ts      = f"{parts[0]} {parts[1]}"
-                    src_ip  = parts[2]
-                    trail   = parts[7]
-                    info    = parts[8].split(";")[0] if ";" in parts[8] else parts[8]
-                    sev     = infer_severity(info)
+                    ts       = f"{parts[0]} {parts[1]}"
+                    src_ip   = parts[2]
+                    trail    = parts[7]
+                    info_raw = " ".join(parts[8:])           # BUG-21: rejoin multi-word info field
+                    info     = info_raw.split(";")[0].strip() # strip ref URL and whitespace
+                    sev      = infer_severity(info)
                     events.append({
                         "timestamp": ts,
                         "src_ip":    src_ip,
@@ -284,8 +289,8 @@ def run():
     last_run = 0
 
     while True:
-        triggered  = check_trigger()
-        time_due   = (time.time() - last_run) >= POLL_INTERVAL
+        triggered = check_trigger()
+        time_due  = (time.time() - last_run) >= POLL_INTERVAL
 
         if not (triggered or time_due):
             time.sleep(1)
@@ -312,7 +317,7 @@ def run():
 
         events, new_position = parse_new_lines(position)
         state["log_position"] = new_position
-        state["last_run"]     = datetime.utcnow().isoformat()
+        state["last_run"]     = datetime.now(timezone.utc).isoformat()
         save_state(state)
 
         qualifying = [e for e in events if meets_threshold(e["severity"], threshold)]

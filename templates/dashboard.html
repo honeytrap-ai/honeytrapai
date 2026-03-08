@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.2.3
-     Revised: 2026-03-07
-     Rev: 10 -->
+     Version: v0.2.5
+     Revised: 2026-03-08
+     Rev: 3 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,9 +23,12 @@
     .nav-right{display:flex;align-items:center;gap:.8rem}
     .nav-version{font-size:.72rem;color:#555}
     #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0;transition:background .4s,box-shadow .4s}
-    #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60}
-    #overall-dot.amber{background:#f39c12;box-shadow:0 0 7px #f39c12}
-    #overall-dot.red{background:#e74c3c;box-shadow:0 0 7px #e74c3c}
+    #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60;animation:pulse-green 2s ease-in-out infinite}
+    #overall-dot.amber{background:#f39c12;box-shadow:0 0 7px #f39c12;animation:pulse-amber 2s ease-in-out infinite}
+    #overall-dot.red{background:#e74c3c;box-shadow:0 0 7px #e74c3c;animation:pulse-red 2s ease-in-out infinite}
+    @keyframes pulse-green{0%,100%{box-shadow:0 0 4px #27ae60;background:#27ae60}50%{box-shadow:0 0 12px #27ae60;background:#2ecc71}}
+    @keyframes pulse-amber{0%,100%{box-shadow:0 0 4px #f39c12;background:#f39c12}50%{box-shadow:0 0 12px #f39c12;background:#f5b942}}
+    @keyframes pulse-red{0%,100%{box-shadow:0 0 4px #e74c3c;background:#e74c3c}50%{box-shadow:0 0 12px #e74c3c;background:#ff6b6b}}
     .nav-logout{color:#888;font-size:.78rem;text-decoration:none}
     .nav-logout:hover{color:#f5a623}
     #update-banner{display:none;background:#1a2a1a;border-bottom:1px solid #27ae60;
@@ -417,7 +420,7 @@
 
   <!-- Simulate Threat -->
   <div class="settings-section">
-    <h3>🧪 Simulate a Threat</h3>
+    <h3>☣️ Simulate a Threat</h3>
     <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
       Injects a test entry into the live threat log so you can see the dashboard update in real time.
       Use <strong style="color:#f5a623">Purge Threat Log</strong> below to clear test entries when done.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.2.6
-# Revised: 2026-03-08
-# Rev: 2
+# Version: v0.3.1
+# Revised: 2026-03-09
+# Rev: 4
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -32,8 +32,12 @@ apt-get install -y -qq \
     git curl wget nginx avahi-daemon \
     nmap net-tools dnsutils \
     unattended-upgrades logrotate \
-    pyyaml 2>/dev/null || true
+    chrony traceroute
 pip3 install pyyaml --quiet 2>/dev/null || true
+
+systemctl enable chrony
+systemctl start chrony
+info "chrony installed and running (NTP time sync)"
 
 section "2. Fix systemd-resolved port 53 conflict (Pi OS / Debian)"
 if systemctl is-active --quiet systemd-resolved 2>/dev/null; then

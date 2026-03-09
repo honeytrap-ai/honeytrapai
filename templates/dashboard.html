@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.0
+     Version: v0.3.1
      Revised: 2026-03-09
-     Rev: 15 -->
+     Rev: 16 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -152,7 +152,8 @@
     /* ── Tools page ── */
     .tool-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                padding:1.2rem;margin-bottom:1rem}
-    .tool-card h3{font-size:.85rem;color:#f5a623;margin-bottom:.8rem}
+    .tool-card h3{font-size:.85rem;color:#f5a623;margin-bottom:.8rem;
+                  display:flex;align-items:center;gap:.5rem}
     .tool-input-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.6rem}
     .tool-input-row input{flex:1;min-width:160px;background:#12122a;border:1px solid #2a2a4a;
       border-radius:6px;padding:.5rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none}
@@ -431,7 +432,8 @@
       <div style="color:#27ae60;margin-bottom:.4rem">
         Update available: <strong id="update-card-version"></strong>
       </div>
-      <div style="color:#aaa;margin-bottom:.8rem" id="update-card-notes"></div>
+      <!-- BUG-25 fix: scrollable release notes, increased slice limit -->
+      <div style="color:#aaa;margin-bottom:.8rem;max-height:80px;overflow-y:auto" id="update-card-notes"></div>
       <button class="btn-save" onclick="installUpdate()">Install Update</button>
     </div>
   </div>
@@ -559,10 +561,27 @@
   </div>
 
   <!-- Ping -->
+  <!-- BUG-24 fix: Enter key submits tool inputs -->
+  <!-- BUG-25 (Ping): radar SVG icon replaces 📡 emoji -->
   <div class="tool-card">
-    <h3>📡 Ping</h3>
+    <h3>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" style="flex-shrink:0">
+        <circle cx="16" cy="16" r="15" fill="#0a0a14" stroke="#27ae60" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="11" fill="none" stroke="#27ae60" stroke-width=".6" opacity=".5"/>
+        <circle cx="16" cy="16" r="7"  fill="none" stroke="#27ae60" stroke-width=".6" opacity=".5"/>
+        <circle cx="16" cy="16" r="3"  fill="none" stroke="#27ae60" stroke-width=".6" opacity=".5"/>
+        <line x1="16" y1="1"  x2="16" y2="31" stroke="#27ae60" stroke-width=".5" opacity=".4"/>
+        <line x1="1"  y1="16" x2="31" y2="16" stroke="#27ae60" stroke-width=".5" opacity=".4"/>
+        <path d="M16 16 L16 5 A11 11 0 0 1 25.5 10.5 Z" fill="#27ae60" opacity=".25"/>
+        <line x1="16" y1="16" x2="25.5" y2="10.5" stroke="#27ae60" stroke-width="1" opacity=".8"/>
+        <circle cx="22" cy="9" r="1.8" fill="#e74c3c"/>
+        <circle cx="16" cy="16" r="1.2" fill="#27ae60"/>
+      </svg>
+      Ping
+    </h3>
     <div class="tool-input-row">
-      <input type="text" id="ping-host" placeholder="Host or IP — e.g. 8.8.8.8">
+      <input type="text" id="ping-host" placeholder="Host or IP — e.g. 8.8.8.8"
+             onkeydown="if(event.key==='Enter')runTool('ping')">
       <button class="btn-save" onclick="runTool('ping')">Ping</button>
     </div>
     <div class="tool-output" id="out-ping"></div>
@@ -572,7 +591,8 @@
   <div class="tool-card">
     <h3>🔍 DNS Lookup</h3>
     <div class="tool-input-row">
-      <input type="text" id="dns-host" placeholder="Domain — e.g. google.com">
+      <input type="text" id="dns-host" placeholder="Domain — e.g. google.com"
+             onkeydown="if(event.key==='Enter')runTool('dns')">
       <button class="btn-save" onclick="runTool('dns')">Lookup</button>
     </div>
     <div class="tool-output" id="out-dns"></div>
@@ -582,7 +602,8 @@
   <div class="tool-card">
     <h3>🗺️ Traceroute</h3>
     <div class="tool-input-row">
-      <input type="text" id="traceroute-host" placeholder="Host or IP — e.g. 1.1.1.1">
+      <input type="text" id="traceroute-host" placeholder="Host or IP — e.g. 1.1.1.1"
+             onkeydown="if(event.key==='Enter')runTool('traceroute')">
       <button class="btn-save" onclick="runTool('traceroute')">Trace</button>
     </div>
     <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 20 hops. May take up to 60 seconds.</p>
@@ -593,8 +614,10 @@
   <div class="tool-card">
     <h3>🔎 Port Scan</h3>
     <div class="tool-input-row">
-      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1">
-      <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25" style="max-width:220px">
+      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1"
+             onkeydown="if(event.key==='Enter')runTool('portscan')">
+      <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25"
+             style="max-width:220px" onkeydown="if(event.key==='Enter')runTool('portscan')">
       <button class="btn-save" onclick="runTool('portscan')">Scan</button>
     </div>
     <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 50 ports per scan. Uses TCP connect — no root required.</p>
@@ -616,7 +639,8 @@
     </p>
     <div class="form-row">
       <label>Current Password</label>
-      <input type="password" id="reset-pw" placeholder="Your dashboard password">
+      <input type="password" id="reset-pw" placeholder="Your dashboard password"
+             onkeydown="if(event.key==='Enter')confirmReset()">
     </div>
     <div id="reset-error" style="display:none;color:#e74c3c;font-size:.78rem;margin-top:.5rem"></div>
     <div class="reset-modal-actions">
@@ -849,9 +873,10 @@ async function checkUpdate(force) {
       document.getElementById('update-banner').classList.add('visible');
       document.getElementById('update-card').style.display       = 'block';
       document.getElementById('update-card-version').textContent = d.latest_version;
+      // BUG-25 fix: increased from 200 chars, scrollable container handles overflow
       const fullClean = (d.release_notes || '').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'')
-          .replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,4).join(' · ');
-      document.getElementById('update-card-notes').textContent   = fullClean.slice(0,200);
+          .replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
+      document.getElementById('update-card-notes').textContent   = fullClean.slice(0,600);
       msgEl.className = 'available'; msgEl.textContent = `Update available: ${d.latest_version}`;
     } else {
       document.getElementById('update-card').style.display = 'none';

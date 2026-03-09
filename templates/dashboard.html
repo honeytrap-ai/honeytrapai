@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
      Version: v0.2.7
      Revised: 2026-03-08
-     Rev: 10 -->
+     Rev: 11 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -822,7 +822,7 @@ async function installUpdate() {
   const poll = setInterval(async () => {
     try {
       const d = await fetch('/api/update/status').then(r => r.json());
-      if (d.state === 'complete' || d.state === 'downloading') {
+      if (d.state === 'complete' || d.state === 'downloading' || d.state === 'starting') {
         if (!countdownStarted) {
           countdownStarted = true;
           clearInterval(poll);

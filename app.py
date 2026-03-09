@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.0
+# Version: v0.3.12
 # Revised: 2026-03-09
-# Rev: 3
+# Rev: 4
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -563,11 +563,33 @@ def api_factory_reset():
     return jsonify({"status": "ok"})
 
 def _perform_factory_reset():
+    # Preserve AdGuard credentials — they survive the reset because
+    # AdGuard itself is not reinstalled; without them the DNS stats
+    # panel goes dark after every factory reset.
+    existing = {}
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH) as f:
+                existing = json.load(f)
+        except Exception:
+            pass
+    ag_user = existing.get("adguard_user", "admin")
+    ag_pass = existing.get("adguard_password", "")
+
+    # Wipe config and SMTP
     for path in [CONFIG_PATH, SMTP_PATH]:
         if os.path.exists(path):
             os.remove(path)
+
+    # Remove static IP from dhcpcd.conf
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     subprocess.run(["sudo", "python3", helper, "--remove"], capture_output=True)
+
+    # Re-write AdGuard credentials so the stats API works after setup completes
+    if ag_pass:
+        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+        with open(CONFIG_PATH, "w") as f:
+            json.dump({"adguard_user": ag_user, "adguard_password": ag_pass}, f, indent=2)
 
 @app.route("/api/smtp", methods=["GET", "POST"])
 @login_required
@@ -823,7 +845,6 @@ def api_tools_dns():
         return jsonify({"error": "Invalid host."}), 400
     try:
         results = socket.getaddrinfo(host, None)
-        # Deduplicate and extract addresses
         seen = set()
         lines = [f"DNS lookup: {host}", ""]
         for r in results:
@@ -879,7 +900,6 @@ def api_tools_portscan():
     if not is_safe_host(host):
         return jsonify({"error": "Invalid host."}), 400
 
-    # Parse ports — support comma list and ranges
     ports = []
     try:
         for part in ports_raw.split(","):
@@ -890,7 +910,7 @@ def api_tools_portscan():
             else:
                 ports.append(int(part))
         ports = [p for p in ports if is_safe_port(p)]
-        ports = list(dict.fromkeys(ports))[:50]  # deduplicate, cap at 50
+        ports = list(dict.fromkeys(ports))[:50]
     except Exception:
         return jsonify({"error": "Invalid port specification."}), 400
 

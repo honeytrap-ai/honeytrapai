@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.2.7
+     Version: v0.3.0
      Revised: 2026-03-09
-     Rev: 14 -->
+     Rev: 15 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -147,9 +147,22 @@
     #toast.error{background:#c0392b}
     .footer{text-align:center;padding:1.5rem;font-size:.72rem;color:#444;line-height:1.8}
     .footer a{color:#666;text-decoration:none}.footer a:hover{color:#f5a623}
-    /* ── Email disabled overlay ── */
     .smtp-fields-wrap{position:relative;transition:opacity .2s}
     .smtp-fields-wrap.disabled{opacity:.35;pointer-events:none;user-select:none}
+    /* ── Tools page ── */
+    .tool-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
+               padding:1.2rem;margin-bottom:1rem}
+    .tool-card h3{font-size:.85rem;color:#f5a623;margin-bottom:.8rem}
+    .tool-input-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.6rem}
+    .tool-input-row input{flex:1;min-width:160px;background:#12122a;border:1px solid #2a2a4a;
+      border-radius:6px;padding:.5rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none}
+    .tool-input-row input:focus{border-color:#f5a623}
+    .tool-output{display:none;margin-top:.7rem;background:#0a0a14;border:1px solid #2a2a4a;
+                 border-radius:6px;padding:.7rem .9rem;font-family:monospace;font-size:.78rem;
+                 color:#aaa;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto}
+    .tool-output.visible{display:block}
+    .tool-output.success{border-color:#27ae60;color:#ccc}
+    .tool-output.failure{border-color:#e74c3c;color:#e74c3c}
   </style>
 </head>
 <body>
@@ -175,6 +188,7 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-tab" onclick="showPage('settings',this)">Settings</button>
+    <button class="nav-tab" onclick="showPage('tools',this)">Tools</button>
   </div>
   <div class="nav-right">
     <span class="nav-version">{{ version }}</span>
@@ -182,7 +196,7 @@
   </div>
 </nav>
 
-<!-- Dashboard page -->
+<!-- ═══════════════════════════════════════════════════════════ DASHBOARD -->
 <div id="page-dashboard" class="page active">
 <div class="container">
 
@@ -198,27 +212,27 @@
   <div id="sensor-status-bar">
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-maltrail"></div>
-      <span class="sensor-label">Maltrail<span class="tip">Threat detection engine — monitors traffic for known malicious sources and domains</span></span>
+      <span class="sensor-label">Maltrail<span class="tip">Passive threat detection engine</span></span>
       <span id="lbl-maltrail" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-adguard"></div>
-      <span class="sensor-label">AdGuard<span class="tip">DNS-based ad and tracker blocker — handles all DNS queries for your network</span></span>
+      <span class="sensor-label">AdGuard<span class="tip">DNS ad and tracker blocker</span></span>
       <span id="lbl-adguard" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-honeytrapai"></div>
-      <span class="sensor-label">HoneytrapAI<span class="tip">The main dashboard and control interface you are using right now</span></span>
+      <span class="sensor-label">HoneytrapAI<span class="tip">Dashboard and control interface</span></span>
       <span id="lbl-honeytrapai" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-notifier"></div>
-      <span class="sensor-label">Notifier<span class="tip">Sends alert emails when new threats are detected on your network</span></span>
+      <span class="sensor-label">Notifier<span class="tip">Alert email daemon</span></span>
       <span id="lbl-notifier" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-dns"></div>
-      <span class="sensor-label">DNS<span class="tip">Confirms DNS resolution is working — required for AdGuard to block threats</span></span>
+      <span class="sensor-label">DNS<span class="tip">Local DNS resolution</span></span>
       <span id="lbl-dns" style="color:#555">checking…</span>
     </div>
   </div>
@@ -257,7 +271,7 @@
 </div>
 </div>
 
-<!-- Settings page -->
+<!-- ═══════════════════════════════════════════════════════════ SETTINGS -->
 <div id="page-settings" class="page">
 <div class="container">
 
@@ -271,15 +285,13 @@
       Gmail, Outlook, Hotmail, Live, etc.
     </p>
 
-    <!-- SMTP fields — greyed out when emails disabled -->
     <div class="smtp-fields-wrap" id="smtp-fields-wrap">
       <div class="form-row">
         <label>Alert Email Address</label>
         <input type="email" id="cfg-email" placeholder="you@gmail.com"
                onblur="validateEmailField(this,'cfg-email-err')">
         <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          The email address where threat alerts will be sent. This does not need to be the same
-          account used to send — it can be any address you check regularly.
+          The email address where threat alerts will be sent. Does not need to match the sending account.
         </div>
         <div id="cfg-email-err" class="field-err"></div>
       </div>
@@ -289,10 +301,8 @@
           <input type="text" id="smtp-host" placeholder="smtp.gmail.com"
                  onblur="validateSmtpHost(this)">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Your email provider's outgoing mail server. Common examples:
-            <code style="color:#f5a623">smtp.gmail.com</code> (Gmail),
-            <code style="color:#f5a623">smtp-mail.outlook.com</code> (Outlook / Hotmail / Live).
-            Check your provider's support pages if unsure.
+            Outgoing mail server. e.g. <code style="color:#f5a623">smtp.gmail.com</code>,
+            <code style="color:#f5a623">smtp-mail.outlook.com</code>
           </div>
           <div id="smtp-host-err" class="field-err"></div>
         </div>
@@ -300,8 +310,7 @@
           <label>Port</label>
           <input type="number" id="smtp-port" placeholder="587">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Set automatically based on your encryption choice. Only change this if your
-            provider specifically requires a different port.
+            Set automatically by encryption choice. Change only if required by your provider.
           </div>
         </div>
         <div class="form-row" style="margin:0">
@@ -309,18 +318,15 @@
           <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off"
                  onblur="validateEmailField(this,'smtp-user-err')">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Usually your full email address. For Gmail and Outlook this is
-            <code style="color:#f5a623">you@gmail.com</code>, not just <code style="color:#f5a623">you</code>.
+            Usually your full email address.
           </div>
           <div id="smtp-user-err" class="field-err"></div>
         </div>
         <div class="form-row" style="margin:0">
-          <label>Your Email Account Password</label>
+          <label>Password</label>
           <input type="password" id="smtp-pass" placeholder="••••••••" autocomplete="new-password">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Enter your email account password. If you use Gmail or Outlook with two-factor
-            authentication enabled, you'll need to generate an App Password in your account's
-            security settings and enter that here instead.
+            Use an App Password if your account has two-factor authentication enabled.
           </div>
         </div>
         <div class="form-row" style="margin:0">
@@ -328,8 +334,7 @@
           <input type="text" id="smtp-from" placeholder="you@gmail.com"
                  onblur="validateFromAddr(this)">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            The address that appears in the From: field of alert emails. Usually the same as
-            your username — if unsure, enter the same address.
+            Appears in the From: field. Usually the same as your username.
           </div>
           <div id="smtp-from-err" class="field-err"></div>
         </div>
@@ -343,13 +348,12 @@
             <option value="none">None — local/internal mail servers only</option>
           </select>
           <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Encrypts your login credentials in transit. Required by almost all email providers.
+            Encrypts credentials in transit. Required by most providers.
           </div>
         </div>
       </div>
     </div><!-- /smtp-fields-wrap -->
 
-    <!-- Save row + disable checkbox -->
     <div style="display:flex;gap:.6rem;margin-top:.9rem;flex-wrap:wrap;align-items:center">
       <button class="btn-save" onclick="saveSmtp()">Save SMTP</button>
       <button class="btn-secondary" id="btn-test-email" onclick="sendTestEmail()" style="margin:0">
@@ -358,7 +362,6 @@
       <span id="smtp-saved-indicator" style="font-size:.75rem;color:#555"></span>
     </div>
 
-    <!-- Disable emails checkbox -->
     <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;
                   cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
       <input type="checkbox" id="chk-disable-email" onchange="toggleEmailDisabled(this)"
@@ -366,8 +369,7 @@
       Disable Sending Alert Emails
     </label>
     <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">
-      When checked, HoneytrapAI will still detect threats but will not send any email notifications.
-      Your SMTP settings are saved and will be used again when re-enabled.
+      Threats are still detected. SMTP settings are preserved and will be used when re-enabled.
     </div>
 
     <div id="smtp-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
@@ -449,8 +451,61 @@
     </div>
   </div>
 
+  <!-- Factory Reset -->
+  <div class="settings-section danger">
+    <h3>⚠️ Factory Reset</h3>
+    <p style="font-size:.8rem;color:#aaa;line-height:1.6;margin-bottom:1.2rem">
+      Resets all settings to factory defaults, clears the dashboard password, and reboots the appliance.
+      Threat logs are preserved. You will be redirected to the setup wizard on reboot.
+    </p>
+
+    <div style="background:#12122a;border:1px solid #e74c3c;border-radius:6px;padding:.9rem;margin-bottom:.8rem">
+      <div style="font-size:.82rem;color:#e74c3c;font-weight:700;margin-bottom:.6rem">
+        Option 1 — Reset while logged in
+      </div>
+      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
+        Use this if you are already logged in and want to reset to factory defaults.
+        You will be asked to confirm your current password before the reset runs.
+      </p>
+      <button class="btn-danger" onclick="showResetOverlay()">Factory Reset…</button>
+    </div>
+
+    <div style="background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.9rem">
+      <div style="font-size:.82rem;color:#aaa;font-weight:700;margin-bottom:.6rem">
+        🔑 Option 2 — Locked out or forgotten password
+      </div>
+      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
+        If you can't log in, you can trigger a factory reset using a USB drive — no password required.
+        Click the button below to download <code style="color:#f5a623">honeytrap-reset.txt</code>,
+        then follow the steps below. Your browser will save the file to your Downloads folder —
+        you will need to move it to the root of a USB drive manually.
+      </p>
+      <button class="btn-secondary" style="margin:0;font-size:.82rem" onclick="downloadResetFile()">
+        Download honeytrap-reset.txt
+      </button>
+      <div style="margin-top:.9rem;border-top:1px solid #2a2a4a;padding-top:.8rem">
+        <div style="font-size:.72rem;color:#888;font-weight:600;margin-bottom:.5rem;
+                    text-transform:uppercase;letter-spacing:.06em">How to use</div>
+        <ol style="font-size:.75rem;color:#666;line-height:2;padding-left:1.1rem">
+          <li>Copy <code style="color:#f5a623">honeytrap-reset.txt</code> to the <strong style="color:#aaa">root</strong> of a USB drive — not inside any folder</li>
+          <li>Power off your HoneytrapAI device</li>
+          <li>Insert the USB drive into any USB port</li>
+          <li>Power on — the reset will run automatically on boot</li>
+          <li>Remove the USB drive when the setup wizard appears</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ TOOLS -->
+<div id="page-tools" class="page">
+<div class="container">
+
   <!-- Simulate Threat -->
-  <div class="settings-section">
+  <div class="tool-card">
     <h3>☣️ Simulate a Threat</h3>
     <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
       Injects a test entry into the live threat log so you can see the dashboard update in real time.
@@ -484,7 +539,7 @@
   </div>
 
   <!-- Threat Log -->
-  <div class="settings-section">
+  <div class="tool-card">
     <h3>🗂️ Threat Log</h3>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
       <a href="/api/threats/export" class="btn-save" style="text-decoration:none;display:inline-block">Export Threat Log</a>
@@ -503,52 +558,47 @@
     </div>
   </div>
 
-  <!-- Factory Reset -->
-  <div class="settings-section danger">
-    <h3>⚠️ Factory Reset</h3>
-    <p style="font-size:.8rem;color:#aaa;line-height:1.6;margin-bottom:1.2rem">
-      Resets all settings to factory defaults, clears the dashboard password, and reboots the appliance.
-      Threat logs are preserved. You will be redirected to the setup wizard on reboot.
-    </p>
-
-    <!-- Option 1 -->
-    <div style="background:#12122a;border:1px solid #e74c3c;border-radius:6px;padding:.9rem;margin-bottom:.8rem">
-      <div style="font-size:.82rem;color:#e74c3c;font-weight:700;margin-bottom:.6rem">
-        Option 1 — Reset while logged in
-      </div>
-      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
-        Use this if you are already logged in and want to reset to factory defaults.
-        You will be asked to confirm your current password before the reset runs.
-      </p>
-      <button class="btn-danger" onclick="showResetOverlay()">Factory Reset…</button>
+  <!-- Ping -->
+  <div class="tool-card">
+    <h3>📡 Ping</h3>
+    <div class="tool-input-row">
+      <input type="text" id="ping-host" placeholder="Host or IP — e.g. 8.8.8.8">
+      <button class="btn-save" onclick="runTool('ping')">Ping</button>
     </div>
+    <div class="tool-output" id="out-ping"></div>
+  </div>
 
-    <!-- Option 2 -->
-    <div style="background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.9rem">
-      <div style="font-size:.82rem;color:#aaa;font-weight:700;margin-bottom:.6rem">
-        🔑 Option 2 — Locked out or forgotten password
-      </div>
-      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
-        If you can't log in, you can trigger a factory reset using a USB drive — no password required.
-        Click the button below to download <code style="color:#f5a623">honeytrap-reset.txt</code>,
-        then follow the steps below. Your browser will save the file to your Downloads folder —
-        you will need to move it to the root of a USB drive manually.
-      </p>
-      <button class="btn-secondary" style="margin:0;font-size:.82rem" onclick="downloadResetFile()">
-        Download honeytrap-reset.txt
-      </button>
-      <div style="margin-top:.9rem;border-top:1px solid #2a2a4a;padding-top:.8rem">
-        <div style="font-size:.72rem;color:#888;font-weight:600;margin-bottom:.5rem;
-                    text-transform:uppercase;letter-spacing:.06em">How to use</div>
-        <ol style="font-size:.75rem;color:#666;line-height:2;padding-left:1.1rem">
-          <li>Copy <code style="color:#f5a623">honeytrap-reset.txt</code> to the <strong style="color:#aaa">root</strong> of a USB drive — not inside any folder</li>
-          <li>Power off your HoneytrapAI device</li>
-          <li>Insert the USB drive into any USB port</li>
-          <li>Power on — the reset will run automatically on boot</li>
-          <li>Remove the USB drive when the setup wizard appears</li>
-        </ol>
-      </div>
+  <!-- DNS Lookup -->
+  <div class="tool-card">
+    <h3>🔍 DNS Lookup</h3>
+    <div class="tool-input-row">
+      <input type="text" id="dns-host" placeholder="Domain — e.g. google.com">
+      <button class="btn-save" onclick="runTool('dns')">Lookup</button>
     </div>
+    <div class="tool-output" id="out-dns"></div>
+  </div>
+
+  <!-- Traceroute -->
+  <div class="tool-card">
+    <h3>🗺️ Traceroute</h3>
+    <div class="tool-input-row">
+      <input type="text" id="traceroute-host" placeholder="Host or IP — e.g. 1.1.1.1">
+      <button class="btn-save" onclick="runTool('traceroute')">Trace</button>
+    </div>
+    <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 20 hops. May take up to 60 seconds.</p>
+    <div class="tool-output" id="out-traceroute"></div>
+  </div>
+
+  <!-- Port Scan -->
+  <div class="tool-card">
+    <h3>🔎 Port Scan</h3>
+    <div class="tool-input-row">
+      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1">
+      <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25" style="max-width:220px">
+      <button class="btn-save" onclick="runTool('portscan')">Scan</button>
+    </div>
+    <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 50 ports per scan. Uses TCP connect — no root required.</p>
+    <div class="tool-output" id="out-portscan"></div>
   </div>
 
 </div>
@@ -602,7 +652,7 @@ function toast(msg, err) {
   setTimeout(() => t.className = '', 3000);
 }
 
-// ── BUG-19 fix: force animation restart via reflow before setting new class ──
+// ── BUG-19 fix: force animation restart via reflow ──
 async function updateSensorStatus() {
   try {
     const d = await fetch('/api/services/status').then(r => r.json());
@@ -615,17 +665,17 @@ async function updateSensorStatus() {
     const dot = document.getElementById('overall-dot');
     if (dot) {
       dot.className = '';
-      void dot.offsetWidth; // force reflow — restarts CSS animation
+      void dot.offsetWidth;
       dot.className = d.overall || 'grey';
       const labels = {green:'All systems operational', amber:'One or more services degraded', red:'Critical service down'};
       dot.title = labels[d.overall] || 'Status unknown';
     }
   } catch(e) {
-    ['maltrail','adguard','honeytrapai','nginx','dns'].forEach(n => setSensor(n, false));
+    ['maltrail','adguard','honeytrapai','notifier','dns'].forEach(n => setSensor(n, false));
     const dot = document.getElementById('overall-dot');
     if (dot) {
       dot.className = '';
-      void dot.offsetWidth; // force reflow — restarts CSS animation
+      void dot.offsetWidth;
       dot.className = 'red';
       dot.title = 'Could not reach status API';
     }
@@ -738,7 +788,7 @@ function renderOffenders() {
 async function loadSettings() {
   try {
     const d = await fetch('/api/settings').then(r => r.json());
-    // ── Rev 14 fix: always set field value — no truthy guard ──
+    // Rev 14 fix: always set field — no truthy guard
     document.getElementById('cfg-email').value = d.alert_email || '';
     document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
     const chk = document.getElementById('chk-disable-email');
@@ -814,8 +864,9 @@ async function checkUpdate(force) {
   }
 }
 
-// ── BUG-17 fix: OTA countdown increased from 15s to 30s ──
-// ── BUG-18 fix: show countdown screen as soon as service goes down ──
+// ── BUG-17 fix: countdown 15s→30s
+// ── BUG-18 fix: show countdown as soon as service goes down
+// ── BUG-22 fix: countdown 30s→60s
 async function installUpdate() {
   clearInterval(statsInterval);
   toast('Starting update…');
@@ -825,26 +876,17 @@ async function installUpdate() {
     try {
       const d = await fetch('/api/update/status').then(r => r.json());
       if (d.state === 'complete' || d.state === 'downloading' || d.state === 'starting') {
-        if (!countdownStarted) {
-          countdownStarted = true;
-          clearInterval(poll);
-          showUpdateCountdown();
-        }
+        if (!countdownStarted) { countdownStarted = true; clearInterval(poll); showUpdateCountdown(); }
       }
       if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
     } catch(e) {
-      // fetch failed — service is restarting, show countdown now
-      if (!countdownStarted) {
-        countdownStarted = true;
-        clearInterval(poll);
-        showUpdateCountdown();
-      }
+      if (!countdownStarted) { countdownStarted = true; clearInterval(poll); showUpdateCountdown(); }
     }
   }, 2000);
 }
 
 function showUpdateCountdown() {
-  let countdown = 30;
+  let countdown = 60;
   document.body.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;
                 min-height:100vh;background:#0f0f1a;color:#e0e0e0;
@@ -854,7 +896,7 @@ function showUpdateCountdown() {
         <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
         <div style="color:#888;font-size:.88rem">
           Services are restarting. Reloading dashboard in
-          <span id="update-countdown" style="color:#f5a623">30</span> seconds…<br>
+          <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br>
           <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
         </div>
       </div>
@@ -892,7 +934,7 @@ document.getElementById('reset-overlay').addEventListener('click', function(e) {
   if (e.target === this) hideResetOverlay();
 });
 
-// ── BUG-17 fix: factory reset countdown increased from 15s to 30s ──
+// ── BUG-17 fix: factory reset countdown 15s→30s ──
 async function confirmReset() {
   const pw    = document.getElementById('reset-pw').value;
   const errEl = document.getElementById('reset-error');
@@ -940,12 +982,12 @@ async function confirmReset() {
   }
 }
 
-// ── SMTP encryption change — userTriggered flag prevents port stomping on load ──
+// ── SMTP ──────────────────────────────────────────────────────────────────
 function smtpEncChange(sel, userTriggered) {
   const hints = {
-    starttls: 'Encrypts your login credentials in transit. Required by almost all email providers.',
-    ssl:      'Direct SSL connection. Use if your provider specifically requires port 465.',
-    none:     '⚠ No encryption. Only use for local or internal mail servers on a trusted network.'
+    starttls: 'Encrypts credentials in transit. Required by most providers.',
+    ssl:      'Direct SSL connection. Use if your provider requires port 465.',
+    none:     '⚠ No encryption. Only use for local or internal mail servers.'
   };
   const ports = {starttls:'587', ssl:'465', none:'25'};
   if (userTriggered) document.getElementById('smtp-port').value = ports[sel.value];
@@ -965,7 +1007,7 @@ async function loadSmtp() {
     if (d.ssl)      enc.value = 'ssl';
     else if (d.tls) enc.value = 'starttls';
     else            enc.value = 'none';
-    smtpEncChange(enc, false); // update hint text only — do not stomp port
+    smtpEncChange(enc, false);
     const ind = document.getElementById('smtp-saved-indicator');
     if (d.host) { ind.textContent = '✓ SMTP configured'; ind.style.color = '#27ae60'; }
   } catch(e) {}
@@ -1043,15 +1085,12 @@ function applyEmailDisabledState(disabled) {
   if (saveBtn) { saveBtn.disabled = disabled; }
 }
 
-// ── Rev 14 fix: toggleEmailDisabled only saves email_disabled —
-//    does NOT include alert_email to prevent clearing it on mobile ──
+// ── Rev 14 fix: only save email_disabled — do not include alert_email ──
 async function toggleEmailDisabled(chk) {
   applyEmailDisabledState(chk.checked);
-  const payload = {
-    email_disabled: chk.checked
-  };
   const r = await fetch('/api/settings', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email_disabled: chk.checked})
   });
   if (r.ok) {
     toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
@@ -1063,9 +1102,7 @@ async function toggleEmailDisabled(chk) {
 }
 
 // ── Field validation ──────────────────────────────────────────────────────
-function isValidEmail(val) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
-}
+function isValidEmail(val) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()); }
 
 function showFieldErr(errId, msg) {
   const el = document.getElementById(errId);
@@ -1079,7 +1116,7 @@ function validateEmailField(input, errId) {
   if (!val) { input.classList.remove('invalid'); showFieldErr(errId, ''); return true; }
   if (!isValidEmail(val)) {
     input.classList.add('invalid');
-    showFieldErr(errId, '✗ That doesn\'t look like a valid email address. Check for typos — e.g. missing @, missing dot, or spaces.');
+    showFieldErr(errId, '✗ That doesn\'t look like a valid email address.');
     return false;
   }
   input.classList.remove('invalid'); showFieldErr(errId, ''); return true;
@@ -1090,7 +1127,7 @@ function validateSmtpHost(input) {
   if (!val) { input.classList.remove('invalid'); showFieldErr('smtp-host-err', ''); return; }
   if (val.includes('@') || val.includes(' ') || isValidEmail(val)) {
     input.classList.add('invalid');
-    showFieldErr('smtp-host-err', '✗ This should be a server address like smtp.gmail.com — not an email address.');
+    showFieldErr('smtp-host-err', '✗ Enter a server address like smtp.gmail.com — not an email address.');
     return;
   }
   input.classList.remove('invalid'); showFieldErr('smtp-host-err', '');
@@ -1103,14 +1140,14 @@ function validateFromAddr(input) {
   if (!isValidEmail(val)) {
     input.classList.add('invalid'); input.classList.remove('warn');
     errEl.className = 'field-err';
-    showFieldErr('smtp-from-err', '✗ That doesn\'t look like a valid email address. Check for typos — e.g. missing @, missing dot, or spaces.');
+    showFieldErr('smtp-from-err', '✗ That doesn\'t look like a valid email address.');
     return;
   }
   const user = document.getElementById('smtp-user').value.trim();
   if (user && val.toLowerCase() !== user.toLowerCase()) {
     input.classList.add('warn'); input.classList.remove('invalid');
     errEl.className = 'field-warn';
-    showFieldErr('smtp-from-err', '⚠ From address doesn\'t match your username. This will cause sending to fail with most providers (Gmail, Outlook) unless you\'ve set up a custom sending domain.');
+    showFieldErr('smtp-from-err', '⚠ From address doesn\'t match your username. This may cause sending to fail with Gmail or Outlook.');
   } else {
     input.classList.remove('invalid','warn'); showFieldErr('smtp-from-err', '');
   }
@@ -1161,6 +1198,46 @@ async function confirmPurge() {
     ['s-total','s-high','s-medium','s-low'].forEach(id => document.getElementById(id).textContent = '0');
     toast('Threat log purged.');
   } else { toast('Purge failed.', true); }
+}
+
+// ── Network Tools ─────────────────────────────────────────────────────────
+async function runTool(tool) {
+  const hostMap  = {ping:'ping-host', dns:'dns-host', traceroute:'traceroute-host', portscan:'portscan-host'};
+  const labelMap = {ping:'Ping', dns:'Lookup', traceroute:'Trace', portscan:'Scan'};
+  const outEl    = document.getElementById('out-' + tool);
+  const hostEl   = document.getElementById(hostMap[tool]);
+  const btn      = hostEl.closest('.tool-card').querySelector('.btn-save');
+  const host     = hostEl.value.trim();
+
+  if (!host) { hostEl.focus(); return; }
+
+  const payload = {host};
+  if (tool === 'portscan') {
+    payload.ports = document.getElementById('portscan-ports').value.trim() || '22,80,443,3000,8080';
+  }
+
+  btn.disabled = true; btn.textContent = 'Running…';
+  outEl.className = 'tool-output visible';
+  outEl.textContent = 'Running…';
+
+  try {
+    const r = await fetch(`/api/tools/${tool}`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (d.error) {
+      outEl.className = 'tool-output visible failure';
+      outEl.textContent = '✗ ' + d.error;
+    } else {
+      outEl.className = 'tool-output visible ' + (d.success ? 'success' : 'failure');
+      outEl.textContent = d.output || '(no output)';
+    }
+  } catch(e) {
+    outEl.className = 'tool-output visible failure';
+    outEl.textContent = '✗ Network error.';
+  } finally {
+    btn.disabled = false; btn.textContent = labelMap[tool];
+  }
 }
 
 // ── USB Reset File ────────────────────────────────────────────────────────

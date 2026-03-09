@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# HoneytrapAI — updater.py
+# Version: v0.2.10
+# Revised: 2026-03-08
+# Rev: 2
 """
 HoneytrapAI — GitHub-based OTA update system
 Checks github.com/honeytrap-ai/honeytrapai for new releases.
@@ -132,6 +136,10 @@ def perform_update():
     the actual download, file swap, and service restart.
     """
     try:
+        # Reset status immediately so the dashboard poll sees a clean state
+        # and does not mistake a stale 'complete' from a previous run
+        set_status({"state": "starting", "message": "Preparing update..."})
+
         info = check_for_update(force=True)
         if not info.get("update_available"):
             set_status({"state": "idle", "message": "Already up to date."})

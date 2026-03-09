@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.2.5
+     Version: v0.2.8
      Revised: 2026-03-08
-     Rev: 4 -->
+     Rev: 9 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,13 +22,13 @@
     .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
     .nav-right{display:flex;align-items:center;gap:.8rem}
     .nav-version{font-size:.72rem;color:#555}
-    #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0;transition:background .4s,box-shadow .4s}
+    #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0}
     #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60;animation:pulse-green 2s ease-in-out infinite}
     #overall-dot.amber{background:#f39c12;box-shadow:0 0 7px #f39c12;animation:pulse-amber 2s ease-in-out infinite}
     #overall-dot.red{background:#e74c3c;box-shadow:0 0 7px #e74c3c;animation:pulse-red 2s ease-in-out infinite}
-    @keyframes pulse-green{0%,100%{box-shadow:0 0 4px #27ae60;background:#27ae60}50%{box-shadow:0 0 12px #27ae60;background:#2ecc71}}
-    @keyframes pulse-amber{0%,100%{box-shadow:0 0 4px #f39c12;background:#f39c12}50%{box-shadow:0 0 12px #f39c12;background:#f5b942}}
-    @keyframes pulse-red{0%,100%{box-shadow:0 0 4px #e74c3c;background:#e74c3c}50%{box-shadow:0 0 12px #e74c3c;background:#ff6b6b}}
+    @keyframes pulse-green{0%,100%{opacity:1}50%{opacity:.4}}
+    @keyframes pulse-amber{0%,100%{opacity:1}50%{opacity:.4}}
+    @keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.4}}
     .nav-logout{color:#888;font-size:.78rem;text-decoration:none}
     .nav-logout:hover{color:#f5a623}
     #update-banner{display:none;background:#1a2a1a;border-bottom:1px solid #27ae60;
@@ -601,6 +601,7 @@ function toast(msg, err) {
   setTimeout(() => t.className = '', 3000);
 }
 
+// ── BUG-19 fix: force animation restart via reflow before setting new class ──
 async function updateSensorStatus() {
   try {
     const d = await fetch('/api/services/status').then(r => r.json());
@@ -612,6 +613,8 @@ async function updateSensorStatus() {
     setSensor('dns',         s['dns']);
     const dot = document.getElementById('overall-dot');
     if (dot) {
+      dot.className = '';
+      void dot.offsetWidth; // force reflow — restarts CSS animation
       dot.className = d.overall || 'grey';
       const labels = {green:'All systems operational', amber:'One or more services degraded', red:'Critical service down'};
       dot.title = labels[d.overall] || 'Status unknown';
@@ -619,7 +622,12 @@ async function updateSensorStatus() {
   } catch(e) {
     ['maltrail','adguard','honeytrapai','nginx','dns'].forEach(n => setSensor(n, false));
     const dot = document.getElementById('overall-dot');
-    if (dot) { dot.className = 'red'; dot.title = 'Could not reach status API'; }
+    if (dot) {
+      dot.className = '';
+      void dot.offsetWidth; // force reflow — restarts CSS animation
+      dot.className = 'red';
+      dot.title = 'Could not reach status API';
+    }
   }
 }
 
@@ -804,39 +812,53 @@ async function checkUpdate(force) {
   }
 }
 
+// ── BUG-17 fix: OTA countdown increased from 15s to 30s ──
+// ── BUG-18 fix: poll survives service restart by catching fetch errors ──
 async function installUpdate() {
   clearInterval(statsInterval);
   toast('Starting update…');
   await fetch('/api/update/install', {method:'POST'});
+  let errorStreak = 0;
   const poll = setInterval(async () => {
-    const d = await fetch('/api/update/status').then(r => r.json());
-    if (d.state === 'complete') {
-      clearInterval(poll);
-      let countdown = 15;
-      document.body.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;
-                    min-height:100vh;background:#0f0f1a;color:#e0e0e0;
-                    font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
-          <div>
-            <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
-            <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
-            <div style="color:#888;font-size:.88rem">
-              Services are restarting. Reloading dashboard in
-              <span id="update-countdown" style="color:#f5a623">15</span> seconds…<br>
-              <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
+    try {
+      const d = await fetch('/api/update/status').then(r => r.json());
+      errorStreak = 0;
+      if (d.state === 'complete') {
+        clearInterval(poll);
+        let countdown = 30;
+        document.body.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;
+                      min-height:100vh;background:#0f0f1a;color:#e0e0e0;
+                      font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
+            <div>
+              <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
+              <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
+              <div style="color:#888;font-size:.88rem">
+                Services are restarting. Reloading dashboard in
+                <span id="update-countdown" style="color:#f5a623">30</span> seconds…<br>
+                <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
+              </div>
             </div>
-          </div>
-        </div>`;
-      setTimeout(() => {
-        const timer = setInterval(() => {
-          countdown--;
-          const el = document.getElementById('update-countdown');
-          if (el) el.textContent = countdown;
-          if (countdown <= 0) { clearInterval(timer); location.reload(); }
-        }, 1000);
-      }, 100);
+          </div>`;
+        setTimeout(() => {
+          const timer = setInterval(() => {
+            countdown--;
+            const el = document.getElementById('update-countdown');
+            if (el) el.textContent = countdown;
+            if (countdown <= 0) { clearInterval(timer); location.reload(); }
+          }, 1000);
+        }, 100);
+      }
+      if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
+    } catch(e) {
+      // fetch failed — service is restarting, keep polling
+      errorStreak++;
+      if (errorStreak >= 30) {
+        // 60s of failures — give up and reload
+        clearInterval(poll);
+        location.reload();
+      }
     }
-    if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
   }, 2000);
 }
 
@@ -863,6 +885,7 @@ document.getElementById('reset-overlay').addEventListener('click', function(e) {
   if (e.target === this) hideResetOverlay();
 });
 
+// ── BUG-17 fix: factory reset countdown increased from 15s to 30s ──
 async function confirmReset() {
   const pw    = document.getElementById('reset-pw').value;
   const errEl = document.getElementById('reset-error');
@@ -880,7 +903,7 @@ async function confirmReset() {
       btn.disabled = false; btn.textContent = 'Reset & Reboot';
     } else {
       hideResetOverlay();
-      let countdown = 15;
+      let countdown = 30;
       document.body.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;
                     min-height:100vh;background:#0f0f1a;color:#e0e0e0;
@@ -890,7 +913,7 @@ async function confirmReset() {
             <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div>
             <div style="color:#888;font-size:.88rem">
               The appliance is rebooting. Redirecting to the setup wizard in
-              <span id="reset-countdown" style="color:#f5a623">15</span> seconds…<br>
+              <span id="reset-countdown" style="color:#f5a623">30</span> seconds…<br>
               <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.
             </div>
           </div>
@@ -1015,7 +1038,6 @@ function applyEmailDisabledState(disabled) {
 
 async function toggleEmailDisabled(chk) {
   applyEmailDisabledState(chk.checked);
-  // Auto-save the flag immediately so it persists without requiring "Save Settings"
   const payload = {
     alert_email:     document.getElementById('cfg-email').value,
     alert_threshold: document.getElementById('cfg-threshold').value,
@@ -1028,7 +1050,7 @@ async function toggleEmailDisabled(chk) {
     toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
   } else {
     toast('Failed to save preference.', true);
-    chk.checked = !chk.checked; // revert on failure
+    chk.checked = !chk.checked;
     applyEmailDisabledState(chk.checked);
   }
 }

@@ -1,7 +1,9 @@
 <!-- HoneytrapAI — setup.html
-     Version: v0.2.3
-     Revised: 2026-03-07
-     Rev: 1 -->
+     Copyright (c) 2026 HoneytrapAI / Anthony Watts
+     Licensed under the MIT License — see LICENSE file for details
+     Version: v0.2.7
+     Revised: 2026-03-08 10:00 PST
+     Rev: 2 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,9 +47,6 @@
     .smtp-section .smtp-hint{font-size:.76rem;color:#666;margin-bottom:.6rem;line-height:1.5}
     .smtp-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .7rem}
     .smtp-grid .full{grid-column:1/-1}
-    .tls-row{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
-    .tls-row input[type=checkbox]{width:auto;accent-color:#f5a623;cursor:pointer;margin:0}
-    .tls-row label{margin:0;font-size:.82rem;color:#aaa;cursor:pointer}
     button{width:100%;background:#f5a623;color:#1a1a2e;border:none;border-radius:6px;
            padding:.75rem;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:1.2rem;
            transition:background .2s}
@@ -63,7 +62,7 @@
 <body>
 <div class="card">
   <div class="logo-row">
-    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 30 L50 70 M35 40 L65 40 M35 60 L65 60' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='50' r='14' fill='none' stroke='%23f5a623' stroke-width='3'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23f5a623'/%3E%3Ccircle cx='62' cy='26' r='6' fill='%23f5a623'/%3E%3Cline x1='58' y1='24' x2='55' y2='22' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='60' y1='21' x2='58' y2='18' stroke='%231a1a2e' stroke-width='1.5'/%3E%3C/svg%3E"
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
          alt="HoneytrapAI">
     <div>
       <h1>HoneytrapAI Setup</h1>
@@ -201,7 +200,7 @@
                  placeholder="you@gmail.com" autocomplete="off">
         </div>
         <div>
-          <label for="smtp_pass">Password / App Password</label>
+          <label for="smtp_pass">Your Email Account Password</label>
           <input type="password" id="smtp_pass" name="smtp_pass"
                  placeholder="••••••••" autocomplete="new-password">
         </div>
@@ -210,7 +209,6 @@
           <input type="text" id="smtp_from" name="smtp_from"
                  placeholder="honeytrapai@yourdomain.com">
         </div>
-      </div>
         <div class="full">
           <label for="smtp_enc">Encryption</label>
           <select id="smtp_enc" name="smtp_enc" onchange="smtpEncChange(this)">
@@ -222,6 +220,7 @@
             Encrypts your login credentials in transit. Required by almost all email providers.
           </div>
         </div>
+      </div>
     </div>
 
     <button type="submit">Complete Setup →</button>
@@ -243,7 +242,6 @@
       hint.style.color = sel.value === 'none' ? '#e74c3c' : '#666';
     }
     function skipAll() {
-      // Clear all optional fields and submit
       ['alert_email','smtp_host','smtp_user','smtp_pass','smtp_from'].forEach(function(id) {
         document.getElementById(id).value = '';
       });

@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
      Version: v0.2.7
-     Revised: 2026-03-08
-     Rev: 11 -->
+     Revised: 2026-03-09
+     Rev: 14 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,7 +16,8 @@
     .nav-brand{display:flex;align-items:center;gap:.6rem}
     .nav-brand img{width:32px;height:32px;border-radius:6px}
     .nav-brand span{color:#f5a623;font-weight:700;font-size:1rem}
-    .nav-tabs{display:flex;gap:.3rem}
+    @media(max-width:600px){.nav-brand span{font-size:.8rem}}
+    .nav-tabs{display:flex;gap:.3rem;margin-left:1.5rem}
     .nav-tab{background:none;border:1px solid transparent;border-radius:6px;color:#aaa;
              padding:.4rem .9rem;cursor:pointer;font-size:.82rem;transition:all .2s}
     .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
@@ -59,12 +60,12 @@
     .sensor-dot.red{background:#e74c3c;box-shadow:0 0 6px #e74c3c}
     .sensor-dot.grey{background:#555}
     .sensor-label{color:#aaa;border-bottom:1px dotted #444;cursor:default;position:relative}
-    .sensor-label .tip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;
-                       transform:translateX(-50%);background:#2a2a4a;color:#ccc;
+    .sensor-label .tip{display:none;position:absolute;bottom:calc(100% + 6px);left:0;
+                       transform:none;background:#2a2a4a;color:#ccc;
                        font-size:.7rem;line-height:1.4;white-space:nowrap;padding:.35rem .6rem;
                        border-radius:5px;border:1px solid #3a3a5a;pointer-events:none;z-index:200}
-    .sensor-label .tip::after{content:'';position:absolute;top:100%;left:50%;
-                              transform:translateX(-50%);border:5px solid transparent;
+    .sensor-label .tip::after{content:'';position:absolute;top:100%;left:1rem;
+                              transform:none;border:5px solid transparent;
                               border-top-color:#2a2a4a}
     .sensor-label:hover .tip{display:block}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
@@ -166,9 +167,9 @@
     <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
          alt="HoneytrapAI">
     <span>HoneytrapAI</span>
-    <div style="display:flex;align-items:center;gap:.4rem;margin-left:.6rem;padding-left:.8rem;border-left:1px solid #2a2a4a">
+    <div style="display:flex;align-items:center;gap:.4rem;margin-left:.6rem;padding-left:.6rem;border-left:1px solid #2a2a4a">
       <div id="overall-dot" title="Overall system status"></div>
-      <span id="overall-label" style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.06em">System Status</span>
+      <span id="overall-label" style="font-size:.62rem;color:#888;text-transform:uppercase;letter-spacing:.03em">System Status</span>
     </div>
   </div>
   <div class="nav-tabs">
@@ -737,8 +738,9 @@ function renderOffenders() {
 async function loadSettings() {
   try {
     const d = await fetch('/api/settings').then(r => r.json());
-    if (d.alert_email) document.getElementById('cfg-email').value = d.alert_email;
-    document.getElementById('cfg-threshold').value    = d.alert_threshold   || 'medium';
+    // ── Rev 14 fix: always set field value — no truthy guard ──
+    document.getElementById('cfg-email').value = d.alert_email || '';
+    document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
     const chk = document.getElementById('chk-disable-email');
     chk.checked = !!d.email_disabled;
     applyEmailDisabledState(chk.checked);
@@ -1041,12 +1043,12 @@ function applyEmailDisabledState(disabled) {
   if (saveBtn) { saveBtn.disabled = disabled; }
 }
 
+// ── Rev 14 fix: toggleEmailDisabled only saves email_disabled —
+//    does NOT include alert_email to prevent clearing it on mobile ──
 async function toggleEmailDisabled(chk) {
   applyEmailDisabledState(chk.checked);
   const payload = {
-    alert_email:     document.getElementById('cfg-email').value,
-    alert_threshold: document.getElementById('cfg-threshold').value,
-    email_disabled:  chk.checked
+    email_disabled: chk.checked
   };
   const r = await fetch('/api/settings', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)

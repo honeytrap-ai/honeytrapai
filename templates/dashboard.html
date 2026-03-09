@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.2.8
+     Version: v0.2.7
      Revised: 2026-03-08
-     Rev: 9 -->
+     Rev: 10 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -813,53 +813,58 @@ async function checkUpdate(force) {
 }
 
 // ── BUG-17 fix: OTA countdown increased from 15s to 30s ──
-// ── BUG-18 fix: poll survives service restart by catching fetch errors ──
+// ── BUG-18 fix: show countdown screen as soon as service goes down ──
 async function installUpdate() {
   clearInterval(statsInterval);
   toast('Starting update…');
   await fetch('/api/update/install', {method:'POST'});
-  let errorStreak = 0;
+  let countdownStarted = false;
   const poll = setInterval(async () => {
     try {
       const d = await fetch('/api/update/status').then(r => r.json());
-      errorStreak = 0;
-      if (d.state === 'complete') {
-        clearInterval(poll);
-        let countdown = 30;
-        document.body.innerHTML = `
-          <div style="display:flex;align-items:center;justify-content:center;
-                      min-height:100vh;background:#0f0f1a;color:#e0e0e0;
-                      font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
-            <div>
-              <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
-              <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
-              <div style="color:#888;font-size:.88rem">
-                Services are restarting. Reloading dashboard in
-                <span id="update-countdown" style="color:#f5a623">30</span> seconds…<br>
-                <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
-              </div>
-            </div>
-          </div>`;
-        setTimeout(() => {
-          const timer = setInterval(() => {
-            countdown--;
-            const el = document.getElementById('update-countdown');
-            if (el) el.textContent = countdown;
-            if (countdown <= 0) { clearInterval(timer); location.reload(); }
-          }, 1000);
-        }, 100);
+      if (d.state === 'complete' || d.state === 'downloading') {
+        if (!countdownStarted) {
+          countdownStarted = true;
+          clearInterval(poll);
+          showUpdateCountdown();
+        }
       }
       if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
     } catch(e) {
-      // fetch failed — service is restarting, keep polling
-      errorStreak++;
-      if (errorStreak >= 30) {
-        // 60s of failures — give up and reload
+      // fetch failed — service is restarting, show countdown now
+      if (!countdownStarted) {
+        countdownStarted = true;
         clearInterval(poll);
-        location.reload();
+        showUpdateCountdown();
       }
     }
   }, 2000);
+}
+
+function showUpdateCountdown() {
+  let countdown = 30;
+  document.body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;
+                min-height:100vh;background:#0f0f1a;color:#e0e0e0;
+                font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
+      <div>
+        <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
+        <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
+        <div style="color:#888;font-size:.88rem">
+          Services are restarting. Reloading dashboard in
+          <span id="update-countdown" style="color:#f5a623">30</span> seconds…<br>
+          <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
+        </div>
+      </div>
+    </div>`;
+  setTimeout(() => {
+    const timer = setInterval(() => {
+      countdown--;
+      const el = document.getElementById('update-countdown');
+      if (el) el.textContent = countdown;
+      if (countdown <= 0) { clearInterval(timer); location.reload(); }
+    }, 1000);
+  }, 100);
 }
 
 async function restoreBackup(input) {

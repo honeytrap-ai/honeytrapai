@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.2.6
-# Revised: 2026-03-08
-# Rev: 2
+# Version: v0.3.0
+# Revised: 2026-03-09
+# Rev: 3
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -177,6 +177,23 @@ def set_static_ip(iface, ip, prefix_len, gateway, dns):
         capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "set_static_ip_helper failed")
+
+# --- Input validation helpers ---
+def is_safe_host(host):
+    """Accept hostnames and IPv4 addresses. Reject empty, shell metacharacters."""
+    if not host or len(host) > 253:
+        return False
+    if re.search(r'[;|&$`\'"\\\n\r]', host):
+        return False
+    return True
+
+def is_safe_port(port):
+    """Accept integers 1–65535."""
+    try:
+        p = int(port)
+        return 1 <= p <= 65535
+    except Exception:
+        return False
 
 # --- Auth decorators ---
 def login_required(f):
@@ -394,8 +411,6 @@ def api_services_status():
     except Exception:
         statuses["dns"] = False
 
-    # nginx removed — if it's down the dashboard is unreachable anyway
-    # notifier down = amber (detection still works, just no emails)
     critical      = ["adguardhome", "maltrail-sensor"]
     all_ok        = all(statuses.get(s) for s in critical) and statuses.get("dns") and statuses.get("honeytrapai-notifier")
     critical_down = not all(statuses.get(s) for s in critical)
@@ -576,7 +591,6 @@ def api_smtp():
             json.dump(smtp, f, indent=2)
         return jsonify({"status": "ok"})
 
-    # GET — never expose password
     smtp = {}
     if os.path.exists(SMTP_PATH):
         with open(SMTP_PATH) as f:
@@ -719,13 +733,12 @@ def api_simulate_threat():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # Poke the notifier to run immediately rather than waiting for the 60s poll
     trigger_path = os.path.join(BASE_DIR, "config", "notifier_trigger")
     try:
         os.makedirs(os.path.dirname(trigger_path), exist_ok=True)
         open(trigger_path, "w").close()
     except Exception:
-        pass  # Non-fatal — notifier will pick it up on next poll
+        pass
 
     return jsonify({"status": "ok", "trail": trail, "src_ip": src_ip,
                     "severity": severity, "info": info})
@@ -776,6 +789,136 @@ def api_restore():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# --- Tools API routes ---
+
+@app.route("/api/tools/ping", methods=["POST"])
+@login_required
+def api_tools_ping():
+    """Ping a host — 4 packets, 5s timeout per packet."""
+    data = request.get_json() or {}
+    host = data.get("host", "").strip()
+    if not is_safe_host(host):
+        return jsonify({"error": "Invalid host."}), 400
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "4", "-W", "5", host],
+            capture_output=True, text=True, timeout=30
+        )
+        output = result.stdout or result.stderr
+        return jsonify({"output": output, "success": result.returncode == 0})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Ping timed out."}), 504
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/tools/dns", methods=["POST"])
+@login_required
+def api_tools_dns():
+    """DNS lookup using Python socket — no external tools required."""
+    import socket
+    data = request.get_json() or {}
+    host = data.get("host", "").strip()
+    if not is_safe_host(host):
+        return jsonify({"error": "Invalid host."}), 400
+    try:
+        results = socket.getaddrinfo(host, None)
+        # Deduplicate and extract addresses
+        seen = set()
+        lines = [f"DNS lookup: {host}", ""]
+        for r in results:
+            addr = r[4][0]
+            family = "IPv4" if r[0].name == "AF_INET" else "IPv6"
+            key = (family, addr)
+            if key not in seen:
+                seen.add(key)
+                lines.append(f"{family:<6}  {addr}")
+        if len(lines) == 2:
+            lines.append("No records found.")
+        output = "\n".join(lines)
+        return jsonify({"output": output, "success": True})
+    except socket.gaierror as e:
+        return jsonify({"output": f"DNS lookup failed: {e}", "success": False})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/tools/traceroute", methods=["POST"])
+@login_required
+def api_tools_traceroute():
+    """Traceroute to a host — max 20 hops."""
+    data = request.get_json() or {}
+    host = data.get("host", "").strip()
+    if not is_safe_host(host):
+        return jsonify({"error": "Invalid host."}), 400
+    try:
+        result = subprocess.run(
+            ["traceroute", "-m", "20", "-w", "3", host],
+            capture_output=True, text=True, timeout=90
+        )
+        output = result.stdout or result.stderr
+        return jsonify({"output": output, "success": result.returncode == 0})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Traceroute timed out."}), 504
+    except FileNotFoundError:
+        return jsonify({"error": "traceroute not installed. Run: sudo apt-get install -y traceroute"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/tools/portscan", methods=["POST"])
+@login_required
+def api_tools_portscan():
+    """Port scan using Python socket — no nmap required.
+    Scans a comma-separated list of ports or a range (e.g. 80,443 or 20-25).
+    Max 50 ports per request.
+    """
+    import socket
+    data  = request.get_json() or {}
+    host  = data.get("host", "").strip()
+    ports_raw = data.get("ports", "22,80,443,3000,8080").strip()
+
+    if not is_safe_host(host):
+        return jsonify({"error": "Invalid host."}), 400
+
+    # Parse ports — support comma list and ranges
+    ports = []
+    try:
+        for part in ports_raw.split(","):
+            part = part.strip()
+            if "-" in part:
+                lo, hi = part.split("-", 1)
+                ports.extend(range(int(lo), int(hi) + 1))
+            else:
+                ports.append(int(part))
+        ports = [p for p in ports if is_safe_port(p)]
+        ports = list(dict.fromkeys(ports))[:50]  # deduplicate, cap at 50
+    except Exception:
+        return jsonify({"error": "Invalid port specification."}), 400
+
+    if not ports:
+        return jsonify({"error": "No valid ports specified."}), 400
+
+    lines = [f"Port scan: {host}", f"Scanning {len(ports)} port(s)…", ""]
+    open_count = 0
+    for port in ports:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                try:
+                    svc = socket.getservbyport(port)
+                except Exception:
+                    svc = "unknown"
+                lines.append(f"  {port:<6}  OPEN    {svc}")
+                open_count += 1
+            else:
+                lines.append(f"  {port:<6}  closed")
+        except Exception as e:
+            lines.append(f"  {port:<6}  error: {e}")
+
+    lines += ["", f"{open_count} open port(s) found."]
+    return jsonify({"output": "\n".join(lines), "success": True})
 
 if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))

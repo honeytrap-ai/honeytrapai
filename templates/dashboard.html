@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.13
+     Version: v0.3.14
      Revised: 2026-03-09
-     Rev: 17 -->
+     Rev: 19 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,19 +10,25 @@
   <title>HoneytrapAI Dashboard</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
+    html,body{max-width:100%;overflow-x:hidden}
     body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:.9rem}
-    nav{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.7rem 1.2rem;
-        display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-    .nav-brand{display:flex;align-items:center;gap:.6rem;min-width:0}
-    .nav-brand img{width:32px;height:32px;border-radius:6px;flex-shrink:0}
-    .nav-brand span{color:#f5a623;font-weight:700;font-size:1rem;white-space:nowrap}
-    @media(max-width:600px){.nav-brand span{font-size:.8rem}}
-    .nav-tabs{display:flex;gap:.3rem;margin-left:1.5rem;flex-shrink:0}
-    .nav-tab{background:none;border:1px solid transparent;border-radius:6px;color:#aaa;
-             padding:.4rem .9rem;cursor:pointer;font-size:.82rem;transition:all .2s;white-space:nowrap}
-    .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
-    .nav-right{display:flex;align-items:center;gap:.8rem;flex-shrink:0}
+    /* ── Nav: two-row on mobile ── */
+    nav{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.6rem 1rem;
+        display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
+        position:sticky;top:0;z-index:100}
+    .nav-brand{display:flex;align-items:center;gap:.5rem;flex:1;min-width:0}
+    .nav-brand img{width:28px;height:28px;border-radius:6px;flex-shrink:0}
+    .nav-brand span{color:#f5a623;font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .nav-status{display:flex;align-items:center;gap:.4rem;padding-left:.6rem;
+                border-left:1px solid #2a2a4a;flex-shrink:0}
+    .nav-right{display:flex;align-items:center;gap:.6rem;flex-shrink:0;margin-left:auto}
     .nav-version{font-size:.72rem;color:#555}
+    /* tabs always on their own row at mobile */
+    .nav-tabs{display:flex;gap:.3rem;width:100%;order:10}
+    @media(min-width:600px){.nav-tabs{width:auto;order:0;margin-left:.8rem}}
+    .nav-tab{background:none;border:1px solid transparent;border-radius:6px;color:#aaa;
+             padding:.35rem .75rem;cursor:pointer;font-size:.8rem;transition:all .2s;white-space:nowrap}
+    .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
     #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0}
     #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60;animation:pulse-green 2s ease-in-out infinite}
     #overall-dot.amber{background:#f39c12;box-shadow:0 0 7px #f39c12;animation:pulse-amber 2s ease-in-out infinite}
@@ -41,11 +47,9 @@
                 padding:.3rem .8rem;font-size:.78rem;cursor:pointer}
     .btn-later{background:none;border:1px solid #2a2a4a;color:#888;border-radius:4px;
                padding:.3rem .8rem;font-size:.78rem;cursor:pointer}
-    .container{max-width:1200px;margin:0 auto;padding:1.2rem}
-    /* BUG-31: prevent horizontal overflow at mid-widths */
-    .container{overflow-x:hidden}
+    .container{max-width:1200px;margin:0 auto;padding:1rem;width:100%}
     .page{display:none}.page.active{display:block}
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem;margin-bottom:1.2rem}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.8rem;margin-bottom:1.2rem}
     .stat-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;text-align:center}
     .stat-card .val{font-size:2rem;font-weight:700;color:#f5a623}
     .stat-card .val.red{color:#e74c3c}
@@ -70,10 +74,10 @@
                               transform:none;border:5px solid transparent;
                               border-top-color:#2a2a4a}
     .sensor-label:hover .tip{display:block}
-    /* BUG-31: grid collapses to single column earlier to prevent overflow */
+    /* BUG-31: single column below 800px; min-width:0 prevents grid blowout */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
-    @media(max-width:860px){.grid-2{grid-template-columns:1fr}}
-    .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;min-width:0}
+    @media(max-width:800px){.grid-2{grid-template-columns:1fr}}
+    .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;min-width:0;overflow:hidden}
     .panel-title{font-size:.8rem;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;
                  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem}
     .filter-bar{display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap}
@@ -189,19 +193,19 @@
     <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
          alt="HoneytrapAI">
     <span>HoneytrapAI</span>
-    <div style="display:flex;align-items:center;gap:.4rem;margin-left:.6rem;padding-left:.6rem;border-left:1px solid #2a2a4a">
-      <div id="overall-dot" title="Overall system status"></div>
-      <span id="overall-label" style="font-size:.62rem;color:#888;text-transform:uppercase;letter-spacing:.03em">System Status</span>
-    </div>
+  </div>
+  <div class="nav-status">
+    <div id="overall-dot" title="Overall system status"></div>
+    <span id="overall-label" style="font-size:.62rem;color:#888;text-transform:uppercase;letter-spacing:.03em">System Status</span>
+  </div>
+  <div class="nav-right">
+    <span class="nav-version">{{ version }}</span>
+    <a href="/logout" class="nav-logout">Sign out</a>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard',this)">Dashboard</button>
     <button class="nav-tab" onclick="showPage('settings',this)">Settings</button>
     <button class="nav-tab" onclick="showPage('tools',this)">Tools</button>
-  </div>
-  <div class="nav-right">
-    <span class="nav-version">{{ version }}</span>
-    <a href="/logout" class="nav-logout">Sign out</a>
   </div>
 </nav>
 

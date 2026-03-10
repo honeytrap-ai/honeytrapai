@@ -1,7 +1,7 @@
 # HoneytrapAI — log_parser.py
-# Version: v0.2.3
-# Revised: 2026-03-07
-# Rev: 1
+# Version: v0.3.14
+# Revised: 2026-03-09
+# Rev: 2
 #!/usr/bin/env python3
 """
 HoneytrapAI — Maltrail log parser with severity scoring
@@ -32,63 +32,63 @@ SEVERITY_LOW = [
 DEV_SAMPLE_EVENTS = [
     {
         "timestamp": (datetime.utcnow() - timedelta(minutes=2)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.42",
+        "src_ip": "196.181.98.171",
         "dst_ip": "185.220.101.47",
         "proto": "TCP",
-        "trail": "emotet-c2.ru",
-        "info": "Emotet C2 beacon",
-        "severity": "high",
+        "trail": "masscan.host",
+        "info": "port scanner",
+        "severity": "medium",
         "reference": "https://abuse.ch"
     },
     {
         "timestamp": (datetime.utcnow() - timedelta(minutes=8)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.105",
-        "dst_ip": "doubleclick.net",
-        "proto": "DNS",
-        "trail": "doubleclick.net",
-        "info": "Ad tracker",
-        "severity": "low",
-        "reference": "AdGuard"
+        "src_ip": "84.209.135.20",
+        "dst_ip": "185.220.101.47",
+        "proto": "TCP",
+        "trail": "encrypt-srv.net",
+        "info": "ransomware C2",
+        "severity": "high",
+        "reference": "https://abuse.ch"
     },
     {
         "timestamp": (datetime.utcnow() - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.42",
+        "src_ip": "85.159.192.183",
         "dst_ip": "91.108.4.0",
         "proto": "TCP",
-        "trail": "mirai-scanner.cn",
-        "info": "Mirai botnet scanner",
+        "trail": "rat-server.ru",
+        "info": "C2 beacon",
         "severity": "high",
         "reference": "https://maltrail.github.io"
     },
     {
         "timestamp": (datetime.utcnow() - timedelta(minutes=22)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.87",
+        "src_ip": "168.41.231.251",
         "dst_ip": "phishing-login.xyz",
         "proto": "DNS",
-        "trail": "phishing-login.xyz",
-        "info": "Phishing domain",
-        "severity": "medium",
+        "trail": "analytics-cdn.io",
+        "info": "tracker / telemetry",
+        "severity": "low",
         "reference": "ET Open"
     },
     {
         "timestamp": (datetime.utcnow() - timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.42",
-        "dst_ip": "trickbot-drop.net",
+        "src_ip": "33.15.97.6",
+        "dst_ip": "evil-payload.ru",
         "proto": "DNS",
-        "trail": "trickbot-drop.net",
-        "info": "TrickBot dropper domain",
+        "trail": "evil-payload.ru",
+        "info": "malware dropper",
         "severity": "high",
         "reference": "https://abuse.ch"
     },
     {
         "timestamp": (datetime.utcnow() - timedelta(hours=1, minutes=10)).strftime("%Y-%m-%d %H:%M:%S"),
-        "src_ip": "192.168.1.201",
-        "dst_ip": "analytics.google.com",
+        "src_ip": "119.110.86.15",
+        "dst_ip": "bad-actor.xyz",
         "proto": "DNS",
-        "trail": "analytics.google.com",
-        "info": "Analytics tracker",
-        "severity": "low",
-        "reference": "AdGuard"
+        "trail": "bad-actor.xyz",
+        "info": "malware dropper",
+        "severity": "high",
+        "reference": "https://abuse.ch"
     },
 ]
 
@@ -184,28 +184,59 @@ def get_summary(events):
             "top_threat_types": []
         }
 
-    high = [e for e in events if e["severity"] == "high"]
+    high   = [e for e in events if e["severity"] == "high"]
     medium = [e for e in events if e["severity"] == "medium"]
-    low = [e for e in events if e["severity"] == "low"]
+    low    = [e for e in events if e["severity"] == "low"]
 
-    src_counter = Counter(e["src_ip"] for e in events)
-    trail_counter = Counter(e["trail"] for e in events)
+    # BUG-32/33: track highest severity per unique key so bar colors are correct
+    SEV_ORDER = {"high": 3, "medium": 2, "low": 1}
 
-    # Derive threat types from info field
-    type_counter = Counter()
+    src_count    = Counter()
+    src_severity = {}
+    trail_count  = Counter()
+    trail_sev    = {}
+    type_count   = Counter()
+    type_sev     = {}
+
     for e in events:
+        sev = e["severity"]
+
+        # top_sources
+        ip = e["src_ip"]
+        src_count[ip] += 1
+        if SEV_ORDER.get(sev, 0) > SEV_ORDER.get(src_severity.get(ip, "low"), 0):
+            src_severity[ip] = sev
+
+        # top_trails
+        trail = e["trail"]
+        trail_count[trail] += 1
+        if SEV_ORDER.get(sev, 0) > SEV_ORDER.get(trail_sev.get(trail, "low"), 0):
+            trail_sev[trail] = sev
+
+        # top_threat_types — derive from info field
         info_lower = e["info"].lower()
         for kw in SEVERITY_HIGH + SEVERITY_MEDIUM + SEVERITY_LOW:
             if kw in info_lower:
-                type_counter[kw] += 1
+                type_count[kw] += 1
+                if SEV_ORDER.get(sev, 0) > SEV_ORDER.get(type_sev.get(kw, "low"), 0):
+                    type_sev[kw] = sev
                 break
 
     return {
-        "total": len(events),
-        "high": len(high),
+        "total":  len(events),
+        "high":   len(high),
         "medium": len(medium),
-        "low": len(low),
-        "top_sources": [{"ip": ip, "count": c} for ip, c in src_counter.most_common(5)],
-        "top_trails": [{"trail": t, "count": c} for t, c in trail_counter.most_common(5)],
-        "top_threat_types": [{"type": t, "count": c} for t, c in type_counter.most_common(5)]
+        "low":    len(low),
+        "top_sources": [
+            {"ip": ip, "count": c, "severity": src_severity.get(ip, "low")}
+            for ip, c in src_count.most_common(5)
+        ],
+        "top_trails": [
+            {"trail": t, "count": c, "severity": trail_sev.get(t, "low")}
+            for t, c in trail_count.most_common(5)
+        ],
+        "top_threat_types": [
+            {"type": t, "count": c, "severity": type_sev.get(t, "low")}
+            for t, c in type_count.most_common(5)
+        ],
     }

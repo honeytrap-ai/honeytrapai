@@ -2,7 +2,7 @@
 # HoneytrapAI — notifier.py
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts
 # Licensed under the HoneytrapAI Source Available License — see LICENSE file for details
-# Version: v0.3.13
+# Version: v0.3.14
 # Revised: 2026-03-09
 # Rev: 3
 """

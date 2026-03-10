@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.1
+     Version: v0.3.13
      Revised: 2026-03-09
-     Rev: 16 -->
+     Rev: 17 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,15 +13,15 @@
     body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:.9rem}
     nav{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.7rem 1.2rem;
         display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-    .nav-brand{display:flex;align-items:center;gap:.6rem}
-    .nav-brand img{width:32px;height:32px;border-radius:6px}
-    .nav-brand span{color:#f5a623;font-weight:700;font-size:1rem}
+    .nav-brand{display:flex;align-items:center;gap:.6rem;min-width:0}
+    .nav-brand img{width:32px;height:32px;border-radius:6px;flex-shrink:0}
+    .nav-brand span{color:#f5a623;font-weight:700;font-size:1rem;white-space:nowrap}
     @media(max-width:600px){.nav-brand span{font-size:.8rem}}
-    .nav-tabs{display:flex;gap:.3rem;margin-left:1.5rem}
+    .nav-tabs{display:flex;gap:.3rem;margin-left:1.5rem;flex-shrink:0}
     .nav-tab{background:none;border:1px solid transparent;border-radius:6px;color:#aaa;
-             padding:.4rem .9rem;cursor:pointer;font-size:.82rem;transition:all .2s}
+             padding:.4rem .9rem;cursor:pointer;font-size:.82rem;transition:all .2s;white-space:nowrap}
     .nav-tab.active,.nav-tab:hover{background:#2a2a4a;color:#f5a623;border-color:#3a3a5a}
-    .nav-right{display:flex;align-items:center;gap:.8rem}
+    .nav-right{display:flex;align-items:center;gap:.8rem;flex-shrink:0}
     .nav-version{font-size:.72rem;color:#555}
     #overall-dot{width:13px;height:13px;border-radius:50%;background:#555;flex-shrink:0}
     #overall-dot.green{background:#27ae60;box-shadow:0 0 7px #27ae60;animation:pulse-green 2s ease-in-out infinite}
@@ -42,8 +42,10 @@
     .btn-later{background:none;border:1px solid #2a2a4a;color:#888;border-radius:4px;
                padding:.3rem .8rem;font-size:.78rem;cursor:pointer}
     .container{max-width:1200px;margin:0 auto;padding:1.2rem}
+    /* BUG-31: prevent horizontal overflow at mid-widths */
+    .container{overflow-x:hidden}
     .page{display:none}.page.active{display:block}
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem;margin-bottom:1.2rem}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem;margin-bottom:1.2rem}
     .stat-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;text-align:center}
     .stat-card .val{font-size:2rem;font-weight:700;color:#f5a623}
     .stat-card .val.red{color:#e74c3c}
@@ -68,11 +70,12 @@
                               transform:none;border:5px solid transparent;
                               border-top-color:#2a2a4a}
     .sensor-label:hover .tip{display:block}
+    /* BUG-31: grid collapses to single column earlier to prevent overflow */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
-    @media(max-width:700px){.grid-2{grid-template-columns:1fr}}
-    .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem}
+    @media(max-width:860px){.grid-2{grid-template-columns:1fr}}
+    .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;min-width:0}
     .panel-title{font-size:.8rem;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;
-                 display:flex;align-items:center;justify-content:space-between}
+                 display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem}
     .filter-bar{display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap}
     .filter-btn{background:#12122a;border:1px solid #2a2a4a;color:#aaa;border-radius:4px;
                 padding:.3rem .7rem;font-size:.75rem;cursor:pointer;transition:all .2s}
@@ -90,10 +93,15 @@
     .empty-state .icon{font-size:2.5rem;margin-bottom:.5rem}
     .empty-state .empty-title{color:#27ae60;font-weight:bold;margin-bottom:.3rem}
     .empty-state .empty-sub{font-size:.78rem;color:#555;line-height:1.6}
+    /* BUG-32/33: bar chart — proportional widths, severity colors, 15% floor */
     .bar-item{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;font-size:.78rem}
-    .bar-label{width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aaa;flex-shrink:0}
-    .bar-track{flex:1;background:#12122a;border-radius:3px;height:10px;overflow:hidden}
-    .bar-fill{height:100%;background:#f5a623;border-radius:3px;transition:width .4s}
+    .bar-label{width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aaa;flex-shrink:0}
+    .bar-track{flex:1;background:#12122a;border-radius:3px;height:10px;overflow:hidden;min-width:0}
+    .bar-fill{height:100%;border-radius:3px;transition:width .4s}
+    .bar-fill.sev-high-bar{background:#e74c3c}
+    .bar-fill.sev-medium-bar{background:#f39c12}
+    .bar-fill.sev-low-bar{background:#27ae60}
+    .bar-fill.sev-default-bar{background:#f5a623}
     .bar-count{width:30px;text-align:right;color:#666;flex-shrink:0}
     .settings-section{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                        padding:1.2rem;margin-bottom:1rem}
@@ -213,7 +221,8 @@
   <div id="sensor-status-bar">
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-maltrail"></div>
-      <span class="sensor-label">Maltrail<span class="tip">Passive threat detection engine</span></span>
+      <!-- UI: Maltrail tooltip updated -->
+      <span class="sensor-label">Maltrail<span class="tip">Malicious Traffic Detection Monitor</span></span>
       <span id="lbl-maltrail" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
@@ -242,7 +251,7 @@
     <div class="panel">
       <div class="panel-title">
         Top Offenders
-        <span style="display:flex;gap:.3rem">
+        <span style="display:flex;gap:.3rem;flex-wrap:wrap">
           <button class="filter-btn active" onclick="setOffenderTab('sources',this)">Source IPs</button>
           <button class="filter-btn" onclick="setOffenderTab('trails',this)">Domains</button>
           <button class="filter-btn" onclick="setOffenderTab('types',this)">Threat Types</button>
@@ -782,6 +791,8 @@ function setOffenderTab(tab, btn) {
   renderOffenders();
 }
 
+// BUG-32: proportional bar widths with 15% floor
+// BUG-33: bar color reflects highest severity for that offender entry
 function renderOffenders() {
   const el = document.getElementById('offender-chart');
   let items = [];
@@ -797,13 +808,22 @@ function renderOffenders() {
     </div>`;
     return;
   }
-  const max = Math.max(...items.map(i => i.count), 1);
-  el.innerHTML = items.map(i => {
-    const lbl = i.ip || i.trail || i.type || '—';
-    const pct = Math.round((i.count / max) * 100);
+  // Sort by count desc, tiebreak by severity desc
+  const sevOrder = {high:3, medium:2, low:1};
+  const sorted = [...items].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return (sevOrder[b.severity] || 0) - (sevOrder[a.severity] || 0);
+  });
+  const maxCount = Math.max(...sorted.map(i => i.count), 1);
+  const sevClass = {high:'sev-high-bar', medium:'sev-medium-bar', low:'sev-low-bar'};
+  el.innerHTML = sorted.map(i => {
+    const lbl    = i.ip || i.trail || i.type || '—';
+    const rawPct = (i.count / maxCount) * 100;
+    const pct    = Math.max(Math.round(rawPct), 15); // 15% floor
+    const cls    = sevClass[i.severity] || 'sev-default-bar';
     return `<div class="bar-item">
       <div class="bar-label" title="${lbl}">${lbl}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
       <div class="bar-count">${i.count}</div>
     </div>`;
   }).join('');
@@ -959,7 +979,7 @@ document.getElementById('reset-overlay').addEventListener('click', function(e) {
   if (e.target === this) hideResetOverlay();
 });
 
-// ── BUG-17 fix: factory reset countdown 15s→30s ──
+// ── BUG-27 fix: factory reset countdown 30s → 60s ──
 async function confirmReset() {
   const pw    = document.getElementById('reset-pw').value;
   const errEl = document.getElementById('reset-error');
@@ -977,7 +997,7 @@ async function confirmReset() {
       btn.disabled = false; btn.textContent = 'Reset & Reboot';
     } else {
       hideResetOverlay();
-      let countdown = 30;
+      let countdown = 60;
       document.body.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;
                     min-height:100vh;background:#0f0f1a;color:#e0e0e0;
@@ -987,7 +1007,7 @@ async function confirmReset() {
             <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div>
             <div style="color:#888;font-size:.88rem">
               The appliance is rebooting. Redirecting to the setup wizard in
-              <span id="reset-countdown" style="color:#f5a623">30</span> seconds…<br>
+              <span id="reset-countdown" style="color:#f5a623">60</span> seconds…<br>
               <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.
             </div>
           </div>

@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.12
+# Version: v0.3.18
 # Revised: 2026-03-09
-# Rev: 4
+# Rev: 6
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -17,7 +17,7 @@ import subprocess
 import ipaddress
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -346,7 +346,11 @@ def setup():
 @setup_required
 @terms_required
 def dashboard():
-    return render_template("dashboard.html", version=get_version(), dev_mode=DEV_MODE)
+    resp = make_response(render_template("dashboard.html", version=get_version(), dev_mode=DEV_MODE))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @app.route("/terms")
 @login_required
@@ -360,7 +364,11 @@ def terms():
     if os.path.exists(terms_path):
         with open(terms_path) as f:
             terms_html = render_markdown(f.read())
-    return render_template("terms.html", terms_html=terms_html, version=get_version())
+    resp = make_response(render_template("terms.html", terms_html=terms_html, version=get_version()))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @app.route("/api/terms/accept", methods=["POST"])
 @login_required
@@ -447,6 +455,52 @@ def api_adguard_stats():
         )
         with urllib.request.urlopen(req, timeout=3) as r:
             return jsonify(json.loads(r.read()))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+@app.route("/api/adguard/history")
+@login_required
+def api_adguard_history():
+    """
+    Return 24-hour DNS query history as hourly buckets.
+    AdGuard /control/stats returns dns_queries[] and blocked_filtering[]
+    as 24-element arrays (oldest → newest, one entry per hour).
+    We derive hour labels from the current local time going back 23 hours.
+    """
+    if DEV_MODE:
+        import random
+        now_h   = datetime.now().hour
+        hours   = [f"{(now_h - 23 + i) % 24:02d}:00" for i in range(24)]
+        base    = [random.randint(300, 900) for _ in range(24)]
+        blocked = [int(b * random.uniform(0.05, 0.18)) for b in base]
+        return jsonify({"hours": hours, "queries": base, "blocked": blocked})
+
+    try:
+        import urllib.request, base64
+        cfg     = load_config()
+        ag_user = cfg.get("adguard_user", "admin")
+        ag_pass = cfg.get("adguard_password", "")
+        token   = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+        req     = urllib.request.Request(
+            "http://127.0.0.1:3000/control/stats",
+            headers={"Authorization": f"Basic {token}"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.loads(r.read())
+
+        queries = data.get("dns_queries",       [0] * 24)
+        blocked = data.get("blocked_filtering", [0] * 24)
+
+        # Pad or trim to exactly 24 elements
+        queries = (queries + [0] * 24)[:24]
+        blocked = (blocked + [0] * 24)[:24]
+
+        # Build hour labels: current hour is the last bucket
+        now_h = datetime.now().hour
+        hours = [f"{(now_h - 23 + i) % 24:02d}:00" for i in range(24)]
+
+        return jsonify({"hours": hours, "queries": queries, "blocked": blocked})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 503
 

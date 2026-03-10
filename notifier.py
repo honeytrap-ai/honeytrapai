@@ -2,9 +2,9 @@
 # HoneytrapAI — notifier.py
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts
 # Licensed under the HoneytrapAI Source Available License — see LICENSE file for details
-# Version: v0.2.7
-# Revised: 2026-03-08 18:00 PST
-# Rev: 2
+# Version: v0.3.13
+# Revised: 2026-03-09
+# Rev: 3
 """
 HoneytrapAI — Email notifier daemon
 Polls the Maltrail log every 60s and sends digest alert emails for new threats.
@@ -15,6 +15,7 @@ No cloud. No subscription. No monthly fees. Ever.
 import os
 import json
 import time
+import socket
 import smtplib
 import logging
 from datetime import datetime, timezone
@@ -97,6 +98,19 @@ def infer_severity(info):
 def meets_threshold(severity, threshold):
     return SEVERITY_ORDER.get(severity, 0) >= SEVERITY_ORDER.get(threshold, 1)
 
+# BUG-28: resolve hostname to IP address for src_ip field
+def resolve_to_ip(value):
+    """Return value unchanged if already an IP; resolve hostname to IP otherwise."""
+    try:
+        socket.inet_aton(value)   # raises if not a valid IPv4 address
+        return value
+    except socket.error:
+        pass
+    try:
+        return socket.gethostbyname(value)
+    except Exception:
+        return value              # fall back to original if resolution fails
+
 def parse_new_lines(position):
     """
     Read new lines from the Maltrail log since the last known byte position.
@@ -122,10 +136,10 @@ def parse_new_lines(position):
                     continue
                 try:
                     ts       = f"{parts[0]} {parts[1]}"
-                    src_ip   = parts[2]
+                    src_ip   = resolve_to_ip(parts[2])             # BUG-28: ensure IP not hostname
                     trail    = parts[7]
-                    info_raw = " ".join(parts[8:])           # BUG-21: rejoin multi-word info field
-                    info     = info_raw.split(";")[0].strip() # strip ref URL and whitespace
+                    info_raw = " ".join(parts[8:])                  # BUG-21: rejoin multi-word info field
+                    info     = info_raw.split(";")[0].strip()       # strip ref URL and whitespace
                     sev      = infer_severity(info)
                     events.append({
                         "timestamp": ts,
@@ -200,7 +214,8 @@ def build_email_html(events):
       </table>
       <hr style="border:none;border-top:1px solid #2a2a4a;margin:1.2rem 0">
       <div style="font-size:.72rem;color:#555">
-        No cloud. No subscription. No monthly fees. Ever. — HoneytrapAI
+        No cloud. No subscription. No monthly fees. Ever. —
+        <a href="https://honeytrap.ai" style="color:#f5a623;text-decoration:none">HoneytrapAI&#8482;</a>
       </div>
     </div>"""
 
@@ -216,7 +231,7 @@ def build_email_text(events):
             f"[{e['severity'].upper()}] {e['timestamp'][11:19]}  "
             f"{e['src_ip']}  {e['trail']}  {e['info']}"
         )
-    lines += ["", "No cloud. No subscription. No monthly fees. Ever.", "— HoneytrapAI"]
+    lines += ["", "No cloud. No subscription. No monthly fees. Ever.", "— HoneytrapAI  https://honeytrap.ai"]
     return "\n".join(lines)
 
 def send_digest(events, cfg, smtp):

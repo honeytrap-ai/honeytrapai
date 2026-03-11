@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.20
+# Version: v0.3.22
 # Revised: 2026-03-10
-# Rev: 9
+# Rev: 11
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -62,11 +62,6 @@ def verify_password(password, stored):
 
 # --- Markdown renderer ---
 def render_markdown(text):
-    """
-    Lightweight markdown-to-HTML renderer for TERMS.md.
-    Handles: h1/h2/h3, bold, italic, inline code, bullet lists, hr, paragraphs.
-    No external dependencies.
-    """
     import html as html_mod
     lines = text.splitlines()
     out = []
@@ -180,7 +175,6 @@ def set_static_ip(iface, ip, prefix_len, gateway, dns):
 
 # --- Input validation helpers ---
 def is_safe_host(host):
-    """Accept hostnames and IPv4 addresses. Reject empty, shell metacharacters."""
     if not host or len(host) > 253:
         return False
     if re.search(r'[;|&$`\'"\\\n\r]', host):
@@ -188,7 +182,6 @@ def is_safe_host(host):
     return True
 
 def is_safe_port(port):
-    """Accept integers 1–65535."""
     try:
         p = int(port)
         return 1 <= p <= 65535
@@ -857,116 +850,6 @@ def api_restore():
         return jsonify({"error": str(e)}), 500
 
 # --- Tools API routes ---
-
-@app.route("/api/tools/speedtest")
-@login_required
-def api_tools_speedtest():
-    """
-    Server-Sent Events speedtest.
-    Runs all network I/O in a background thread to avoid blocking the
-    Gunicorn sync worker. Results are passed back via a queue.
-    Phases: ping → download → upload
-    """
-    import queue
-    import threading
-    import time
-    import urllib.request
-
-    DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=10000000"  # 10 MB
-    UPLOAD_URL   = "https://speed.cloudflare.com/__up"
-    PING_HOSTS   = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
-    PING_COUNT   = 4
-
-    q = queue.Queue()
-
-    def run_test():
-        try:
-            # ── Phase 1: Ping ──────────────────────────────────────────
-            q.put("event: phase\ndata: {\"phase\": \"ping\"}\n\n")
-            latencies = []
-            for host in PING_HOSTS:
-                for _ in range(PING_COUNT):
-                    try:
-                        t0  = time.perf_counter()
-                        req = urllib.request.Request(
-                            f"https://{host}",
-                            headers={"User-Agent": "HoneytrapAI-speedtest/1.0"}
-                        )
-                        urllib.request.urlopen(req, timeout=3)
-                        latencies.append((time.perf_counter() - t0) * 1000)
-                    except Exception:
-                        pass
-            ping_ms = round(min(latencies), 1) if latencies else None
-            q.put(f"event: ping\ndata: {{\"ping_ms\": {json.dumps(ping_ms)}}}\n\n")
-
-            # ── Phase 2: Download ──────────────────────────────────────
-            q.put("event: phase\ndata: {\"phase\": \"download\"}\n\n")
-            try:
-                req = urllib.request.Request(
-                    DOWNLOAD_URL,
-                    headers={"User-Agent": "HoneytrapAI-speedtest/1.0"}
-                )
-                t0 = time.perf_counter()
-                with urllib.request.urlopen(req, timeout=60) as r:
-                    total = 0
-                    while True:
-                        chunk = r.read(65536)
-                        if not chunk:
-                            break
-                        total += len(chunk)
-                elapsed   = time.perf_counter() - t0
-                down_mbps = round((total * 8) / elapsed / 1_000_000, 2)
-            except Exception as e:
-                down_mbps = None
-            q.put(f"event: download\ndata: {{\"down_mbps\": {json.dumps(down_mbps)}}}\n\n")
-
-            # ── Phase 3: Upload ────────────────────────────────────────
-            q.put("event: phase\ndata: {\"phase\": \"upload\"}\n\n")
-            try:
-                upload_data = os.urandom(5 * 1024 * 1024)   # 5 MB random bytes
-                req = urllib.request.Request(
-                    UPLOAD_URL,
-                    data=upload_data,
-                    method="POST",
-                    headers={
-                        "User-Agent":     "HoneytrapAI-speedtest/1.0",
-                        "Content-Type":   "application/octet-stream",
-                        "Content-Length": str(len(upload_data)),
-                    }
-                )
-                t0 = time.perf_counter()
-                with urllib.request.urlopen(req, timeout=60) as r:
-                    r.read()
-                elapsed = time.perf_counter() - t0
-                up_mbps = round((len(upload_data) * 8) / elapsed / 1_000_000, 2)
-            except Exception as e:
-                up_mbps = None
-            q.put(f"event: upload\ndata: {{\"up_mbps\": {json.dumps(up_mbps)}}}\n\n")
-
-        except Exception as e:
-            q.put(f"event: error\ndata: {{\"error\": {json.dumps(str(e))}}}\n\n")
-        finally:
-            q.put(None)  # sentinel — signals generator to close
-
-    threading.Thread(target=run_test, daemon=True).start()
-
-    def generate():
-        while True:
-            msg = q.get()
-            if msg is None:
-                break
-            yield msg
-        yield "event: done\ndata: {\"status\": \"complete\"}\n\n"
-
-    return app.response_class(
-        generate(),
-        status=200,
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control":    "no-cache",
-            "X-Accel-Buffering":"no",
-        }
-    )
 
 @app.route("/api/tools/ping", methods=["POST"])
 @login_required

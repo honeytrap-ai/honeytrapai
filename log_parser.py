@@ -1,20 +1,24 @@
 # HoneytrapAI — log_parser.py
-# Version: v0.3.14
-# Revised: 2026-03-09
-# Rev: 2
+# Version: v0.3.26
+# Revised: 2026-03-11
+# Rev: 3
 #!/usr/bin/env python3
 """
 HoneytrapAI — Maltrail log parser with severity scoring
-Parses Maltrail's CSV log format and returns structured threat events.
+Parses both HoneytrapAI custom log format and Maltrail native dated log format.
 """
 
 import os
+import glob
 import re
 from datetime import datetime, timedelta
 from collections import Counter
 
-# Maltrail log format:
-# timestamp, sensor, src_ip, src_port, dst_ip, dst_port, proto, trail, info, reference
+# HoneytrapAI custom log format (maltrail.log):
+# timestamp sensor src_ip src_port dst_ip dst_port proto trail info;reference
+#
+# Maltrail native log format (YYYY-MM-DD.log):
+# "timestamp_with_microseconds" sensor src_ip src_port dst_ip dst_port proto trail info
 
 SEVERITY_HIGH = [
     "malware", "c2", "botnet", "ransomware", "rat", "backdoor",
@@ -28,6 +32,9 @@ SEVERITY_MEDIUM = [
 SEVERITY_LOW = [
     "tracker", "ads", "analytics", "telemetry", "cdn"
 ]
+
+# Maltrail native log: quoted timestamp at start
+_NATIVE_RE = re.compile(r'^"([^"]+)"\s+(.+)$')
 
 DEV_SAMPLE_EVENTS = [
     {
@@ -122,7 +129,7 @@ def tail_file(path, max_lines=2000):
         return []
 
 def parse_line(line):
-    """Parse a single Maltrail CSV log line into a dict."""
+    """Parse a HoneytrapAI custom format log line into a dict."""
     line = line.strip()
     if not line or line.startswith("#"):
         return None
@@ -131,45 +138,124 @@ def parse_line(line):
         return None
     try:
         timestamp = parts[0] + " " + parts[1]
-        # sensor = parts[2]
-        src_ip = parts[3]
-        # src_port = parts[4]
-        dst_ip = parts[5]
-        # dst_port = parts[6]
-        proto = parts[7]
-        trail = parts[8]
-        info = " ".join(parts[9:]) if len(parts) > 9 else ""
+        src_ip    = parts[3]
+        dst_ip    = parts[5]
+        proto     = parts[7]
+        trail     = parts[8]
+        info      = " ".join(parts[9:]) if len(parts) > 9 else ""
         reference = ""
         if ";" in info:
             info, reference = info.rsplit(";", 1)
         severity = score_severity(trail, info)
         return {
             "timestamp": timestamp,
-            "src_ip": src_ip,
-            "dst_ip": dst_ip,
-            "proto": proto,
-            "trail": trail,
-            "info": info.strip(),
-            "severity": severity,
+            "src_ip":    src_ip,
+            "dst_ip":    dst_ip,
+            "proto":     proto,
+            "trail":     trail,
+            "info":      info.strip(),
+            "severity":  severity,
             "reference": reference.strip()
         }
     except Exception:
         return None
 
+def parse_native_line(line):
+    """Parse a Maltrail native dated log line into a dict.
+
+    Format: "YYYY-MM-DD HH:MM:SS.ffffff" sensor src_ip src_port dst_ip dst_port proto trail info
+    """
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return None
+    m = _NATIVE_RE.match(line)
+    if not m:
+        return None
+    try:
+        # Truncate microseconds for uniform timestamp format
+        ts_raw = m.group(1)
+        timestamp = ts_raw.split(".")[0]
+
+        parts = m.group(2).split(" ")
+        if len(parts) < 7:
+            return None
+        # sensor = parts[0]
+        src_ip = parts[1]
+        # src_port = parts[2]
+        dst_ip = parts[3]
+        # dst_port = parts[4]
+        proto  = parts[5]
+        trail  = parts[6]
+        info   = " ".join(parts[7:]) if len(parts) > 7 else ""
+
+        # Strip surrounding quotes from info/trail if present
+        trail = trail.strip('"')
+        info  = info.strip().strip('"')
+
+        severity = score_severity(trail, info)
+        return {
+            "timestamp": timestamp,
+            "src_ip":    src_ip,
+            "dst_ip":    dst_ip,
+            "proto":     proto,
+            "trail":     trail,
+            "info":      info,
+            "severity":  severity,
+            "reference": ""
+        }
+    except Exception:
+        return None
+
+def get_native_log_paths(log_dir="/var/log/maltrail"):
+    """Return today's and yesterday's Maltrail native dated log paths (they cover the 24h window)."""
+    paths = []
+    for delta in (0, 1):
+        date_str = (datetime.utcnow() - timedelta(days=delta)).strftime("%Y-%m-%d")
+        path = os.path.join(log_dir, f"{date_str}.log")
+        if os.path.exists(path):
+            paths.append(path)
+    return paths
+
 def parse_logs(log_path, max_events=500, dev_mode=False):
-    """Return list of parsed threat events, newest first."""
+    """Return list of parsed threat events from all sources, newest first.
+
+    Reads both the HoneytrapAI custom maltrail.log and Maltrail native
+    dated log files, merges and deduplicates by (timestamp, src_ip, trail).
+    """
     if dev_mode:
         return DEV_SAMPLE_EVENTS
 
-    lines = tail_file(log_path, max_lines=2000)
-    events = []
-    for line in reversed(lines):
-        ev = parse_line(line)
-        if ev:
-            events.append(ev)
-        if len(events) >= max_events:
-            break
-    return events
+    events   = []
+    seen     = set()  # dedup key: (timestamp, src_ip, trail)
+    cutoff   = datetime.utcnow() - timedelta(hours=24)
+
+    def _add(ev):
+        if ev is None:
+            return
+        try:
+            ts = datetime.strptime(ev["timestamp"], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return
+        if ts < cutoff:
+            return
+        key = (ev["timestamp"], ev["src_ip"], ev["trail"])
+        if key in seen:
+            return
+        seen.add(key)
+        events.append(ev)
+
+    # --- Source 1: HoneytrapAI custom log ---
+    for line in tail_file(log_path, max_lines=2000):
+        _add(parse_line(line))
+
+    # --- Source 2: Maltrail native dated logs ---
+    for path in get_native_log_paths():
+        for line in tail_file(path, max_lines=2000):
+            _add(parse_native_line(line))
+
+    # Sort newest first
+    events.sort(key=lambda e: e["timestamp"], reverse=True)
+    return events[:max_events]
 
 def get_summary(events):
     """Return summary statistics from a list of events."""
@@ -188,7 +274,6 @@ def get_summary(events):
     medium = [e for e in events if e["severity"] == "medium"]
     low    = [e for e in events if e["severity"] == "low"]
 
-    # BUG-32/33: track highest severity per unique key so bar colors are correct
     SEV_ORDER = {"high": 3, "medium": 2, "low": 1}
 
     src_count    = Counter()
@@ -201,19 +286,16 @@ def get_summary(events):
     for e in events:
         sev = e["severity"]
 
-        # top_sources
         ip = e["src_ip"]
         src_count[ip] += 1
         if SEV_ORDER.get(sev, 0) > SEV_ORDER.get(src_severity.get(ip, "low"), 0):
             src_severity[ip] = sev
 
-        # top_trails
         trail = e["trail"]
         trail_count[trail] += 1
         if SEV_ORDER.get(sev, 0) > SEV_ORDER.get(trail_sev.get(trail, "low"), 0):
             trail_sev[trail] = sev
 
-        # top_threat_types — derive from info field
         info_lower = e["info"].lower()
         for kw in SEVERITY_HIGH + SEVERITY_MEDIUM + SEVERITY_LOW:
             if kw in info_lower:

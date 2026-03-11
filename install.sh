@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.1
-# Revised: 2026-03-09
-# Rev: 4
+# Version: v0.3.26
+# Revised: 2026-03-11
+# Rev: 5
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -88,6 +88,9 @@ LOG_DIR $LOG_DIR
 USE_HEURISTICS true
 ENABLE_SUDO_INTERFACE true
 EOF
+
+# Ensure any existing Maltrail dated logs are readable by the honeytrapai service user
+chmod -f o+r "$LOG_DIR"/*.log 2>/dev/null || true
 info "Maltrail installed"
 
 section "6. Install AdGuard Home"
@@ -230,6 +233,8 @@ systemctl start avahi-daemon
 info "mDNS configured — device accessible at http://honeytrap.local"
 
 section "10. Configure logrotate"
+# create 0644 root root — Maltrail sensor (root) writes dated logs world-readable
+# postrotate chmod — ensures rotated/new dated logs remain readable by honeytrapai service user
 cat > /etc/logrotate.d/maltrail << 'EOF'
 /var/log/maltrail/*.log {
     daily
@@ -238,10 +243,13 @@ cat > /etc/logrotate.d/maltrail << 'EOF'
     delaycompress
     missingok
     notifempty
-    create 640 honeytrapai honeytrapai
+    create 0644 root root
+    postrotate
+        chmod -f o+r /var/log/maltrail/*.log || true
+    endscript
 }
 EOF
-info "Log rotation configured (30-day retention)"
+info "Log rotation configured (30-day retention, world-readable logs)"
 
 section "11. Configure unattended upgrades (OS security patches)"
 cat > /etc/apt/apt.conf.d/20honeytrapai-unattended << 'EOF'
@@ -251,7 +259,14 @@ APT::Periodic::AutocleanInterval "7";
 EOF
 info "Unattended OS security upgrades enabled"
 
-section "12. Create systemd services"
+section "12. Download world map data (Live Threat Map)"
+mkdir -p "$APP_DIR/static"
+curl -L "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" \
+    -o "$APP_DIR/static/countries-110m.json"
+chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/static/countries-110m.json"
+info "Natural Earth 110m world map data downloaded"
+
+section "13. Create systemd services"
 
 # HoneytrapAI dashboard (gunicorn)
 SECRET=$(cat "$APP_DIR/config/secret_key")
@@ -400,7 +415,7 @@ visudo -c -f /etc/sudoers.d/honeytrapai-updater || { error "Sudoers syntax check
 chmod 440 /etc/sudoers.d/honeytrapai-updater
 info "Sudoers rules added"
 
-section "13. Enable and start services"
+section "14. Enable and start services"
 systemctl daemon-reload
 systemctl enable honeytrapai honeytrapai-notifier adguardhome maltrail-sensor honeytrapai-update.timer
 systemctl enable reset-monitor.service

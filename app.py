@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.22
+# Version: v0.3.23
 # Revised: 2026-03-10
-# Rev: 11
+# Rev: 12
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -15,6 +15,7 @@ import hashlib
 import secrets
 import subprocess
 import ipaddress
+import threading
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
@@ -30,6 +31,12 @@ VERSION_PATH= os.path.join(BASE_DIR, "VERSION")
 LOG_PATH    = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
 DEV_MODE    = os.environ.get("HONEYTRAPAI_DEV", "0") == "1"
 
+# --- Lifetime blocked counter state ---
+# Tracks the last raw num_blocked_filtering value seen from AdGuard so we can
+# compute deltas between /api/stats polls without double-counting.
+_last_num_blocked     = None   # int or None (None = first poll, skip delta)
+_lifetime_blocked_lock = threading.Lock()
+
 # --- Config helpers ---
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -39,8 +46,10 @@ def load_config():
 
 def save_config(data):
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    os.replace(tmp, CONFIG_PATH)
 
 def get_version():
     if os.path.exists(VERSION_PATH):
@@ -377,15 +386,78 @@ def api_terms_accept():
 @app.route("/api/stats")
 @login_required
 def api_stats():
+    global _last_num_blocked
     from log_parser import parse_logs, get_summary
+
+    # ── Threat log ──────────────────────────────────────────────────────────
     cfg     = load_config()
     events  = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
     summary = get_summary(events)
+
+    # ── Lifetime blocked counter ─────────────────────────────────────────────
+    # Pull current num_blocked_filtering from AdGuard (today's running total).
+    # Compute delta vs last known value and accumulate into config.json.
+    # First poll after service start: record baseline without adding to counter
+    # (avoids a huge spike on restart).
+    current_blocked = None
+    try:
+        import urllib.request, base64
+        ag_user = cfg.get("adguard_user", "admin")
+        ag_pass = cfg.get("adguard_password", "")
+        token   = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+        req     = urllib.request.Request(
+            "http://127.0.0.1:3000/control/stats",
+            headers={"Authorization": f"Basic {token}"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
+            ag_data = json.loads(r.read())
+        current_blocked = int(ag_data.get("num_blocked_filtering", 0))
+    except Exception:
+        pass
+
+    if current_blocked is not None:
+        with _lifetime_blocked_lock:
+            if _last_num_blocked is None:
+                # First poll after service start.
+                # If lifetime_blocked is not yet seeded, backfill from AdGuard's
+                # full 7-day blocked_filtering history so we don't lose past data.
+                if "lifetime_blocked" not in cfg:
+                    try:
+                        import urllib.request, base64 as _b64
+                        ag_user = cfg.get("adguard_user", "admin")
+                        ag_pass = cfg.get("adguard_password", "")
+                        token   = _b64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+                        req     = urllib.request.Request(
+                            "http://127.0.0.1:3000/control/stats",
+                            headers={"Authorization": f"Basic {token}"}
+                        )
+                        with urllib.request.urlopen(req, timeout=3) as r:
+                            ag_hist = json.loads(r.read())
+                        history_total = sum(ag_hist.get("blocked_filtering", []))
+                        cfg["lifetime_blocked"] = history_total
+                        save_config(cfg)
+                    except Exception:
+                        # AdGuard unreachable — seed with today's count, accumulate later
+                        cfg["lifetime_blocked"] = current_blocked
+                        save_config(cfg)
+                # Set baseline for delta tracking going forward
+                _last_num_blocked = current_blocked
+            else:
+                delta = current_blocked - _last_num_blocked
+                if delta > 0:
+                    cfg["lifetime_blocked"] = cfg.get("lifetime_blocked", 0) + delta
+                    save_config(cfg)
+                # Handle AdGuard counter reset (midnight rollover or restart)
+                _last_num_blocked = current_blocked
+
+    lifetime_blocked = cfg.get("lifetime_blocked", 0)
+
     return jsonify({
-        "events":    events[:100],
-        "summary":   summary,
-        "interface": cfg.get("interface", "eth0"),
-        "version":   get_version()
+        "events":           events[:100],
+        "summary":          summary,
+        "interface":        cfg.get("interface", "eth0"),
+        "version":          get_version(),
+        "lifetime_blocked": lifetime_blocked,
     })
 
 @app.route("/api/services/status")
@@ -619,6 +691,8 @@ def _perform_factory_reset():
             pass
     ag_user = existing.get("adguard_user", "admin")
     ag_pass = existing.get("adguard_password", "")
+    # lifetime_blocked survives factory reset intentionally
+    lifetime_blocked = existing.get("lifetime_blocked", 0)
 
     for path in [CONFIG_PATH, SMTP_PATH]:
         if os.path.exists(path):
@@ -627,10 +701,13 @@ def _perform_factory_reset():
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     subprocess.run(["sudo", "python3", helper, "--remove"], capture_output=True)
 
+    preserved = {"lifetime_blocked": lifetime_blocked}
     if ag_pass:
-        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-        with open(CONFIG_PATH, "w") as f:
-            json.dump({"adguard_user": ag_user, "adguard_password": ag_pass}, f, indent=2)
+        preserved["adguard_user"]     = ag_user
+        preserved["adguard_password"] = ag_pass
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(preserved, f, indent=2)
 
 @app.route("/api/smtp", methods=["GET", "POST"])
 @login_required

@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.23
+# Version: v0.3.24
 # Revised: 2026-03-10
-# Rev: 12
+# Rev: 17
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -10,6 +10,7 @@ No cloud. No subscription. No monthly fees. Ever.
 
 import os
 import re
+import glob
 import json
 import hashlib
 import secrets
@@ -19,6 +20,7 @@ import threading
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+import geoip2.database
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -32,10 +34,61 @@ LOG_PATH    = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
 DEV_MODE    = os.environ.get("HONEYTRAPAI_DEV", "0") == "1"
 
 # --- Lifetime blocked counter state ---
-# Tracks the last raw num_blocked_filtering value seen from AdGuard so we can
-# compute deltas between /api/stats polls without double-counting.
-_last_num_blocked     = None   # int or None (None = first poll, skip delta)
+_last_num_blocked      = None
 _lifetime_blocked_lock = threading.Lock()
+
+# --- Country centroid lookup — ISO 3166-1 alpha-2 → (lat, lon) ---
+COUNTRY_CENTROIDS = {
+    "AD":(42.55,1.57),"AE":(24.00,54.00),"AF":(33.00,65.00),"AG":(17.07,-61.80),
+    "AL":(41.00,20.00),"AM":(40.00,45.00),"AO":(-11.20,17.87),"AR":(-34.00,-64.00),
+    "AT":(47.33,13.33),"AU":(-27.00,133.00),"AZ":(40.50,47.50),"BA":(44.00,17.50),
+    "BB":(13.17,-59.53),"BD":(24.00,90.00),"BE":(50.83,4.00),"BF":(13.00,-2.00),
+    "BG":(43.00,25.00),"BH":(26.00,50.55),"BI":(-3.50,30.00),"BJ":(9.50,2.25),
+    "BN":(4.50,114.67),"BO":(-17.00,-65.00),"BR":(-10.00,-55.00),"BS":(24.25,-76.00),
+    "BT":(27.50,90.50),"BW":(-22.00,24.00),"BY":(53.00,28.00),"BZ":(17.25,-88.75),
+    "CA":(60.00,-95.00),"CD":(-4.00,25.00),"CF":(7.00,21.00),"CG":(-1.00,15.00),
+    "CH":(47.00,8.00),"CI":(8.00,-5.00),"CL":(-30.00,-71.00),"CM":(6.00,12.00),
+    "CN":(35.00,105.00),"CO":(4.00,-72.00),"CR":(10.00,-84.00),"CU":(21.50,-80.00),
+    "CV":(16.00,-24.00),"CY":(35.00,33.00),"CZ":(49.75,15.50),"DE":(51.00,9.00),
+    "DJ":(11.50,43.00),"DK":(56.00,10.00),"DM":(15.42,-61.33),"DO":(19.00,-70.67),
+    "DZ":(28.00,3.00),"EC":(-2.00,-77.50),"EE":(59.00,26.00),"EG":(27.00,30.00),
+    "ER":(15.00,39.00),"ES":(40.00,-4.00),"ET":(8.00,38.00),"FI":(64.00,26.00),
+    "FJ":(-18.00,175.00),"FR":(46.00,2.00),"GA":(-1.00,11.75),"GB":(54.00,-2.00),
+    "GD":(12.12,-61.67),"GE":(42.00,43.50),"GH":(8.00,-2.00),"GM":(13.47,-16.57),
+    "GN":(11.00,-10.00),"GQ":(2.00,10.00),"GR":(39.00,22.00),"GT":(15.50,-90.25),
+    "GW":(12.00,-15.00),"GY":(5.00,-59.00),"HN":(15.00,-86.50),"HR":(45.17,15.50),
+    "HT":(19.00,-72.42),"HU":(47.00,20.00),"ID":(-5.00,120.00),"IE":(53.00,-8.00),
+    "IL":(31.50,34.75),"IN":(20.00,77.00),"IQ":(33.00,44.00),"IR":(32.00,53.00),
+    "IS":(65.00,-18.00),"IT":(42.83,12.83),"JM":(18.25,-77.50),"JO":(31.00,36.00),
+    "JP":(36.00,138.00),"KE":(1.00,38.00),"KG":(41.00,75.00),"KH":(13.00,105.00),
+    "KI":(1.42,173.00),"KM":(-12.17,44.25),"KN":(17.33,-62.75),"KP":(40.00,127.00),
+    "KR":(37.00,127.50),"KW":(29.34,47.66),"KZ":(48.00,68.00),"LA":(18.00,105.00),
+    "LB":(33.83,35.83),"LC":(13.88,-60.97),"LI":(47.17,9.53),"LK":(7.00,81.00),
+    "LR":(6.50,-9.50),"LS":(-29.50,28.50),"LT":(56.00,24.00),"LU":(49.75,6.17),
+    "LV":(57.00,25.00),"LY":(25.00,17.00),"MA":(32.00,-5.00),"MC":(43.73,7.40),
+    "MD":(47.00,29.00),"ME":(42.50,19.30),"MG":(-20.00,47.00),"MH":(9.00,168.00),
+    "MK":(41.83,22.00),"ML":(17.00,-4.00),"MM":(22.00,98.00),"MN":(46.00,105.00),
+    "MR":(20.00,-12.00),"MT":(35.83,14.58),"MU":(-20.28,57.55),"MV":(3.25,73.00),
+    "MW":(-13.50,34.00),"MX":(23.00,-102.00),"MY":(2.50,112.50),"MZ":(-18.25,35.00),
+    "NA":(-22.00,17.00),"NE":(16.00,8.00),"NG":(10.00,8.00),"NI":(13.00,-85.00),
+    "NL":(52.50,5.75),"NO":(62.00,10.00),"NP":(28.00,84.00),"NR":(-0.53,166.92),
+    "NZ":(-41.00,174.00),"OM":(22.00,58.00),"PA":(9.00,-80.00),"PE":(-10.00,-76.00),
+    "PG":(-6.00,147.00),"PH":(13.00,122.00),"PK":(30.00,70.00),"PL":(52.00,20.00),
+    "PT":(39.50,-8.00),"PW":(7.51,134.58),"PY":(-23.00,-58.00),"QA":(25.50,51.25),
+    "RO":(46.00,25.00),"RS":(44.00,21.00),"RU":(60.00,100.00),"RW":(-2.00,30.00),
+    "SA":(25.00,45.00),"SB":(-8.00,159.00),"SC":(-4.67,55.47),"SD":(15.00,30.00),
+    "SE":(62.00,15.00),"SG":(1.37,103.80),"SI":(46.12,14.82),"SK":(48.67,19.50),
+    "SL":(8.50,-11.50),"SM":(43.77,12.42),"SN":(14.00,-14.00),"SO":(10.00,49.00),
+    "SR":(4.00,-56.00),"SS":(8.00,30.00),"ST":(1.00,7.00),"SV":(13.83,-88.92),
+    "SY":(35.00,38.00),"SZ":(-26.50,31.50),"TD":(15.00,19.00),"TG":(8.00,1.17),
+    "TH":(15.00,100.00),"TJ":(39.00,71.00),"TL":(-8.87,125.73),"TM":(40.00,60.00),
+    "TN":(34.00,9.00),"TO":(-20.00,-175.00),"TR":(39.00,35.00),"TT":(11.00,-61.00),
+    "TV":(-8.00,178.00),"TZ":(-6.00,35.00),"UA":(49.00,32.00),"UG":(1.00,32.00),
+    "US":(38.00,-97.00),"UY":(-33.00,-56.00),"UZ":(41.00,64.00),"VA":(41.90,12.45),
+    "VC":(13.25,-61.20),"VE":(8.00,-66.00),"VN":(16.00,106.00),"VU":(-16.00,167.00),
+    "WS":(-13.58,-172.33),"YE":(15.00,48.00),"ZA":(-29.00,25.00),"ZM":(-15.00,30.00),
+    "ZW":(-20.00,30.00),
+}
 
 # --- Config helpers ---
 def load_config():
@@ -389,16 +442,10 @@ def api_stats():
     global _last_num_blocked
     from log_parser import parse_logs, get_summary
 
-    # ── Threat log ──────────────────────────────────────────────────────────
     cfg     = load_config()
     events  = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
     summary = get_summary(events)
 
-    # ── Lifetime blocked counter ─────────────────────────────────────────────
-    # Pull current num_blocked_filtering from AdGuard (today's running total).
-    # Compute delta vs last known value and accumulate into config.json.
-    # First poll after service start: record baseline without adding to counter
-    # (avoids a huge spike on restart).
     current_blocked = None
     try:
         import urllib.request, base64
@@ -418,9 +465,6 @@ def api_stats():
     if current_blocked is not None:
         with _lifetime_blocked_lock:
             if _last_num_blocked is None:
-                # First poll after service start.
-                # If lifetime_blocked is not yet seeded, backfill from AdGuard's
-                # full 7-day blocked_filtering history so we don't lose past data.
                 if "lifetime_blocked" not in cfg:
                     try:
                         import urllib.request, base64 as _b64
@@ -437,17 +481,14 @@ def api_stats():
                         cfg["lifetime_blocked"] = history_total
                         save_config(cfg)
                     except Exception:
-                        # AdGuard unreachable — seed with today's count, accumulate later
                         cfg["lifetime_blocked"] = current_blocked
                         save_config(cfg)
-                # Set baseline for delta tracking going forward
                 _last_num_blocked = current_blocked
             else:
                 delta = current_blocked - _last_num_blocked
                 if delta > 0:
                     cfg["lifetime_blocked"] = cfg.get("lifetime_blocked", 0) + delta
                     save_config(cfg)
-                # Handle AdGuard counter reset (midnight rollover or restart)
                 _last_num_blocked = current_blocked
 
     lifetime_blocked = cfg.get("lifetime_blocked", 0)
@@ -459,6 +500,122 @@ def api_stats():
         "version":          get_version(),
         "lifetime_blocked": lifetime_blocked,
     })
+
+@app.route("/api/threat-map")
+@login_required
+def api_threat_map():
+    # Rev 3 — ISSUE-09 Part 1: dual log format, correct field offsets
+    try:
+        db_path  = "/opt/honeytrapai/data/GeoLite2-Country.mmdb"
+        log_dir  = "/var/log/maltrail/"
+        cutoff   = datetime.utcnow() - timedelta(hours=24)
+        events   = []
+
+        # Dated sensor logs (today + yesterday) + rolling maltrail.log (simulated threats)
+        log_files = []
+        for delta in (0, 1):
+            d = datetime.utcnow() - timedelta(days=delta)
+            p = os.path.join(log_dir, d.strftime("%Y-%m-%d") + ".log")
+            log_files.extend(glob.glob(p))
+        maltrail_log = os.path.join(log_dir, "maltrail.log")
+        if os.path.exists(maltrail_log):
+            log_files.append(maltrail_log)
+
+        def parse_line(line):
+            """Parse both log formats. Returns (ts, src_ip, trail, info) or None."""
+            line = line.strip()
+            if not line:
+                return None
+            if line.startswith('"'):
+                # Sensor format:
+                # "2026-03-10 21:11:32.588435" host src_ip src_port dst_ip dst_port proto trail info...
+                # After split on '"': parts = [host, src_ip, src_port, dst_ip, dst_port, proto, trail, ...]
+                try:
+                    ts_str, rest = line[1:].split('"', 1)
+                    ts    = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S")
+                    parts = rest.strip().split(" ")
+                    if len(parts) < 7:
+                        return None
+                    src_ip = parts[1]   # 0=host, 1=src_ip
+                    trail  = parts[6]
+                    info   = " ".join(parts[7:]) if len(parts) > 7 else ""
+                    return ts, src_ip, trail, info
+                except Exception:
+                    return None
+            else:
+                # Simulated format:
+                # 2026-03-11 03:06:11 honeytrap src_ip src_port dst_ip dst_port proto trail info...
+                # parts: 0=date, 1=time, 2=host, 3=src_ip, 4=src_port, 5=dst_ip, 6=dst_port, 7=proto, 8=trail, 9+=info
+                try:
+                    parts = line.split(" ")
+                    if len(parts) < 10:
+                        return None
+                    ts     = datetime.strptime(f"{parts[0]} {parts[1]}", "%Y-%m-%d %H:%M:%S")
+                    src_ip = parts[3]
+                    trail  = parts[8]
+                    info   = " ".join(parts[9:]) if len(parts) > 9 else ""
+                    return ts, src_ip, trail, info
+                except Exception:
+                    return None
+
+        with geoip2.database.Reader(db_path) as reader:
+            for log_file in log_files:
+                try:
+                    with open(log_file, "r") as f:
+                        for line in f:
+                            parsed = parse_line(line)
+                            if not parsed:
+                                continue
+                            ts, src_ip, trail, info = parsed
+
+                            if ts < cutoff:
+                                continue
+
+                            # Skip private/loopback
+                            try:
+                                if ipaddress.ip_address(src_ip).is_private:
+                                    continue
+                            except ValueError:
+                                continue
+
+                            # GeoIP lookup
+                            try:
+                                geo          = reader.country(src_ip)
+                                country_code = geo.country.iso_code or ""
+                                country_name = geo.country.name or "Unknown"
+                            except Exception:
+                                continue
+
+                            if country_code not in COUNTRY_CENTROIDS:
+                                continue
+                            lat, lon = COUNTRY_CENTROIDS[country_code]
+
+                            # Severity classification
+                            il = info.lower()
+                            if any(x in il for x in ["malware","c2","botnet","ransomware","rat","backdoor","trojan","exploit"]):
+                                severity = "high"
+                            elif any(x in il for x in ["scanner","suspicious","threat","attack","probe","brute"]):
+                                severity = "medium"
+                            else:
+                                severity = "low"
+
+                            events.append({
+                                "ip":           src_ip,
+                                "country_code": country_code,
+                                "country_name": country_name,
+                                "lat":          lat,
+                                "lon":          lon,
+                                "trail":        trail,
+                                "severity":     severity,
+                                "timestamp":    ts.strftime("%Y-%m-%d %H:%M UTC"),
+                            })
+                except Exception:
+                    continue
+
+        return jsonify({"events": events})
+
+    except Exception as e:
+        return jsonify({"error": str(e), "events": []})
 
 @app.route("/api/services/status")
 @login_required
@@ -691,7 +848,6 @@ def _perform_factory_reset():
             pass
     ag_user = existing.get("adguard_user", "admin")
     ag_pass = existing.get("adguard_password", "")
-    # lifetime_blocked survives factory reset intentionally
     lifetime_blocked = existing.get("lifetime_blocked", 0)
 
     for path in [CONFIG_PATH, SMTP_PATH]:

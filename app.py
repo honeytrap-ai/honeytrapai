@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.18
-# Revised: 2026-03-09
-# Rev: 6
+# Version: v0.3.20
+# Revised: 2026-03-10
+# Rev: 9
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -461,12 +461,6 @@ def api_adguard_stats():
 @app.route("/api/adguard/history")
 @login_required
 def api_adguard_history():
-    """
-    Return 24-hour DNS query history as hourly buckets.
-    AdGuard /control/stats returns dns_queries[] and blocked_filtering[]
-    as 24-element arrays (oldest → newest, one entry per hour).
-    We derive hour labels from the current local time going back 23 hours.
-    """
     if DEV_MODE:
         import random
         now_h   = datetime.now().hour
@@ -488,14 +482,20 @@ def api_adguard_history():
         with urllib.request.urlopen(req, timeout=3) as r:
             data = json.loads(r.read())
 
-        queries = data.get("dns_queries",       [0] * 24)
-        blocked = data.get("blocked_filtering", [0] * 24)
+        queries_all = data.get("dns_queries",       [])
+        blocked_all = data.get("blocked_filtering", [])
 
-        # Pad or trim to exactly 24 elements
-        queries = (queries + [0] * 24)[:24]
-        blocked = (blocked + [0] * 24)[:24]
+        if not queries_all:
+            return jsonify({"hours": [], "queries": [], "blocked": []})
 
-        # Build hour labels: current hour is the last bucket
+        queries = list(queries_all)[-24:]
+        blocked = list(blocked_all)[-24:]
+
+        while len(queries) < 24:
+            queries.insert(0, 0)
+        while len(blocked) < 24:
+            blocked.insert(0, 0)
+
         now_h = datetime.now().hour
         hours = [f"{(now_h - 23 + i) % 24:02d}:00" for i in range(24)]
 
@@ -617,9 +617,6 @@ def api_factory_reset():
     return jsonify({"status": "ok"})
 
 def _perform_factory_reset():
-    # Preserve AdGuard credentials — they survive the reset because
-    # AdGuard itself is not reinstalled; without them the DNS stats
-    # panel goes dark after every factory reset.
     existing = {}
     if os.path.exists(CONFIG_PATH):
         try:
@@ -630,16 +627,13 @@ def _perform_factory_reset():
     ag_user = existing.get("adguard_user", "admin")
     ag_pass = existing.get("adguard_password", "")
 
-    # Wipe config and SMTP
     for path in [CONFIG_PATH, SMTP_PATH]:
         if os.path.exists(path):
             os.remove(path)
 
-    # Remove static IP from dhcpcd.conf
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     subprocess.run(["sudo", "python3", helper, "--remove"], capture_output=True)
 
-    # Re-write AdGuard credentials so the stats API works after setup completes
     if ag_pass:
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
@@ -684,7 +678,6 @@ def api_smtp():
 @app.route("/api/email/test", methods=["POST"])
 @login_required
 def api_email_test():
-    """Send a test email to verify SMTP configuration."""
     data  = request.get_json() or {}
     email = data.get("email", "").strip()
     if not email:
@@ -769,7 +762,6 @@ def api_email_test():
 @app.route("/api/simulate/threat", methods=["POST"])
 @login_required
 def api_simulate_threat():
-    """Inject a synthetic Maltrail-format entry into the threat log for testing."""
     import random
     data        = request.get_json() or {}
     threat_type = data.get("threat_type", "malware")
@@ -822,7 +814,6 @@ def api_simulate_threat():
 @app.route("/api/threats/export")
 @login_required
 def api_threats_export():
-    """Export the Maltrail threat log as a CSV download."""
     import csv, io
     from log_parser import parse_logs
     events   = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
@@ -841,7 +832,6 @@ def api_threats_export():
 @app.route("/api/threats/purge", methods=["POST"])
 @login_required
 def api_threats_purge():
-    """Truncate the Maltrail log file."""
     try:
         open(LOG_PATH, "w").close()
         return jsonify({"status": "ok"})
@@ -868,10 +858,119 @@ def api_restore():
 
 # --- Tools API routes ---
 
+@app.route("/api/tools/speedtest")
+@login_required
+def api_tools_speedtest():
+    """
+    Server-Sent Events speedtest.
+    Runs all network I/O in a background thread to avoid blocking the
+    Gunicorn sync worker. Results are passed back via a queue.
+    Phases: ping → download → upload
+    """
+    import queue
+    import threading
+    import time
+    import urllib.request
+
+    DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=10000000"  # 10 MB
+    UPLOAD_URL   = "https://speed.cloudflare.com/__up"
+    PING_HOSTS   = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
+    PING_COUNT   = 4
+
+    q = queue.Queue()
+
+    def run_test():
+        try:
+            # ── Phase 1: Ping ──────────────────────────────────────────
+            q.put("event: phase\ndata: {\"phase\": \"ping\"}\n\n")
+            latencies = []
+            for host in PING_HOSTS:
+                for _ in range(PING_COUNT):
+                    try:
+                        t0  = time.perf_counter()
+                        req = urllib.request.Request(
+                            f"https://{host}",
+                            headers={"User-Agent": "HoneytrapAI-speedtest/1.0"}
+                        )
+                        urllib.request.urlopen(req, timeout=3)
+                        latencies.append((time.perf_counter() - t0) * 1000)
+                    except Exception:
+                        pass
+            ping_ms = round(min(latencies), 1) if latencies else None
+            q.put(f"event: ping\ndata: {{\"ping_ms\": {json.dumps(ping_ms)}}}\n\n")
+
+            # ── Phase 2: Download ──────────────────────────────────────
+            q.put("event: phase\ndata: {\"phase\": \"download\"}\n\n")
+            try:
+                req = urllib.request.Request(
+                    DOWNLOAD_URL,
+                    headers={"User-Agent": "HoneytrapAI-speedtest/1.0"}
+                )
+                t0 = time.perf_counter()
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    total = 0
+                    while True:
+                        chunk = r.read(65536)
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                elapsed   = time.perf_counter() - t0
+                down_mbps = round((total * 8) / elapsed / 1_000_000, 2)
+            except Exception as e:
+                down_mbps = None
+            q.put(f"event: download\ndata: {{\"down_mbps\": {json.dumps(down_mbps)}}}\n\n")
+
+            # ── Phase 3: Upload ────────────────────────────────────────
+            q.put("event: phase\ndata: {\"phase\": \"upload\"}\n\n")
+            try:
+                upload_data = os.urandom(5 * 1024 * 1024)   # 5 MB random bytes
+                req = urllib.request.Request(
+                    UPLOAD_URL,
+                    data=upload_data,
+                    method="POST",
+                    headers={
+                        "User-Agent":     "HoneytrapAI-speedtest/1.0",
+                        "Content-Type":   "application/octet-stream",
+                        "Content-Length": str(len(upload_data)),
+                    }
+                )
+                t0 = time.perf_counter()
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    r.read()
+                elapsed = time.perf_counter() - t0
+                up_mbps = round((len(upload_data) * 8) / elapsed / 1_000_000, 2)
+            except Exception as e:
+                up_mbps = None
+            q.put(f"event: upload\ndata: {{\"up_mbps\": {json.dumps(up_mbps)}}}\n\n")
+
+        except Exception as e:
+            q.put(f"event: error\ndata: {{\"error\": {json.dumps(str(e))}}}\n\n")
+        finally:
+            q.put(None)  # sentinel — signals generator to close
+
+    threading.Thread(target=run_test, daemon=True).start()
+
+    def generate():
+        while True:
+            msg = q.get()
+            if msg is None:
+                break
+            yield msg
+        yield "event: done\ndata: {\"status\": \"complete\"}\n\n"
+
+    return app.response_class(
+        generate(),
+        status=200,
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering":"no",
+        }
+    )
+
 @app.route("/api/tools/ping", methods=["POST"])
 @login_required
 def api_tools_ping():
-    """Ping a host — 4 packets, 5s timeout per packet."""
     data = request.get_json() or {}
     host = data.get("host", "").strip()
     if not is_safe_host(host):
@@ -891,7 +990,6 @@ def api_tools_ping():
 @app.route("/api/tools/dns", methods=["POST"])
 @login_required
 def api_tools_dns():
-    """DNS lookup using Python socket — no external tools required."""
     import socket
     data = request.get_json() or {}
     host = data.get("host", "").strip()
@@ -920,7 +1018,6 @@ def api_tools_dns():
 @app.route("/api/tools/traceroute", methods=["POST"])
 @login_required
 def api_tools_traceroute():
-    """Traceroute to a host — max 20 hops."""
     data = request.get_json() or {}
     host = data.get("host", "").strip()
     if not is_safe_host(host):
@@ -942,10 +1039,6 @@ def api_tools_traceroute():
 @app.route("/api/tools/portscan", methods=["POST"])
 @login_required
 def api_tools_portscan():
-    """Port scan using Python socket — no nmap required.
-    Scans a comma-separated list of ports or a range (e.g. 80,443 or 20-25).
-    Max 50 ports per request.
-    """
     import socket
     data  = request.get_json() or {}
     host  = data.get("host", "").strip()

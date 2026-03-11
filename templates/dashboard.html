@@ -1,13 +1,15 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.23
+     Version: v0.3.24
      Revised: 2026-03-10
-     Rev: 28 -->
+     Rev: 30 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HoneytrapAI Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{max-width:100%;overflow-x:hidden}
@@ -66,7 +68,39 @@
                      line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',monospace,sans-serif}
     .lifetime-sublabel{font-size:.75rem;color:#555;margin-top:.45rem}
     @media(min-width:600px){.lifetime-number{font-size:3.2rem}}
-    /* ── end lifetime banner ── */
+    /* ── Threat Map ── */
+    .map-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
+              padding:1rem;margin-bottom:1.2rem;position:relative}
+    .map-header{display:flex;align-items:center;justify-content:space-between;
+                flex-wrap:wrap;gap:.4rem;margin-bottom:.8rem}
+    .map-title{font-size:.8rem;color:#888;text-transform:uppercase;letter-spacing:.08em}
+    .map-legend{display:flex;gap:.9rem;align-items:center}
+    .map-legend-item{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:#888}
+    .map-legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .map-legend-dot.high{background:#e74c3c}
+    .map-legend-dot.medium{background:#f39c12}
+    .map-legend-dot.low{background:#27ae60}
+    #threat-map-wrap{position:relative;width:100%;overflow:hidden;border-radius:6px;background:#0a0a14}
+    #threat-map-svg{width:100%;height:auto;display:block}
+    #map-dot-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+    .map-dot{position:absolute;border-radius:50%;transform:translate(-50%,-50%);
+             cursor:pointer;pointer-events:all}
+    .map-dot::after{content:'';position:absolute;inset:-4px;border-radius:50%;
+                    animation:map-pulse 2s ease-out infinite;opacity:0}
+    .map-dot.high{background:#e74c3c;box-shadow:0 0 6px #e74c3c}
+    .map-dot.high::after{border:2px solid #e74c3c}
+    .map-dot.medium{background:#f39c12;box-shadow:0 0 6px #f39c12}
+    .map-dot.medium::after{border:2px solid #f39c12}
+    .map-dot.low{background:#27ae60;box-shadow:0 0 6px #27ae60}
+    .map-dot.low::after{border:2px solid #27ae60}
+    @keyframes map-pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.5);opacity:0}}
+    #map-tooltip{position:fixed;background:#1a1a2e;border:1px solid #3a3a5a;border-radius:8px;
+                 padding:.6rem .9rem;font-size:.78rem;color:#e0e0e0;pointer-events:none;
+                 display:none;z-index:400;white-space:nowrap;line-height:1.9;min-width:180px;
+                 box-shadow:0 4px 20px rgba(0,0,0,.5)}
+    .map-empty{text-align:center;padding:2rem 1rem;color:#555;font-size:.8rem}
+    .map-count{font-size:.72rem;color:#555;margin-left:.5rem}
+    /* ── end map ── */
     #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
                         background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                         padding:.6rem 1rem;margin-bottom:1.2rem;flex-wrap:wrap}
@@ -249,6 +283,31 @@
     <div class="lifetime-number" id="lifetime-number">0</div>
     <div class="lifetime-sublabel">Since HoneytrapAI was installed · Never resets</div>
   </div>
+
+  <!-- Live Threat Map -->
+  <div class="map-card">
+    <div class="map-header">
+      <span class="map-title">🌍 Live Threat Map — Last 24 Hours <span class="map-count" id="map-event-count"></span></span>
+      <div class="map-legend">
+        <div class="map-legend-item"><div class="map-legend-dot high"></div>High</div>
+        <div class="map-legend-item"><div class="map-legend-dot medium"></div>Medium</div>
+        <div class="map-legend-item"><div class="map-legend-dot low"></div>Low</div>
+      </div>
+    </div>
+    <div id="threat-map-wrap">
+      <!-- Natural Earth 110m via world-atlas — country paths drawn by D3 at load time -->
+      <svg id="threat-map-svg" viewBox="0 0 1000 507" xmlns="http://www.w3.org/2000/svg"
+           style="background:#0a0a14;display:block;width:100%">
+        <g id="graticule-layer"></g>
+        <g id="countries-layer"></g>
+      </svg>
+      <div id="map-dot-layer"></div>
+    </div>
+    <div id="map-empty" class="map-empty" style="display:none">
+      No external threat IPs detected in the last 24 hours.
+    </div>
+  </div>
+  <!-- /Live Threat Map -->
 
   <div id="sensor-status-bar">
     <div class="sensor-item">
@@ -517,7 +576,6 @@
 <div id="page-tools" class="page">
 <div class="container">
 
-  <!-- Simulate Threat -->
   <div class="tool-card">
     <h3>☣️ Simulate a Threat</h3>
     <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
@@ -550,7 +608,6 @@
          border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
   </div>
 
-  <!-- Threat Log -->
   <div class="tool-card">
     <h3>🗂️ Threat Log</h3>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
@@ -570,7 +627,6 @@
     </div>
   </div>
 
-  <!-- Ping -->
   <div class="tool-card">
     <h3>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" style="flex-shrink:0">
@@ -595,7 +651,6 @@
     <div class="tool-output" id="out-ping"></div>
   </div>
 
-  <!-- DNS Lookup -->
   <div class="tool-card">
     <h3>🔍 DNS Lookup</h3>
     <div class="tool-input-row">
@@ -606,7 +661,6 @@
     <div class="tool-output" id="out-dns"></div>
   </div>
 
-  <!-- Traceroute -->
   <div class="tool-card">
     <h3>🗺️ Traceroute</h3>
     <div class="tool-input-row">
@@ -618,7 +672,6 @@
     <div class="tool-output" id="out-traceroute"></div>
   </div>
 
-  <!-- Port Scan -->
   <div class="tool-card">
     <h3>🔎 Port Scan</h3>
     <div class="tool-input-row">
@@ -657,6 +710,9 @@
   </div>
 </div>
 
+<!-- Map tooltip -->
+<div id="map-tooltip"></div>
+
 <div id="toast"></div>
 
 <div class="footer">
@@ -670,13 +726,12 @@ let allEvents = [], summaryData = {}, currentFilter = 'all', offenderTab = 'type
 let lastDnsHistory = {};
 
 // ── Lifetime counter ──────────────────────────────────────────────────────
-let _lifetimeAnimDone = false;  // only animate on first load
+let _lifetimeAnimDone = false;
 
 function animateCounter(el, target, duration) {
   const start = performance.now();
   function step(now) {
     const t = Math.min((now - start) / duration, 1);
-    // easeOutQuad
     const ease = 1 - (1 - t) * (1 - t);
     const val  = Math.round(ease * target);
     el.textContent = val.toLocaleString();
@@ -689,14 +744,123 @@ function animateCounter(el, target, duration) {
 function updateLifetimeCounter(n) {
   const el = document.getElementById('lifetime-number');
   if (!el) return;
-  if (!_lifetimeAnimDone) {
-    _lifetimeAnimDone = true;
-    animateCounter(el, n, 1500);
-  } else {
-    el.textContent = n.toLocaleString();
+  if (!_lifetimeAnimDone) { _lifetimeAnimDone = true; animateCounter(el, n, 1500); }
+  else el.textContent = n.toLocaleString();
+}
+
+// ── World Map (D3 + Natural Earth 110m) ──────────────────────────────────
+function initMap() {
+  const W = 1000, H = 507;
+  const projection = d3.geoEquirectangular()
+    .scale(H / Math.PI)
+    .translate([W / 2, H / 2])
+    .precision(0.1);
+
+  const path = d3.geoPath().projection(projection);
+
+  // 30° graticule grid
+  const graticule = d3.geoGraticule().step([30, 30]);
+  d3.select('#graticule-layer')
+    .append('path')
+    .datum(graticule())
+    .attr('d', path)
+    .attr('fill', 'none')
+    .attr('stroke', '#111128')
+    .attr('stroke-width', '0.5');
+
+  // Natural Earth 110m countries (world-atlas v2, public domain)
+  fetch('/static/countries-110m.json')
+    .then(r => r.json())
+    .then(world => {
+      const countries = topojson.feature(world, world.objects.countries);
+      d3.select('#countries-layer')
+        .selectAll('path')
+        .data(countries.features)
+        .join('path')
+        .attr('d', path)
+        .attr('fill', '#1e2035')
+        .attr('stroke', '#2d2d50')
+        .attr('stroke-width', '0.5')
+        .attr('stroke-linejoin', 'round');
+    })
+    .catch(err => console.warn('Map data failed to load:', err));
+}
+
+// ── Threat Map dots ───────────────────────────────────────────────────────
+// Equirectangular projection matching D3: 1000×507, scale=H/π, translate=[500,253.5]
+function latLonToXY(lat, lon) {
+  const W = 1000, H = 507;
+  const x = (lon + 180) / 360 * W;
+  const y = (90 - lat) / 180 * H;
+  return { x, y };
+}
+
+function renderThreatMap(events) {
+  const dotLayer = document.getElementById('map-dot-layer');
+  const emptyEl  = document.getElementById('map-empty');
+  const countEl  = document.getElementById('map-event-count');
+  const tip      = document.getElementById('map-tooltip');
+
+  dotLayer.innerHTML = '';
+
+  if (!events || !events.length) {
+    emptyEl.style.display = 'block';
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  if (countEl) countEl.textContent = `(${events.length} event${events.length !== 1 ? 's' : ''})`;
+
+  const VW = 1000, VH = 507;
+
+  events.forEach(ev => {
+    const { x, y } = latLonToXY(ev.lat, ev.lon);
+    const pctX = (x / VW) * 100;
+    const pctY = (y / VH) * 100;
+
+    const dot = document.createElement('div');
+    dot.className = `map-dot ${ev.severity}`;
+    const sz = ev.severity === 'high' ? 10 : ev.severity === 'medium' ? 8 : 7;
+    dot.style.cssText = `width:${sz}px;height:${sz}px;left:${pctX}%;top:${pctY}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
+
+    dot.addEventListener('mouseenter', e => {
+      tip.innerHTML = `
+        <div style="color:#f5a623;font-weight:700;margin-bottom:.2rem">${ev.ip}</div>
+        <div><span style="color:#666">Country:</span> ${ev.country_name}</div>
+        <div><span style="color:#666">Trail:</span> <span style="color:#f5a623">${ev.trail}</span></div>
+        <div><span style="color:#666">Severity:</span> <span class="sev-badge sev-${ev.severity}" style="font-size:.68rem">${ev.severity.toUpperCase()}</span></div>
+        <div><span style="color:#666">Time:</span> ${ev.timestamp}</div>
+      `;
+      tip.style.display = 'block';
+      positionTip(e);
+    });
+    dot.addEventListener('mousemove', positionTip);
+    dot.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+    dotLayer.appendChild(dot);
+  });
+}
+
+function positionTip(e) {
+  const tip = document.getElementById('map-tooltip');
+  const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 100;
+  let lx = e.clientX + 14, ly = e.clientY - 10;
+  if (lx + tw > window.innerWidth  - 10) lx = e.clientX - tw - 14;
+  if (ly + th > window.innerHeight - 10) ly = e.clientY - th - 10;
+  tip.style.left = lx + 'px';
+  tip.style.top  = ly + 'px';
+}
+
+async function loadThreatMap() {
+  try {
+    const d = await fetch('/api/threat-map').then(r => r.json());
+    renderThreatMap(d.events || []);
+  } catch(e) {
+    console.error('Threat map error', e);
   }
 }
 
+// ── Page & nav ────────────────────────────────────────────────────────────
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
@@ -712,6 +876,7 @@ function toast(msg, err) {
   setTimeout(() => t.className = '', 3000);
 }
 
+// ── Services status ───────────────────────────────────────────────────────
 async function updateSensorStatus() {
   try {
     const d = await fetch('/api/services/status').then(r => r.json());
@@ -744,6 +909,7 @@ function setSensor(name, ok) {
   lbl.style.color = ok ? '#27ae60' : '#e74c3c';
 }
 
+// ── Stats ─────────────────────────────────────────────────────────────────
 async function loadStats() {
   try {
     const [r1, r2, r3] = await Promise.all([
@@ -759,10 +925,7 @@ async function loadStats() {
     document.getElementById('s-low').textContent          = summaryData.low    ?? 0;
     document.getElementById('s-dns-queries').textContent  = r2.num_dns_queries?.toLocaleString()       ?? '—';
     document.getElementById('s-dns-blocked').textContent  = r2.num_blocked_filtering?.toLocaleString() ?? '—';
-    // Lifetime counter
-    if (typeof r1.lifetime_blocked === 'number') {
-      updateLifetimeCounter(r1.lifetime_blocked);
-    }
+    if (typeof r1.lifetime_blocked === 'number') updateLifetimeCounter(r1.lifetime_blocked);
     renderAlerts(); renderOffenders();
     lastDnsHistory = r3;
     renderDnsChart(r3);
@@ -898,8 +1061,12 @@ function renderDnsChart(data) {
   if(!canvas.getBoundingClientRect().width){requestAnimationFrame(()=>renderDnsChart(data));return;}
   drawDnsChart(canvas,data);
 }
-window.addEventListener('resize',()=>{if(lastDnsHistory.queries)renderDnsChart(lastDnsHistory);});
+window.addEventListener('resize',()=>{
+  if(lastDnsHistory.queries) renderDnsChart(lastDnsHistory);
+  loadThreatMap();
+});
 
+// ── Settings ──────────────────────────────────────────────────────────────
 async function loadSettings() {
   try {
     const d=await fetch('/api/settings').then(r=>r.json());
@@ -1068,7 +1235,13 @@ async function runSimulate(){
   try{
     const r=await fetch('/api/simulate/threat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threat_type:type,src_ip:ip||null})});
     const d=await r.json();
-    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;result.style.display='block';await loadStats();}
+    if(r.ok){
+      result.style.borderColor='#27ae60';result.style.color='#27ae60';
+      result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;
+      result.style.display='block';
+      await loadStats();
+      await loadThreatMap();
+    }
     else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Injection failed.');result.style.display='block';}
   }catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
   finally{btn.disabled=false;btn.textContent='Inject Test Entry';}
@@ -1111,9 +1284,14 @@ history.pushState({page:'dashboard'},'',window.location.href);
 history.pushState({page:'dashboard'},'',window.location.href);
 window.addEventListener('popstate',()=>history.pushState({page:'dashboard'},'',window.location.href));
 
-loadStats(); updateSensorStatus();
-const statsInterval=setInterval(loadStats,30000);
-setInterval(updateSensorStatus,30000);
+// ── Init ──────────────────────────────────────────────────────────────────
+initMap();
+loadStats();
+loadThreatMap();
+updateSensorStatus();
+const statsInterval = setInterval(loadStats, 30000);
+setInterval(loadThreatMap, 30000);
+setInterval(updateSensorStatus, 30000);
 checkUpdate(false);
 </script>
 </body>

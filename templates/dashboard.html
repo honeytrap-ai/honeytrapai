@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.18
-     Revised: 2026-03-09
-     Rev: 23 -->
+     Version: v0.3.20
+     Revised: 2026-03-10
+     Rev: 25 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,7 +12,6 @@
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{max-width:100%;overflow-x:hidden}
     body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:.9rem}
-    /* ── Nav: two-row on mobile ── */
     nav{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:.6rem 1rem;
         display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
         position:sticky;top:0;z-index:100}
@@ -23,7 +22,6 @@
                 border-left:1px solid #2a2a4a;flex-shrink:0}
     .nav-right{display:flex;align-items:center;gap:.6rem;flex-shrink:0;margin-left:auto}
     .nav-version{font-size:.72rem;color:#555}
-    /* tabs always on their own row at mobile */
     .nav-tabs{display:flex;gap:.3rem;width:100%;order:10}
     @media(min-width:600px){.nav-tabs{width:auto;order:0;margin-left:.8rem}}
     .nav-tab{background:none;border:1px solid transparent;border-radius:6px;color:#aaa;
@@ -75,7 +73,6 @@
                               transform:none;border:5px solid transparent;
                               border-top-color:#2a2a4a}
     .sensor-label:hover .tip{display:block}
-    /* ── DNS history chart ── */
     .dns-chart-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                     padding:1rem;margin-bottom:1.2rem}
     .dns-chart-header{display:flex;align-items:center;justify-content:space-between;
@@ -89,7 +86,6 @@
                        border-radius:6px;padding:.45rem .7rem;font-size:.75rem;color:#e0e0e0;
                        pointer-events:none;display:none;z-index:300;white-space:nowrap;
                        line-height:1.8}
-    /* BUG-31: single column below 800px; min-width:0 prevents grid blowout */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:800px){.grid-2{grid-template-columns:1fr}}
     .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;min-width:0;overflow:hidden}
@@ -112,7 +108,6 @@
     .empty-state .icon{font-size:2.5rem;margin-bottom:.5rem}
     .empty-state .empty-title{color:#27ae60;font-weight:bold;margin-bottom:.3rem}
     .empty-state .empty-sub{font-size:.78rem;color:#555;line-height:1.6}
-    /* BUG-32/33: bar chart — proportional widths, severity colors, 15% floor */
     .bar-item{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;font-size:.78rem}
     .bar-label{width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aaa;flex-shrink:0}
     .bar-track{flex:1;background:#12122a;border-radius:3px;height:10px;overflow:hidden;min-width:0}
@@ -176,6 +171,17 @@
     .footer a{color:#666;text-decoration:none}.footer a:hover{color:#f5a623}
     .smtp-fields-wrap{position:relative;transition:opacity .2s}
     .smtp-fields-wrap.disabled{opacity:.35;pointer-events:none;user-select:none}
+    /* ── Speedtest gauge ── */
+    .speedtest-wrap{display:flex;flex-direction:column;align-items:center;gap:1rem}
+    .gauge-row{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .gauge-block{display:flex;flex-direction:column;align-items:center;gap:.3rem}
+    .gauge-svg{overflow:visible}
+    .gauge-val{font-size:1.5rem;font-weight:700;color:#f5a623;font-variant-numeric:tabular-nums}
+    .gauge-unit{font-size:.72rem;color:#666;text-transform:uppercase;letter-spacing:.06em}
+    .gauge-lbl{font-size:.78rem;color:#aaa}
+    .speedtest-phase{font-size:.78rem;color:#888;min-height:1.2em;text-align:center}
+    .speedtest-ping-row{display:flex;align-items:center;gap:.5rem;font-size:.85rem}
+    .speedtest-ping-val{color:#27ae60;font-weight:700;font-variant-numeric:tabular-nums}
     /* ── Tools page ── */
     .tool-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                padding:1.2rem;margin-bottom:1rem}
@@ -250,7 +256,7 @@
     </div>
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-honeytrapai"></div>
-      <span class="sensor-label">HoneytrapAI<span class="tip">Dashboard and control interface</span></span>
+      <span class="sensor-label">HoneytrapAI<span class="tip">Live Threat Dashboard</span></span>
       <span id="lbl-honeytrapai" style="color:#555">checking…</span>
     </div>
     <div class="sensor-item">
@@ -265,7 +271,6 @@
     </div>
   </div>
 
-  <!-- DNS 24-hour query chart — ISSUE-08 -->
   <div class="dns-chart-card">
     <div class="dns-chart-header">
       <span class="dns-chart-title">DNS Queries — Last 24 Hours</span>
@@ -320,23 +325,20 @@
 <div id="page-settings" class="page">
 <div class="container">
 
-  <!-- Email & Alert Settings -->
   <div class="settings-section">
     <h3>📧 Email &amp; Alert Settings</h3>
-
     <p class="settings-subhead">SMTP Configuration</p>
     <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
       Required for threat alert emails. Works with any SMTP provider —
       Gmail, Outlook, Hotmail, Live, etc.
     </p>
-
     <div class="smtp-fields-wrap" id="smtp-fields-wrap">
       <div class="form-row">
         <label>Alert Email Address</label>
         <input type="email" id="cfg-email" placeholder="you@gmail.com"
                onblur="validateEmailField(this,'cfg-email-err')">
         <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          The email address where threat alerts will be sent. Does not need to match the sending account.
+          The email address where threat alerts will be sent.
         </div>
         <div id="cfg-email-err" class="field-err"></div>
       </div>
@@ -346,7 +348,7 @@
           <input type="text" id="smtp-host" placeholder="smtp.gmail.com"
                  onblur="validateSmtpHost(this)">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Outgoing mail server. e.g. <code style="color:#f5a623">smtp.gmail.com</code>,
+            e.g. <code style="color:#f5a623">smtp.gmail.com</code>,
             <code style="color:#f5a623">smtp-mail.outlook.com</code>
           </div>
           <div id="smtp-host-err" class="field-err"></div>
@@ -355,23 +357,21 @@
           <label>Port</label>
           <input type="number" id="smtp-port" placeholder="587">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Set automatically by encryption choice. Change only if required by your provider.
+            Set automatically by encryption choice.
           </div>
         </div>
         <div class="form-row" style="margin:0">
           <label>Username</label>
           <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off"
                  onblur="validateEmailField(this,'smtp-user-err')">
-          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Usually your full email address.
-          </div>
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">Usually your full email address.</div>
           <div id="smtp-user-err" class="field-err"></div>
         </div>
         <div class="form-row" style="margin:0">
           <label>Password</label>
           <input type="password" id="smtp-pass" placeholder="••••••••" autocomplete="new-password">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Use an App Password if your account has two-factor authentication enabled.
+            Use an App Password if 2FA is enabled.
           </div>
         </div>
         <div class="form-row" style="margin:0">
@@ -379,7 +379,7 @@
           <input type="text" id="smtp-from" placeholder="you@gmail.com"
                  onblur="validateFromAddr(this)">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Appears in the From: field. Usually the same as your username.
+            Appears in the From: field.
           </div>
           <div id="smtp-from-err" class="field-err"></div>
         </div>
@@ -393,20 +393,16 @@
             <option value="none">None — local/internal mail servers only</option>
           </select>
           <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Encrypts credentials in transit. Required by most providers.
+            Encrypts credentials in transit.
           </div>
         </div>
       </div>
-    </div><!-- /smtp-fields-wrap -->
-
+    </div>
     <div style="display:flex;gap:.6rem;margin-top:.9rem;flex-wrap:wrap;align-items:center">
       <button class="btn-save" onclick="saveSmtp()">Save SMTP</button>
-      <button class="btn-secondary" id="btn-test-email" onclick="sendTestEmail()" style="margin:0">
-        Send Test Email
-      </button>
+      <button class="btn-secondary" id="btn-test-email" onclick="sendTestEmail()" style="margin:0">Send Test Email</button>
       <span id="smtp-saved-indicator" style="font-size:.75rem;color:#555"></span>
     </div>
-
     <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;
                   cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
       <input type="checkbox" id="chk-disable-email" onchange="toggleEmailDisabled(this)"
@@ -414,14 +410,11 @@
       Disable Sending Alert Emails
     </label>
     <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">
-      Threats are still detected. SMTP settings are preserved and will be used when re-enabled.
+      Threats are still detected. SMTP settings are preserved.
     </div>
-
     <div id="smtp-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
          border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
-
     <hr class="settings-divider">
-
     <p class="settings-subhead">Alert Behaviour</p>
     <div class="form-row">
       <label>Minimum Alert Severity</label>
@@ -434,38 +427,23 @@
     <button class="btn-save" onclick="saveSettings()">Save Settings</button>
   </div>
 
-  <!-- Change Password -->
   <div class="settings-section">
     <h3>🔑 Change HoneytrapAI System Password</h3>
     <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.9rem">
       🔒 If you forget your password, the only recovery method is a
-      <strong style="color:#aaa">factory reset</strong> — either via the Factory Reset option below
-      (if you're still logged in), or by placing a file named
-      <code style="color:#f5a623">honeytrap-reset.txt</code> on a USB drive and plugging it in at boot.
+      <strong style="color:#aaa">factory reset</strong>.
     </p>
-    <div class="form-row">
-      <label>Current Password</label>
-      <input type="password" id="pw-current" placeholder="Current password">
-    </div>
-    <div class="form-row">
-      <label>New Password</label>
-      <input type="password" id="pw-new" placeholder="Minimum 8 characters">
-    </div>
-    <div class="form-row">
-      <label>Confirm New Password</label>
-      <input type="password" id="pw-confirm" placeholder="Repeat new password">
-    </div>
+    <div class="form-row"><label>Current Password</label><input type="password" id="pw-current" placeholder="Current password"></div>
+    <div class="form-row"><label>New Password</label><input type="password" id="pw-new" placeholder="Minimum 8 characters"></div>
+    <div class="form-row"><label>Confirm New Password</label><input type="password" id="pw-confirm" placeholder="Repeat new password"></div>
     <button class="btn-save" onclick="changePassword()">Update Password</button>
   </div>
 
-  <!-- Software Update -->
   <div class="settings-section">
     <h3>⬆️ Software Update</h3>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
       <div>
-        <div style="font-size:.82rem;color:#aaa">
-          Current version: <span style="color:#f5a623">{{ version }}</span>
-        </div>
+        <div style="font-size:.82rem;color:#aaa">Current version: <span style="color:#f5a623">{{ version }}</span></div>
         <div style="font-size:.75rem;color:#666;margin-top:.2rem" id="update-last-check"></div>
       </div>
       <button class="btn-secondary" onclick="checkUpdate(true)" id="btn-check-update">Check Now</button>
@@ -473,15 +451,12 @@
     <div id="update-status-msg" class="checking">Checking for updates…</div>
     <div id="update-card" style="display:none;background:#12122a;border:1px solid #27ae60;
          border-radius:6px;padding:.8rem;font-size:.8rem;margin-top:.8rem">
-      <div style="color:#27ae60;margin-bottom:.4rem">
-        Update available: <strong id="update-card-version"></strong>
-      </div>
+      <div style="color:#27ae60;margin-bottom:.4rem">Update available: <strong id="update-card-version"></strong></div>
       <div style="color:#aaa;margin-bottom:.8rem;max-height:80px;overflow-y:auto" id="update-card-notes"></div>
       <button class="btn-save" onclick="installUpdate()">Install Update</button>
     </div>
   </div>
 
-  <!-- Backup & Restore -->
   <div class="settings-section">
     <h3>💾 Backup &amp; Restore</h3>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
@@ -496,43 +471,29 @@
     </div>
   </div>
 
-  <!-- Factory Reset -->
   <div class="settings-section danger">
     <h3>⚠️ Factory Reset</h3>
     <p style="font-size:.8rem;color:#aaa;line-height:1.6;margin-bottom:1.2rem">
       Resets all settings to factory defaults, clears the dashboard password, and reboots the appliance.
       Threat logs are preserved. You will be redirected to the setup wizard on reboot.
     </p>
-
     <div style="background:#12122a;border:1px solid #e74c3c;border-radius:6px;padding:.9rem;margin-bottom:.8rem">
-      <div style="font-size:.82rem;color:#e74c3c;font-weight:700;margin-bottom:.6rem">
-        Option 1 — Reset while logged in
-      </div>
+      <div style="font-size:.82rem;color:#e74c3c;font-weight:700;margin-bottom:.6rem">Option 1 — Reset while logged in</div>
       <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
         Use this if you are already logged in and want to reset to factory defaults.
-        You will be asked to confirm your current password before the reset runs.
       </p>
       <button class="btn-danger" onclick="showResetOverlay()">Factory Reset…</button>
     </div>
-
     <div style="background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.9rem">
-      <div style="font-size:.82rem;color:#aaa;font-weight:700;margin-bottom:.6rem">
-        🔑 Option 2 — Locked out or forgotten password
-      </div>
+      <div style="font-size:.82rem;color:#aaa;font-weight:700;margin-bottom:.6rem">🔑 Option 2 — Locked out or forgotten password</div>
       <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
-        If you can't log in, you can trigger a factory reset using a USB drive — no password required.
-        Click the button below to download <code style="color:#f5a623">honeytrap-reset.txt</code>,
-        then follow the steps below. Your browser will save the file to your Downloads folder —
-        you will need to move it to the root of a USB drive manually.
+        Download <code style="color:#f5a623">honeytrap-reset.txt</code>, place it on the root of a USB drive, and insert at boot.
       </p>
-      <button class="btn-secondary" style="margin:0;font-size:.82rem" onclick="downloadResetFile()">
-        Download honeytrap-reset.txt
-      </button>
+      <button class="btn-secondary" style="margin:0;font-size:.82rem" onclick="downloadResetFile()">Download honeytrap-reset.txt</button>
       <div style="margin-top:.9rem;border-top:1px solid #2a2a4a;padding-top:.8rem">
-        <div style="font-size:.72rem;color:#888;font-weight:600;margin-bottom:.5rem;
-                    text-transform:uppercase;letter-spacing:.06em">How to use</div>
+        <div style="font-size:.72rem;color:#888;font-weight:600;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.06em">How to use</div>
         <ol style="font-size:.75rem;color:#666;line-height:2;padding-left:1.1rem">
-          <li>Copy <code style="color:#f5a623">honeytrap-reset.txt</code> to the <strong style="color:#aaa">root</strong> of a USB drive — not inside any folder</li>
+          <li>Copy <code style="color:#f5a623">honeytrap-reset.txt</code> to the <strong style="color:#aaa">root</strong> of a USB drive</li>
           <li>Power off your HoneytrapAI device</li>
           <li>Insert the USB drive into any USB port</li>
           <li>Power on — the reset will run automatically on boot</li>
@@ -548,6 +509,56 @@
 <!-- ═══════════════════════════════════════════════════════════ TOOLS -->
 <div id="page-tools" class="page">
 <div class="container">
+
+  <!-- Speed Test -->
+  <div class="tool-card">
+    <h3>⚡ Speed Test</h3>
+    <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
+      Measures your internet connection speed directly from the appliance —
+      download, upload, and latency. Uses Cloudflare's speed test endpoints.
+    </p>
+    <div class="speedtest-wrap">
+      <div class="gauge-row">
+        <!-- Download gauge -->
+        <div class="gauge-block">
+          <svg class="gauge-svg" width="130" height="80" viewBox="0 0 130 80">
+            <path d="M10,75 A55,55 0 0,1 120,75" fill="none" stroke="#1f1f38" stroke-width="10" stroke-linecap="round"/>
+            <path id="gauge-down-arc" d="M10,75 A55,55 0 0,1 120,75" fill="none"
+                  stroke="#3498db" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="0 172.8" style="transition:stroke-dasharray .6s ease"/>
+            <line id="gauge-down-needle" x1="65" y1="75" x2="65" y2="24"
+                  stroke="#3498db" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="65" cy="75" r="4" fill="#3498db"/>
+          </svg>
+          <div class="gauge-val" id="val-down">—</div>
+          <div class="gauge-unit">Mbps</div>
+          <div class="gauge-lbl">↓ Download</div>
+        </div>
+        <!-- Upload gauge -->
+        <div class="gauge-block">
+          <svg class="gauge-svg" width="130" height="80" viewBox="0 0 130 80">
+            <path d="M10,75 A55,55 0 0,1 120,75" fill="none" stroke="#1f1f38" stroke-width="10" stroke-linecap="round"/>
+            <path id="gauge-up-arc" d="M10,75 A55,55 0 0,1 120,75" fill="none"
+                  stroke="#27ae60" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="0 172.8" style="transition:stroke-dasharray .6s ease"/>
+            <line id="gauge-up-needle" x1="65" y1="75" x2="65" y2="24"
+                  stroke="#27ae60" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="65" cy="75" r="4" fill="#27ae60"/>
+          </svg>
+          <div class="gauge-val" id="val-up">—</div>
+          <div class="gauge-unit">Mbps</div>
+          <div class="gauge-lbl">↑ Upload</div>
+        </div>
+      </div>
+      <div class="speedtest-ping-row">
+        <span style="color:#aaa">◎ Latency:</span>
+        <span class="speedtest-ping-val" id="val-ping">—</span>
+        <span style="color:#666;font-size:.78rem">ms</span>
+      </div>
+      <div class="speedtest-phase" id="speedtest-phase"></div>
+      <button class="btn-save" id="btn-speedtest" onclick="runSpeedtest()" style="min-width:120px">Run Speed Test</button>
+    </div>
+  </div>
 
   <!-- Simulate Threat -->
   <div class="tool-card">
@@ -576,8 +587,7 @@
           border:1px solid #2a2a4a;border-radius:6px;padding:.55rem .8rem;
           color:#e0e0e0;font-size:.85rem;outline:none">
       </div>
-      <button class="btn-save" id="btn-simulate" onclick="runSimulate()"
-              style="white-space:nowrap;align-self:flex-end">Inject Test Entry</button>
+      <button class="btn-save" id="btn-simulate" onclick="runSimulate()" style="white-space:nowrap;align-self:flex-end">Inject Test Entry</button>
     </div>
     <div id="sim-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
          border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
@@ -673,9 +683,8 @@
   <div class="reset-modal">
     <h3>⚠️ Factory Reset</h3>
     <p>
-      This will clear your password, all configuration, and the static IP entry in
-      <code style="color:#f5a623">/etc/dhcpcd.conf</code>. The appliance will reboot and
-      return to the setup wizard.<br><br>
+      This will clear your password, all configuration, and the static IP entry.
+      The appliance will reboot and return to the setup wizard.<br><br>
       Enter your current password to confirm.
     </p>
     <div class="form-row">
@@ -718,7 +727,6 @@ function toast(msg, err) {
   setTimeout(() => t.className = '', 3000);
 }
 
-// ── BUG-19 fix: force animation restart via reflow ──
 async function updateSensorStatus() {
   try {
     const d = await fetch('/api/services/status').then(r => r.json());
@@ -730,8 +738,7 @@ async function updateSensorStatus() {
     setSensor('dns',         s['dns']);
     const dot = document.getElementById('overall-dot');
     if (dot) {
-      dot.className = '';
-      void dot.offsetWidth;
+      dot.className = ''; void dot.offsetWidth;
       dot.className = d.overall || 'grey';
       const labels = {green:'All systems operational', amber:'One or more services degraded', red:'Critical service down'};
       dot.title = labels[d.overall] || 'Status unknown';
@@ -739,12 +746,7 @@ async function updateSensorStatus() {
   } catch(e) {
     ['maltrail','adguard','honeytrapai','notifier','dns'].forEach(n => setSensor(n, false));
     const dot = document.getElementById('overall-dot');
-    if (dot) {
-      dot.className = '';
-      void dot.offsetWidth;
-      dot.className = 'red';
-      dot.title = 'Could not reach status API';
-    }
+    if (dot) { dot.className = ''; void dot.offsetWidth; dot.className = 'red'; }
   }
 }
 
@@ -772,8 +774,7 @@ async function loadStats() {
     document.getElementById('s-low').textContent          = summaryData.low    ?? 0;
     document.getElementById('s-dns-queries').textContent  = r2.num_dns_queries?.toLocaleString()       ?? '—';
     document.getElementById('s-dns-blocked').textContent  = r2.num_blocked_filtering?.toLocaleString() ?? '—';
-    renderAlerts();
-    renderOffenders();
+    renderAlerts(); renderOffenders();
     lastDnsHistory = r3;
     renderDnsChart(r3);
   } catch(e) { console.error('Stats error', e); }
@@ -801,10 +802,7 @@ function renderAlerts() {
       : `<tr><td colspan="5"><div class="empty-state">
            <div class="icon">🐝</div>
            <div class="empty-title">HoneytrapAI is protecting your network.</div>
-           <div class="empty-sub">No ${filterLabel}threats detected yet.<br>
-             This is normal on a clean network. Alerts will appear here when Maltrail<br>
-             identifies suspicious traffic from a known malicious source or domain.
-           </div>
+           <div class="empty-sub">No ${filterLabel}threats detected yet.</div>
          </div></td></tr>`;
     return;
   }
@@ -813,10 +811,8 @@ function renderAlerts() {
       <td><span class="sev-badge sev-${e.severity}">${e.severity.toUpperCase()}</span></td>
       <td style="white-space:nowrap;color:#666">${e.timestamp.slice(11,19)}</td>
       <td style="font-family:monospace;color:#aaa">${e.src_ip}</td>
-      <td style="color:#f5a623;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-          title="${e.trail}">${e.trail}</td>
-      <td style="color:#aaa;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-          title="${e.info}">${e.info}</td>
+      <td style="color:#f5a623;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.trail}">${e.trail}</td>
+      <td style="color:#aaa;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.info}">${e.info}</td>
     </tr>`).join('');
 }
 
@@ -827,8 +823,6 @@ function setOffenderTab(tab, btn) {
   renderOffenders();
 }
 
-// BUG-32: proportional bar widths with 15% floor
-// BUG-33: bar color reflects highest severity for that offender entry
 function renderOffenders() {
   const el = document.getElementById('offender-chart');
   let items = [];
@@ -839,10 +833,8 @@ function renderOffenders() {
     el.innerHTML = `<div class="empty-state">
       <div class="icon">🐝</div>
       <div class="empty-title">Your network looks clean.</div>
-      <div class="empty-sub">No threat sources detected yet.<br>
-        Offenders will appear here when Maltrail flags suspicious traffic.</div>
-    </div>`;
-    return;
+      <div class="empty-sub">No threat sources detected yet.</div>
+    </div>`; return;
   }
   const sevOrder = {high:3, medium:2, low:1};
   const sorted = [...items].sort((a, b) => {
@@ -852,10 +844,9 @@ function renderOffenders() {
   const maxCount = Math.max(...sorted.map(i => i.count), 1);
   const sevClass = {high:'sev-high-bar', medium:'sev-medium-bar', low:'sev-low-bar'};
   el.innerHTML = sorted.map(i => {
-    const lbl    = i.ip || i.trail || i.type || '—';
-    const rawPct = (i.count / maxCount) * 100;
-    const pct    = Math.max(Math.round(rawPct), 15);
-    const cls    = sevClass[i.severity] || 'sev-default-bar';
+    const lbl = i.ip || i.trail || i.type || '—';
+    const pct = Math.max(Math.round((i.count / maxCount) * 100), 15);
+    const cls = sevClass[i.severity] || 'sev-default-bar';
     return `<div class="bar-item">
       <div class="bar-label" title="${lbl}">${lbl}</div>
       <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
@@ -864,620 +855,360 @@ function renderOffenders() {
   }).join('');
 }
 
-// ── DNS 24-hour chart — ISSUE-08 ─────────────────────────────────────────
-// Named handlers stored so we can remove them before re-adding on each redraw.
+// ── DNS chart ─────────────────────────────────────────────────────────────
 let _dnsMouseMove = null, _dnsMouseLeave = null;
 
 function drawDnsChart(canvas, data) {
-  // Must have a real layout width before drawing
   const W = canvas.getBoundingClientRect().width;
   if (!W) return;
-
-  const queries = data.queries || [];
-  const blocked = data.blocked || [];
-  const hours   = data.hours   || [];
+  const queries = data.queries || [], blocked = data.blocked || [], hours = data.hours || [];
   if (!queries.length) return;
-
-  const H = 140;
-  // Set canvas pixel dimensions to match CSS width (handles HiDPI too)
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.height = H + 'px';
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const PAD_L = 42, PAD_R = 12, PAD_T = 10, PAD_B = 26;
-  const cW = W - PAD_L - PAD_R;
-  const cH = H - PAD_T - PAD_B;
-  const n  = queries.length;
-
-  const maxVal   = Math.max(...queries, 1);
-  const rawStep  = maxVal / 4;
-  const mag      = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
-  const niceStep = Math.ceil(rawStep / mag) * mag || 1;
-  const yMax     = niceStep * 4;
-
-  const xPos = i => PAD_L + (i / (n - 1)) * cW;
-  const yPos = v => PAD_T + cH - (v / yMax) * cH;
-
-  ctx.clearRect(0, 0, W, H);
-
-  // Grid lines
-  ctx.strokeStyle = '#1f1f38';
-  ctx.lineWidth   = 1;
-  for (let t = 0; t <= 4; t++) {
-    const y = PAD_T + (t / 4) * cH;
-    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+  const H = 140, dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  const PAD_L=42, PAD_R=12, PAD_T=10, PAD_B=26, cW=W-PAD_L-PAD_R, cH=H-PAD_T-PAD_B, n=queries.length;
+  const maxVal=Math.max(...queries,1), rawStep=maxVal/4, mag=Math.pow(10,Math.floor(Math.log10(rawStep||1)));
+  const niceStep=Math.ceil(rawStep/mag)*mag||1, yMax=niceStep*4;
+  const xPos=i=>PAD_L+(i/(n-1))*cW, yPos=v=>PAD_T+cH-(v/yMax)*cH;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#1f1f38'; ctx.lineWidth=1;
+  for(let t=0;t<=4;t++){const y=PAD_T+(t/4)*cH;ctx.beginPath();ctx.moveTo(PAD_L,y);ctx.lineTo(W-PAD_R,y);ctx.stroke();}
+  ctx.fillStyle='#555'; ctx.font='10px -apple-system,sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(let t=0;t<=4;t++){const v=yMax-t*niceStep,y=PAD_T+(t/4)*cH,lbl=v>=1000?(v/1000).toFixed(v%1000===0?0:1)+'k':String(v);ctx.fillText(lbl,PAD_L-5,y);}
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let i=0;i<n;i++){if(i%4!==0)continue;ctx.fillStyle='#555';ctx.fillText(hours[i]||'',xPos(i),H-PAD_B+5);}
+  function drawSeries(vals,fg0,fg1,stroke,lw){
+    const grad=ctx.createLinearGradient(0,PAD_T,0,PAD_T+cH);grad.addColorStop(0,fg0);grad.addColorStop(1,fg1);
+    ctx.beginPath();ctx.moveTo(xPos(0),yPos(vals[0]));for(let i=1;i<n;i++)ctx.lineTo(xPos(i),yPos(vals[i]));
+    ctx.lineTo(xPos(n-1),PAD_T+cH);ctx.lineTo(xPos(0),PAD_T+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+    ctx.beginPath();ctx.moveTo(xPos(0),yPos(vals[0]));for(let i=1;i<n;i++)ctx.lineTo(xPos(i),yPos(vals[i]));
+    ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();
   }
-
-  // Y-axis labels
-  ctx.fillStyle    = '#555';
-  ctx.font         = '10px -apple-system,sans-serif';
-  ctx.textAlign    = 'right';
-  ctx.textBaseline = 'middle';
-  for (let t = 0; t <= 4; t++) {
-    const v = yMax - t * niceStep;
-    const y = PAD_T + (t / 4) * cH;
-    const lbl = v >= 1000 ? (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + 'k' : String(v);
-    ctx.fillText(lbl, PAD_L - 5, y);
-  }
-
-  // X-axis labels — every 4 hours
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'top';
-  for (let i = 0; i < n; i++) {
-    if (i % 4 !== 0) continue;
-    ctx.fillStyle = '#555';
-    ctx.fillText(hours[i] || '', xPos(i), H - PAD_B + 5);
-  }
-
-  // Helper: draw filled area + line for one series
-  function drawSeries(vals, fillRgba0, fillRgba1, strokeColor, lineWidth) {
-    const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + cH);
-    grad.addColorStop(0, fillRgba0);
-    grad.addColorStop(1, fillRgba1);
-    ctx.beginPath();
-    ctx.moveTo(xPos(0), yPos(vals[0]));
-    for (let i = 1; i < n; i++) ctx.lineTo(xPos(i), yPos(vals[i]));
-    ctx.lineTo(xPos(n - 1), PAD_T + cH);
-    ctx.lineTo(xPos(0),     PAD_T + cH);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(xPos(0), yPos(vals[0]));
-    for (let i = 1; i < n; i++) ctx.lineTo(xPos(i), yPos(vals[i]));
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth   = lineWidth;
-    ctx.lineJoin    = 'round';
-    ctx.stroke();
-  }
-
-  drawSeries(queries, 'rgba(52,152,219,0.28)', 'rgba(52,152,219,0.02)', '#3498db', 2);
-  drawSeries(blocked, 'rgba(231,76,60,0.22)',  'rgba(231,76,60,0.02)',  '#e74c3c', 1.5);
-
-  // Tooltip — remove old listeners, add fresh named ones
-  const tip = document.getElementById('dns-chart-tooltip');
-  if (_dnsMouseMove)  canvas.removeEventListener('mousemove',  _dnsMouseMove);
-  if (_dnsMouseLeave) canvas.removeEventListener('mouseleave', _dnsMouseLeave);
-
-  _dnsMouseMove = e => {
-    const rect = canvas.getBoundingClientRect();
-    const rx   = e.clientX - rect.left;
-    let best = 0, bestDist = Infinity;
-    for (let i = 0; i < n; i++) {
-      const d = Math.abs(xPos(i) - rx);
-      if (d < bestDist) { bestDist = d; best = i; }
-    }
-    const q   = (queries[best] || 0).toLocaleString();
-    const b   = (blocked[best] || 0).toLocaleString();
-    const pct = queries[best] ? Math.round((blocked[best] / queries[best]) * 100) : 0;
-    tip.innerHTML =
-      `<strong style="color:#aaa">${hours[best] || ''}</strong><br>` +
-      `<span style="color:#3498db">Total:</span> ${q}<br>` +
-      `<span style="color:#e74c3c">Blocked:</span> ${b} <span style="color:#666">(${pct}%)</span>`;
-    tip.style.display = 'block';
-    tip.style.left    = (e.clientX + 14) + 'px';
-    tip.style.top     = (e.clientY - 10) + 'px';
+  drawSeries(queries,'rgba(52,152,219,0.28)','rgba(52,152,219,0.02)','#3498db',2);
+  drawSeries(blocked,'rgba(231,76,60,0.22)', 'rgba(231,76,60,0.02)', '#e74c3c',1.5);
+  const tip=document.getElementById('dns-chart-tooltip');
+  if(_dnsMouseMove)  canvas.removeEventListener('mousemove',_dnsMouseMove);
+  if(_dnsMouseLeave) canvas.removeEventListener('mouseleave',_dnsMouseLeave);
+  _dnsMouseMove=e=>{
+    const rect=canvas.getBoundingClientRect(),rx=e.clientX-rect.left;
+    let best=0,bestDist=Infinity;
+    for(let i=0;i<n;i++){const d=Math.abs(xPos(i)-rx);if(d<bestDist){bestDist=d;best=i;}}
+    const q=(queries[best]||0).toLocaleString(),b=(blocked[best]||0).toLocaleString();
+    const pct=queries[best]?Math.round((blocked[best]/queries[best])*100):0;
+    tip.innerHTML=`<strong style="color:#aaa">${hours[best]||''}</strong><br><span style="color:#3498db">Total:</span> ${q}<br><span style="color:#e74c3c">Blocked:</span> ${b} <span style="color:#666">(${pct}%)</span>`;
+    tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';
   };
-  _dnsMouseLeave = () => { tip.style.display = 'none'; };
-  canvas.addEventListener('mousemove',  _dnsMouseMove);
-  canvas.addEventListener('mouseleave', _dnsMouseLeave);
+  _dnsMouseLeave=()=>{tip.style.display='none';};
+  canvas.addEventListener('mousemove',_dnsMouseMove);
+  canvas.addEventListener('mouseleave',_dnsMouseLeave);
 }
 
 function renderDnsChart(data) {
-  const canvas = document.getElementById('dns-chart-canvas');
-  if (!canvas) return;
-  // If the canvas has no layout width yet, wait one frame for the browser to lay out
-  if (!canvas.getBoundingClientRect().width) {
-    requestAnimationFrame(() => renderDnsChart(data));
-    return;
-  }
-  drawDnsChart(canvas, data);
+  const canvas=document.getElementById('dns-chart-canvas');
+  if(!canvas)return;
+  if(!canvas.getBoundingClientRect().width){requestAnimationFrame(()=>renderDnsChart(data));return;}
+  drawDnsChart(canvas,data);
 }
-
-// Re-render chart on window resize
-window.addEventListener('resize', () => {
-  if (lastDnsHistory.queries) renderDnsChart(lastDnsHistory);
-});
+window.addEventListener('resize',()=>{if(lastDnsHistory.queries)renderDnsChart(lastDnsHistory);});
 
 async function loadSettings() {
   try {
-    const d = await fetch('/api/settings').then(r => r.json());
-    document.getElementById('cfg-email').value = d.alert_email || '';
-    document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
-    const chk = document.getElementById('chk-disable-email');
-    chk.checked = !!d.email_disabled;
-    applyEmailDisabledState(chk.checked);
-  } catch(e) {}
-  loadSmtp();
-  checkUpdate(false);
+    const d=await fetch('/api/settings').then(r=>r.json());
+    document.getElementById('cfg-email').value=d.alert_email||'';
+    document.getElementById('cfg-threshold').value=d.alert_threshold||'medium';
+    const chk=document.getElementById('chk-disable-email');
+    chk.checked=!!d.email_disabled; applyEmailDisabledState(chk.checked);
+  } catch(e){}
+  loadSmtp(); checkUpdate(false);
 }
 
 async function saveSettings() {
-  const payload = {
-    alert_email:     document.getElementById('cfg-email').value,
-    alert_threshold: document.getElementById('cfg-threshold').value,
-    email_disabled:  document.getElementById('chk-disable-email').checked
-  };
-  const r = await fetch('/api/settings', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-  });
-  r.ok ? toast('Settings saved.') : toast('Error saving settings.', true);
+  const payload={alert_email:document.getElementById('cfg-email').value,alert_threshold:document.getElementById('cfg-threshold').value,email_disabled:document.getElementById('chk-disable-email').checked};
+  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  r.ok?toast('Settings saved.'):toast('Error saving settings.',true);
 }
 
 async function changePassword() {
-  const payload = {
-    current:      document.getElementById('pw-current').value,
-    new_password: document.getElementById('pw-new').value,
-    confirm:      document.getElementById('pw-confirm').value
-  };
-  const r = await fetch('/api/password', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-  });
-  const d = await r.json();
-  if (r.ok) {
-    toast('Password updated.');
-    ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = '');
-  } else {
-    toast(d.error || 'Error updating password.', true);
-  }
+  const payload={current:document.getElementById('pw-current').value,new_password:document.getElementById('pw-new').value,confirm:document.getElementById('pw-confirm').value};
+  const r=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();
+  if(r.ok){toast('Password updated.');['pw-current','pw-new','pw-confirm'].forEach(id=>document.getElementById(id).value='');}
+  else toast(d.error||'Error updating password.',true);
 }
 
 async function checkUpdate(force) {
-  const msgEl = document.getElementById('update-status-msg');
-  const lcEl  = document.getElementById('update-last-check');
-  const btnEl = document.getElementById('btn-check-update');
-  if (force) {
-    msgEl.className = 'checking'; msgEl.textContent = 'Checking for updates…';
-    btnEl.disabled = true; btnEl.textContent = 'Checking…';
-  }
+  const msgEl=document.getElementById('update-status-msg'),lcEl=document.getElementById('update-last-check'),btnEl=document.getElementById('btn-check-update');
+  if(force){msgEl.className='checking';msgEl.textContent='Checking for updates…';btnEl.disabled=true;btnEl.textContent='Checking…';}
   try {
-    const url = '/api/update/check' + (force ? '?force=1' : '');
-    const d   = await fetch(url).then(r => r.json());
-    if (lcEl && d.checked_at) lcEl.textContent = 'Last checked: ' + d.checked_at;
-    if (d.update_available) {
-      const cleanNotes = (d.release_notes || '').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'')
-          .split('\n').find(l => l.trim()) || '';
-      document.getElementById('update-version').textContent      = d.latest_version;
-      document.getElementById('update-notes').textContent        = cleanNotes.slice(0,80);
+    const d=await fetch('/api/update/check'+(force?'?force=1':'')).then(r=>r.json());
+    if(lcEl&&d.checked_at)lcEl.textContent='Last checked: '+d.checked_at;
+    if(d.update_available){
+      const cleanNotes=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').split('\n').find(l=>l.trim())||'';
+      document.getElementById('update-version').textContent=d.latest_version;
+      document.getElementById('update-notes').textContent=cleanNotes.slice(0,80);
       document.getElementById('update-banner').classList.add('visible');
-      document.getElementById('update-card').style.display       = 'block';
-      document.getElementById('update-card-version').textContent = d.latest_version;
-      const fullClean = (d.release_notes || '').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'')
-          .replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
-      document.getElementById('update-card-notes').textContent   = fullClean.slice(0,600);
-      msgEl.className = 'available'; msgEl.textContent = `Update available: ${d.latest_version}`;
+      document.getElementById('update-card').style.display='block';
+      document.getElementById('update-card-version').textContent=d.latest_version;
+      const fullClean=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
+      document.getElementById('update-card-notes').textContent=fullClean.slice(0,600);
+      msgEl.className='available';msgEl.textContent=`Update available: ${d.latest_version}`;
     } else {
-      document.getElementById('update-card').style.display = 'none';
-      msgEl.className = 'uptodate'; msgEl.textContent = '✓ Your HoneytrapAI appliance is up to date!';
+      document.getElementById('update-card').style.display='none';
+      msgEl.className='uptodate';msgEl.textContent='✓ Your HoneytrapAI appliance is up to date!';
     }
-  } catch(e) {
-    msgEl.className = 'error'; msgEl.textContent = 'Could not check for updates. Check your network connection.';
-  } finally {
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Check Now'; }
-  }
+  } catch(e){msgEl.className='error';msgEl.textContent='Could not check for updates.';}
+  finally{if(btnEl){btnEl.disabled=false;btnEl.textContent='Check Now';}}
 }
 
-// ── BUG-17/18/22 fix: update countdown ──
 async function installUpdate() {
-  clearInterval(statsInterval);
-  toast('Starting update…');
-  await fetch('/api/update/install', {method:'POST'});
-  let countdownStarted = false;
-  const poll = setInterval(async () => {
-    try {
-      const d = await fetch('/api/update/status').then(r => r.json());
-      if (d.state === 'complete' || d.state === 'downloading' || d.state === 'starting') {
-        if (!countdownStarted) { countdownStarted = true; clearInterval(poll); showUpdateCountdown(); }
-      }
-      if (d.state === 'error') { clearInterval(poll); toast(d.message, true); }
-    } catch(e) {
-      if (!countdownStarted) { countdownStarted = true; clearInterval(poll); showUpdateCountdown(); }
-    }
-  }, 2000);
+  clearInterval(statsInterval); toast('Starting update…');
+  await fetch('/api/update/install',{method:'POST'});
+  let countdownStarted=false;
+  const poll=setInterval(async()=>{
+    try{
+      const d=await fetch('/api/update/status').then(r=>r.json());
+      if(d.state==='complete'||d.state==='downloading'||d.state==='starting'){if(!countdownStarted){countdownStarted=true;clearInterval(poll);showUpdateCountdown();}}
+      if(d.state==='error'){clearInterval(poll);toast(d.message,true);}
+    }catch(e){if(!countdownStarted){countdownStarted=true;clearInterval(poll);showUpdateCountdown();}}
+  },2000);
 }
 
 function showUpdateCountdown() {
-  let countdown = 60;
-  document.body.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;
-                min-height:100vh;background:#0f0f1a;color:#e0e0e0;
-                font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
-      <div>
-        <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
-        <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div>
-        <div style="color:#888;font-size:.88rem">
-          Services are restarting. Reloading dashboard in
-          <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br>
-          <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.
-        </div>
-      </div>
-    </div>`;
-  setTimeout(() => {
-    const timer = setInterval(() => {
-      countdown--;
-      const el = document.getElementById('update-countdown');
-      if (el) el.textContent = countdown;
-      if (countdown <= 0) { clearInterval(timer); location.reload(); }
-    }, 1000);
-  }, 100);
+  let countdown=60;
+  document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div><div style="color:#888;font-size:.88rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
+  setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('update-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.reload();}},1000);},100);
 }
 
 async function restoreBackup(input) {
-  const f = input.files[0]; if (!f) return;
-  const fd = new FormData(); fd.append('backup', f);
-  const r  = await fetch('/api/restore', {method:'POST', body:fd});
-  r.ok ? toast('Backup restored. Refreshing…') : toast('Restore failed.', true);
-  if (r.ok) setTimeout(() => location.reload(), 1500);
+  const f=input.files[0];if(!f)return;
+  const fd=new FormData();fd.append('backup',f);
+  const r=await fetch('/api/restore',{method:'POST',body:fd});
+  r.ok?toast('Backup restored. Refreshing…'):toast('Restore failed.',true);
+  if(r.ok)setTimeout(()=>location.reload(),1500);
 }
 
-function showResetOverlay() {
-  document.getElementById('reset-pw').value = '';
-  document.getElementById('reset-error').style.display = 'none';
-  document.getElementById('reset-overlay').classList.add('visible');
-  setTimeout(() => document.getElementById('reset-pw').focus(), 50);
-}
+function showResetOverlay(){document.getElementById('reset-pw').value='';document.getElementById('reset-error').style.display='none';document.getElementById('reset-overlay').classList.add('visible');setTimeout(()=>document.getElementById('reset-pw').focus(),50);}
+function hideResetOverlay(){document.getElementById('reset-overlay').classList.remove('visible');}
+document.getElementById('reset-overlay').addEventListener('click',function(e){if(e.target===this)hideResetOverlay();});
 
-function hideResetOverlay() {
-  document.getElementById('reset-overlay').classList.remove('visible');
-}
-
-document.getElementById('reset-overlay').addEventListener('click', function(e) {
-  if (e.target === this) hideResetOverlay();
-});
-
-// ── BUG-27 fix: factory reset countdown 30s → 60s ──
 async function confirmReset() {
-  const pw    = document.getElementById('reset-pw').value;
-  const errEl = document.getElementById('reset-error');
-  errEl.style.display = 'none';
-  if (!pw) { errEl.textContent = 'Please enter your current password.'; errEl.style.display = 'block'; return; }
-  const btn = document.querySelector('.btn-confirm-reset');
-  btn.disabled = true; btn.textContent = 'Resetting…';
-  try {
-    const r = await fetch('/api/factory-reset', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw})
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      errEl.textContent = d.error || 'Reset failed.'; errEl.style.display = 'block';
-      btn.disabled = false; btn.textContent = 'Reset & Reboot';
-    } else {
-      hideResetOverlay();
-      let countdown = 60;
-      document.body.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;
-                    min-height:100vh;background:#0f0f1a;color:#e0e0e0;
-                    font-family:-apple-system,sans-serif;text-align:center;padding:2rem">
-          <div>
-            <div style="font-size:3rem;margin-bottom:1rem">🐝</div>
-            <div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div>
-            <div style="color:#888;font-size:.88rem">
-              The appliance is rebooting. Redirecting to the setup wizard in
-              <span id="reset-countdown" style="color:#f5a623">60</span> seconds…<br>
-              <a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.
-            </div>
-          </div>
-        </div>`;
-      setTimeout(() => {
-        const timer = setInterval(() => {
-          countdown--;
-          const el = document.getElementById('reset-countdown');
-          if (el) el.textContent = countdown;
-          if (countdown <= 0) { clearInterval(timer); location.replace('http://honeytrap.local'); }
-        }, 1000);
-      }, 100);
+  const pw=document.getElementById('reset-pw').value,errEl=document.getElementById('reset-error');
+  errEl.style.display='none';
+  if(!pw){errEl.textContent='Please enter your current password.';errEl.style.display='block';return;}
+  const btn=document.querySelector('.btn-confirm-reset');btn.disabled=true;btn.textContent='Resetting…';
+  try{
+    const r=await fetch('/api/factory-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Reset failed.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
+    else{
+      hideResetOverlay();let countdown=60;
+      document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div><div style="color:#888;font-size:.88rem">Redirecting in <span id="reset-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.</div></div></div>`;
+      setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('reset-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.replace('http://honeytrap.local');}},1000);},100);
     }
-  } catch(e) {
-    errEl.textContent = 'Network error. Please try again.'; errEl.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Reset & Reboot';
-  }
+  }catch(e){errEl.textContent='Network error.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
 }
 
 // ── SMTP ──────────────────────────────────────────────────────────────────
-function smtpEncChange(sel, userTriggered) {
-  const hints = {
-    starttls: 'Encrypts credentials in transit. Required by most providers.',
-    ssl:      'Direct SSL connection. Use if your provider requires port 465.',
-    none:     '⚠ No encryption. Only use for local or internal mail servers.'
-  };
-  const ports = {starttls:'587', ssl:'465', none:'25'};
-  if (userTriggered) document.getElementById('smtp-port').value = ports[sel.value];
-  const hint = document.getElementById('smtp-enc-hint');
-  hint.textContent = hints[sel.value];
-  hint.style.color = sel.value === 'none' ? '#e74c3c' : '#666';
+function smtpEncChange(sel,userTriggered){
+  const hints={starttls:'Encrypts credentials in transit. Required by most providers.',ssl:'Direct SSL connection. Use if your provider requires port 465.',none:'⚠ No encryption. Only use for local or internal mail servers.'};
+  const ports={starttls:'587',ssl:'465',none:'25'};
+  if(userTriggered)document.getElementById('smtp-port').value=ports[sel.value];
+  const hint=document.getElementById('smtp-enc-hint');hint.textContent=hints[sel.value];hint.style.color=sel.value==='none'?'#e74c3c':'#666';
 }
 
-async function loadSmtp() {
-  try {
-    const d = await fetch('/api/smtp').then(r => r.json());
-    if (d.host)      document.getElementById('smtp-host').value = d.host;
-    if (d.port)      document.getElementById('smtp-port').value = d.port;
-    if (d.username)  document.getElementById('smtp-user').value = d.username;
-    if (d.from_addr) document.getElementById('smtp-from').value = d.from_addr;
-    const enc = document.getElementById('smtp-enc');
-    if (d.ssl)      enc.value = 'ssl';
-    else if (d.tls) enc.value = 'starttls';
-    else            enc.value = 'none';
-    smtpEncChange(enc, false);
-    const ind = document.getElementById('smtp-saved-indicator');
-    if (d.host) { ind.textContent = '✓ SMTP configured'; ind.style.color = '#27ae60'; }
-  } catch(e) {}
+async function loadSmtp(){
+  try{
+    const d=await fetch('/api/smtp').then(r=>r.json());
+    if(d.host)document.getElementById('smtp-host').value=d.host;
+    if(d.port)document.getElementById('smtp-port').value=d.port;
+    if(d.username)document.getElementById('smtp-user').value=d.username;
+    if(d.from_addr)document.getElementById('smtp-from').value=d.from_addr;
+    const enc=document.getElementById('smtp-enc');
+    if(d.ssl)enc.value='ssl';else if(d.tls)enc.value='starttls';else enc.value='none';
+    smtpEncChange(enc,false);
+    const ind=document.getElementById('smtp-saved-indicator');
+    if(d.host){ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';}
+  }catch(e){}
 }
 
-async function saveSmtp() {
-  const result = document.getElementById('smtp-result');
-  const pw  = document.getElementById('smtp-pass').value;
-  const enc = document.getElementById('smtp-enc').value;
-  const payload = {
-    host:      document.getElementById('smtp-host').value.trim(),
-    port:      parseInt(document.getElementById('smtp-port').value) || 587,
-    username:  document.getElementById('smtp-user').value.trim(),
-    from_addr: document.getElementById('smtp-from').value.trim(),
-    tls:       enc === 'starttls',
-    ssl:       enc === 'ssl',
-  };
-  if (pw) payload.password = pw;
-  const r = await fetch('/api/smtp', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-  });
-  const d = await r.json();
-  result.style.display = 'block';
-  if (r.ok) {
-    result.style.borderColor = '#27ae60'; result.style.color = '#27ae60';
-    result.textContent = '✓ SMTP settings saved.';
-    const ind = document.getElementById('smtp-saved-indicator');
-    ind.textContent = '✓ SMTP configured'; ind.style.color = '#27ae60';
-    document.getElementById('smtp-pass').value = '';
-  } else {
-    result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-    result.textContent = '✗ ' + (d.error || 'Save failed.');
-  }
+async function saveSmtp(){
+  const result=document.getElementById('smtp-result'),pw=document.getElementById('smtp-pass').value,enc=document.getElementById('smtp-enc').value;
+  const payload={host:document.getElementById('smtp-host').value.trim(),port:parseInt(document.getElementById('smtp-port').value)||587,username:document.getElementById('smtp-user').value.trim(),from_addr:document.getElementById('smtp-from').value.trim(),tls:enc==='starttls',ssl:enc==='ssl'};
+  if(pw)payload.password=pw;
+  const r=await fetch('/api/smtp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();result.style.display='block';
+  if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent='✓ SMTP settings saved.';const ind=document.getElementById('smtp-saved-indicator');ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';document.getElementById('smtp-pass').value='';}
+  else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Save failed.');}
 }
 
-async function sendTestEmail() {
-  const btn    = document.getElementById('btn-test-email');
-  const result = document.getElementById('smtp-result');
-  const email  = document.getElementById('cfg-email').value.trim();
-  if (!email) {
-    result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-    result.textContent = '✗ Enter an alert email address above first.';
-    result.style.display = 'block'; return;
-  }
-  btn.disabled = true; btn.textContent = 'Sending…';
-  result.style.display = 'none';
-  try {
-    const r = await fetch('/api/email/test', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email})
-    });
-    const d = await r.json();
-    result.style.display = 'block';
-    if (r.ok) {
-      result.style.borderColor = '#27ae60'; result.style.color = '#27ae60';
-      result.textContent = `✓ Test email sent to ${email}. Check your inbox.`;
-    } else {
-      result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-      result.textContent = '✗ ' + (d.error || 'Failed to send. Check your SMTP settings.');
-    }
-  } catch(e) {
-    result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-    result.textContent = '✗ Network error.'; result.style.display = 'block';
-  } finally {
-    btn.disabled = false; btn.textContent = 'Send Test Email';
-  }
+async function sendTestEmail(){
+  const btn=document.getElementById('btn-test-email'),result=document.getElementById('smtp-result'),email=document.getElementById('cfg-email').value.trim();
+  if(!email){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Enter an alert email address above first.';result.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Sending…';result.style.display='none';
+  try{
+    const r=await fetch('/api/email/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();result.style.display='block';
+    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Test email sent to ${email}. Check your inbox.`;}
+    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Failed to send.');}
+  }catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Send Test Email';}
 }
 
-// ── Disable email checkbox ────────────────────────────────────────────────
-function applyEmailDisabledState(disabled) {
-  const wrap    = document.getElementById('smtp-fields-wrap');
-  const testBtn = document.getElementById('btn-test-email');
-  const saveBtn = document.querySelector('button[onclick="saveSmtp()"]');
-  wrap.classList.toggle('disabled', disabled);
-  if (testBtn) { testBtn.disabled = disabled; }
-  if (saveBtn) { saveBtn.disabled = disabled; }
+function applyEmailDisabledState(disabled){
+  const wrap=document.getElementById('smtp-fields-wrap'),testBtn=document.getElementById('btn-test-email'),saveBtn=document.querySelector('button[onclick="saveSmtp()"]');
+  wrap.classList.toggle('disabled',disabled);if(testBtn)testBtn.disabled=disabled;if(saveBtn)saveBtn.disabled=disabled;
 }
 
-// ── Rev 14 fix: only save email_disabled ──
-async function toggleEmailDisabled(chk) {
+async function toggleEmailDisabled(chk){
   applyEmailDisabledState(chk.checked);
-  const r = await fetch('/api/settings', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email_disabled: chk.checked})
+  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_disabled:chk.checked})});
+  if(r.ok)toast(chk.checked?'Alert emails disabled.':'Alert emails enabled.');
+  else{toast('Failed to save preference.',true);chk.checked=!chk.checked;applyEmailDisabledState(chk.checked);}
+}
+
+function isValidEmail(val){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());}
+function showFieldErr(errId,msg){const el=document.getElementById(errId);if(!el)return;el.textContent=msg;el.style.display=msg?'block':'none';}
+function validateEmailField(input,errId){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;}if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;}input.classList.remove('invalid');showFieldErr(errId,'');return true;}
+function validateSmtpHost(input){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;}if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;}input.classList.remove('invalid');showFieldErr('smtp-host-err','');}
+function validateFromAddr(input){const val=input.value.trim(),errEl=document.getElementById('smtp-from-err');if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;}if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;}const user=document.getElementById('smtp-user').value.trim();if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');}}
+
+// ── Speed Test ────────────────────────────────────────────────────────────
+const GAUGE_ARC = Math.PI * 55;  // half-circle circumference ≈ 172.8
+const GAUGE_MAX = 1000;           // 0–1000 Mbps = full sweep
+
+function setGauge(arcId, needleId, mbps) {
+  const pct    = Math.min(mbps / GAUGE_MAX, 1);
+  const filled = pct * GAUGE_ARC;
+  const arc    = document.getElementById(arcId);
+  const needle = document.getElementById(needleId);
+  if (arc)    arc.style.strokeDasharray = `${filled} ${GAUGE_ARC}`;
+  // SVG rotate(angle, cx, cy) — pivot at gauge centre (65, 75)
+  // Needle starts pointing left (-90°) and sweeps 180° to the right (+90°)
+  const deg = -90 + pct * 180;
+  if (needle) needle.setAttribute('transform', `rotate(${deg}, 65, 75)`);
+}
+
+function resetGauges() {
+  ['gauge-down-arc','gauge-up-arc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.strokeDasharray = `0 ${GAUGE_ARC}`;
   });
-  if (r.ok) {
-    toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
-  } else {
-    toast('Failed to save preference.', true);
-    chk.checked = !chk.checked;
-    applyEmailDisabledState(chk.checked);
-  }
+  ['gauge-down-needle','gauge-up-needle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('transform', 'rotate(-90, 65, 75)');
+  });
+  document.getElementById('val-down').textContent = '—';
+  document.getElementById('val-up').textContent   = '—';
+  document.getElementById('val-ping').textContent = '—';
+  document.getElementById('speedtest-phase').textContent = '';
 }
 
-// ── Field validation ──────────────────────────────────────────────────────
-function isValidEmail(val) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()); }
+const PHASE_LABELS = {
+  ping:     '◎ Measuring latency…',
+  download: '↓ Testing download speed…',
+  upload:   '↑ Testing upload speed…',
+};
 
-function showFieldErr(errId, msg) {
-  const el = document.getElementById(errId);
-  if (!el) return;
-  el.textContent = msg;
-  el.style.display = msg ? 'block' : 'none';
-}
-
-function validateEmailField(input, errId) {
-  const val = input.value.trim();
-  if (!val) { input.classList.remove('invalid'); showFieldErr(errId, ''); return true; }
-  if (!isValidEmail(val)) {
-    input.classList.add('invalid');
-    showFieldErr(errId, '✗ That doesn\'t look like a valid email address.');
-    return false;
-  }
-  input.classList.remove('invalid'); showFieldErr(errId, ''); return true;
-}
-
-function validateSmtpHost(input) {
-  const val = input.value.trim();
-  if (!val) { input.classList.remove('invalid'); showFieldErr('smtp-host-err', ''); return; }
-  if (val.includes('@') || val.includes(' ') || isValidEmail(val)) {
-    input.classList.add('invalid');
-    showFieldErr('smtp-host-err', '✗ Enter a server address like smtp.gmail.com — not an email address.');
-    return;
-  }
-  input.classList.remove('invalid'); showFieldErr('smtp-host-err', '');
-}
-
-function validateFromAddr(input) {
-  const val   = input.value.trim();
-  const errEl = document.getElementById('smtp-from-err');
-  if (!val) { input.classList.remove('invalid','warn'); showFieldErr('smtp-from-err', ''); return; }
-  if (!isValidEmail(val)) {
-    input.classList.add('invalid'); input.classList.remove('warn');
-    errEl.className = 'field-err';
-    showFieldErr('smtp-from-err', '✗ That doesn\'t look like a valid email address.');
-    return;
-  }
-  const user = document.getElementById('smtp-user').value.trim();
-  if (user && val.toLowerCase() !== user.toLowerCase()) {
-    input.classList.add('warn'); input.classList.remove('invalid');
-    errEl.className = 'field-warn';
-    showFieldErr('smtp-from-err', '⚠ From address doesn\'t match your username. This may cause sending to fail with Gmail or Outlook.');
-  } else {
-    input.classList.remove('invalid','warn'); showFieldErr('smtp-from-err', '');
+async function runSpeedtest() {
+  const btn = document.getElementById('btn-speedtest');
+  btn.disabled = true; btn.textContent = 'Running…';
+  resetGauges();
+  try {
+    const es = new EventSource('/api/tools/speedtest');
+    es.addEventListener('phase', e => {
+      const d = JSON.parse(e.data);
+      document.getElementById('speedtest-phase').textContent = PHASE_LABELS[d.phase] || '';
+    });
+    es.addEventListener('ping', e => {
+      const d = JSON.parse(e.data), el = document.getElementById('val-ping');
+      if (d.ping_ms !== null && d.ping_ms !== undefined) {
+        el.textContent = d.ping_ms;
+        el.style.color = d.ping_ms < 30 ? '#27ae60' : d.ping_ms < 80 ? '#f39c12' : '#e74c3c';
+      } else { el.textContent = 'timeout'; el.style.color = '#e74c3c'; }
+    });
+    es.addEventListener('download', e => {
+      const d = JSON.parse(e.data);
+      if (d.down_mbps !== null && d.down_mbps !== undefined) {
+        document.getElementById('val-down').textContent = d.down_mbps;
+        setGauge('gauge-down-arc', 'gauge-down-needle', d.down_mbps);
+      } else { document.getElementById('val-down').textContent = 'err'; }
+    });
+    es.addEventListener('upload', e => {
+      const d = JSON.parse(e.data);
+      if (d.up_mbps !== null && d.up_mbps !== undefined) {
+        document.getElementById('val-up').textContent = d.up_mbps;
+        setGauge('gauge-up-arc', 'gauge-up-needle', d.up_mbps);
+      } else { document.getElementById('val-up').textContent = 'err'; }
+    });
+    es.addEventListener('done', () => {
+      es.close();
+      document.getElementById('speedtest-phase').textContent = '✓ Test complete';
+      btn.disabled = false; btn.textContent = 'Run Speed Test';
+    });
+    es.onerror = () => {
+      es.close();
+      document.getElementById('speedtest-phase').textContent = '✗ Test failed — check connection';
+      btn.disabled = false; btn.textContent = 'Run Speed Test';
+    };
+  } catch(e) {
+    document.getElementById('speedtest-phase').textContent = '✗ Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Run Speed Test';
   }
 }
 
 // ── Simulate Threat ───────────────────────────────────────────────────────
-async function runSimulate() {
-  const btn    = document.getElementById('btn-simulate');
-  const result = document.getElementById('sim-result');
-  const type   = document.getElementById('sim-type').value;
-  const ip     = document.getElementById('sim-ip').value.trim();
-  btn.disabled = true; btn.textContent = 'Injecting…';
-  result.style.display = 'none';
-  try {
-    const r = await fetch('/api/simulate/threat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({threat_type:type, src_ip:ip||null})
-    });
-    const d = await r.json();
-    if (r.ok) {
-      result.style.borderColor = '#27ae60'; result.style.color = '#27ae60';
-      result.textContent = `✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;
-      result.style.display = 'block';
-      await loadStats();
-    } else {
-      result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-      result.textContent = '✗ ' + (d.error || 'Injection failed.');
-      result.style.display = 'block';
-    }
-  } catch(e) {
-    result.style.borderColor = '#e74c3c'; result.style.color = '#e74c3c';
-    result.textContent = '✗ Network error.'; result.style.display = 'block';
-  } finally {
-    btn.disabled = false; btn.textContent = 'Inject Test Entry';
-  }
+async function runSimulate(){
+  const btn=document.getElementById('btn-simulate'),result=document.getElementById('sim-result'),type=document.getElementById('sim-type').value,ip=document.getElementById('sim-ip').value.trim();
+  btn.disabled=true;btn.textContent='Injecting…';result.style.display='none';
+  try{
+    const r=await fetch('/api/simulate/threat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threat_type:type,src_ip:ip||null})});
+    const d=await r.json();
+    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;result.style.display='block';await loadStats();}
+    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Injection failed.');result.style.display='block';}
+  }catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Inject Test Entry';}
 }
 
-// ── Threat Log ────────────────────────────────────────────────────────────
-function showPurgeConfirm()  { document.getElementById('purge-confirm').style.display = 'block'; }
-function hidePurgeConfirm()  { document.getElementById('purge-confirm').style.display = 'none';  }
+function showPurgeConfirm(){document.getElementById('purge-confirm').style.display='block';}
+function hidePurgeConfirm(){document.getElementById('purge-confirm').style.display='none';}
 
-async function confirmPurge() {
+async function confirmPurge(){
   hidePurgeConfirm();
-  const r = await fetch('/api/threats/purge', {method:'POST'});
-  if (r.ok) {
-    allEvents = []; summaryData = {};
-    renderAlerts(); renderOffenders();
-    ['s-total','s-high','s-medium','s-low'].forEach(id => document.getElementById(id).textContent = '0');
-    toast('Threat log purged.');
-  } else { toast('Purge failed.', true); }
+  const r=await fetch('/api/threats/purge',{method:'POST'});
+  if(r.ok){allEvents=[];summaryData={};renderAlerts();renderOffenders();['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0');toast('Threat log purged.');}
+  else toast('Purge failed.',true);
 }
 
-// ── Network Tools ─────────────────────────────────────────────────────────
-async function runTool(tool) {
-  const hostMap  = {ping:'ping-host', dns:'dns-host', traceroute:'traceroute-host', portscan:'portscan-host'};
-  const labelMap = {ping:'Ping', dns:'Lookup', traceroute:'Trace', portscan:'Scan'};
-  const outEl    = document.getElementById('out-' + tool);
-  const hostEl   = document.getElementById(hostMap[tool]);
-  const btn      = hostEl.closest('.tool-card').querySelector('.btn-save');
-  const host     = hostEl.value.trim();
-
-  if (!host) { hostEl.focus(); return; }
-
-  const payload = {host};
-  if (tool === 'portscan') {
-    payload.ports = document.getElementById('portscan-ports').value.trim() || '22,80,443,3000,8080';
-  }
-
-  btn.disabled = true; btn.textContent = 'Running…';
-  outEl.className = 'tool-output visible';
-  outEl.textContent = 'Running…';
-
-  try {
-    const r = await fetch(`/api/tools/${tool}`, {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-    });
-    const d = await r.json();
-    if (d.error) {
-      outEl.className = 'tool-output visible failure';
-      outEl.textContent = '✗ ' + d.error;
-    } else {
-      outEl.className = 'tool-output visible ' + (d.success ? 'success' : 'failure');
-      outEl.textContent = d.output || '(no output)';
-    }
-  } catch(e) {
-    outEl.className = 'tool-output visible failure';
-    outEl.textContent = '✗ Network error.';
-  } finally {
-    btn.disabled = false; btn.textContent = labelMap[tool];
-  }
+async function runTool(tool){
+  const hostMap={ping:'ping-host',dns:'dns-host',traceroute:'traceroute-host',portscan:'portscan-host'};
+  const labelMap={ping:'Ping',dns:'Lookup',traceroute:'Trace',portscan:'Scan'};
+  const outEl=document.getElementById('out-'+tool),hostEl=document.getElementById(hostMap[tool]);
+  const btn=hostEl.closest('.tool-card').querySelector('.btn-save'),host=hostEl.value.trim();
+  if(!host){hostEl.focus();return;}
+  const payload={host};
+  if(tool==='portscan')payload.ports=document.getElementById('portscan-ports').value.trim()||'22,80,443,3000,8080';
+  btn.disabled=true;btn.textContent='Running…';outEl.className='tool-output visible';outEl.textContent='Running…';
+  try{
+    const r=await fetch(`/api/tools/${tool}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(d.error){outEl.className='tool-output visible failure';outEl.textContent='✗ '+d.error;}
+    else{outEl.className='tool-output visible '+(d.success?'success':'failure');outEl.textContent=d.output||'(no output)';}
+  }catch(e){outEl.className='tool-output visible failure';outEl.textContent='✗ Network error.';}
+  finally{btn.disabled=false;btn.textContent=labelMap[tool];}
 }
 
-// ── USB Reset File ────────────────────────────────────────────────────────
-function downloadResetFile() {
-  const content = 'HoneytrapAI factory reset trigger\nPlace this file in the root of a USB drive and insert at boot.\n';
-  const blob = new Blob([content], {type:'text/plain'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'honeytrap-reset.txt';
-  a.click();
-  URL.revokeObjectURL(a.href);
+function downloadResetFile(){
+  const blob=new Blob(['HoneytrapAI factory reset trigger\nPlace this file in the root of a USB drive and insert at boot.\n'],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='honeytrap-reset.txt';a.click();URL.revokeObjectURL(a.href);
 }
 
-// ── Back-button guard ─────────────────────────────────────────────────────
-history.pushState({page:'dashboard'}, '', window.location.href);
-history.pushState({page:'dashboard'}, '', window.location.href);
-window.addEventListener('popstate', () => {
-  history.pushState({page:'dashboard'}, '', window.location.href);
-});
+history.pushState({page:'dashboard'},'',window.location.href);
+history.pushState({page:'dashboard'},'',window.location.href);
+window.addEventListener('popstate',()=>history.pushState({page:'dashboard'},'',window.location.href));
 
-// ── Init ──────────────────────────────────────────────────────────────────
-loadStats();
-updateSensorStatus();
-const statsInterval = setInterval(loadStats, 30000);
-setInterval(updateSensorStatus, 30000);
+loadStats(); updateSensorStatus();
+const statsInterval=setInterval(loadStats,30000);
+setInterval(updateSensorStatus,30000);
 checkUpdate(false);
 </script>
 </body>

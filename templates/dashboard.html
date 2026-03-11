@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.22
+     Version: v0.3.23
      Revised: 2026-03-10
-     Rev: 27 -->
+     Rev: 28 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,6 +56,17 @@
     .stat-card .val.green{color:#27ae60}
     .stat-card .val.blue{color:#3498db}
     .stat-card .lbl{font-size:.72rem;color:#888;margin-top:.2rem}
+    /* ── Lifetime blocked banner ── */
+    .lifetime-banner{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
+                     padding:1.4rem 1rem;margin-bottom:1.2rem;text-align:center}
+    .lifetime-label{font-size:.72rem;color:#666;text-transform:uppercase;
+                    letter-spacing:.1em;margin-bottom:.5rem}
+    .lifetime-number{font-size:2.6rem;font-weight:700;color:#00e676;
+                     font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+                     line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',monospace,sans-serif}
+    .lifetime-sublabel{font-size:.75rem;color:#555;margin-top:.45rem}
+    @media(min-width:600px){.lifetime-number{font-size:3.2rem}}
+    /* ── end lifetime banner ── */
     #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
                         background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                         padding:.6rem 1rem;margin-bottom:1.2rem;flex-wrap:wrap}
@@ -230,6 +241,13 @@
     <div class="stat-card"><div class="val green" id="s-low">—</div><div class="lbl">Low / Info</div></div>
     <div class="stat-card"><div class="val blue" id="s-dns-queries">—</div><div class="lbl">DNS Queries Today</div></div>
     <div class="stat-card"><div class="val" id="s-dns-blocked">—</div><div class="lbl">DNS Blocked Today</div></div>
+  </div>
+
+  <!-- Lifetime Blocked Counter -->
+  <div class="lifetime-banner">
+    <div class="lifetime-label">🛡️ Lifetime Ads, Trackers &amp; Threats Blocked</div>
+    <div class="lifetime-number" id="lifetime-number">0</div>
+    <div class="lifetime-sublabel">Since HoneytrapAI was installed · Never resets</div>
   </div>
 
   <div id="sensor-status-bar">
@@ -651,6 +669,34 @@
 let allEvents = [], summaryData = {}, currentFilter = 'all', offenderTab = 'types';
 let lastDnsHistory = {};
 
+// ── Lifetime counter ──────────────────────────────────────────────────────
+let _lifetimeAnimDone = false;  // only animate on first load
+
+function animateCounter(el, target, duration) {
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    // easeOutQuad
+    const ease = 1 - (1 - t) * (1 - t);
+    const val  = Math.round(ease * target);
+    el.textContent = val.toLocaleString();
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = target.toLocaleString();
+  }
+  requestAnimationFrame(step);
+}
+
+function updateLifetimeCounter(n) {
+  const el = document.getElementById('lifetime-number');
+  if (!el) return;
+  if (!_lifetimeAnimDone) {
+    _lifetimeAnimDone = true;
+    animateCounter(el, n, 1500);
+  } else {
+    el.textContent = n.toLocaleString();
+  }
+}
+
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
@@ -713,6 +759,10 @@ async function loadStats() {
     document.getElementById('s-low').textContent          = summaryData.low    ?? 0;
     document.getElementById('s-dns-queries').textContent  = r2.num_dns_queries?.toLocaleString()       ?? '—';
     document.getElementById('s-dns-blocked').textContent  = r2.num_blocked_filtering?.toLocaleString() ?? '—';
+    // Lifetime counter
+    if (typeof r1.lifetime_blocked === 'number') {
+      updateLifetimeCounter(r1.lifetime_blocked);
+    }
     renderAlerts(); renderOffenders();
     lastDnsHistory = r3;
     renderDnsChart(r3);
@@ -1010,90 +1060,6 @@ function showFieldErr(errId,msg){const el=document.getElementById(errId);if(!el)
 function validateEmailField(input,errId){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;}if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;}input.classList.remove('invalid');showFieldErr(errId,'');return true;}
 function validateSmtpHost(input){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;}if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;}input.classList.remove('invalid');showFieldErr('smtp-host-err','');}
 function validateFromAddr(input){const val=input.value.trim(),errEl=document.getElementById('smtp-from-err');if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;}if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;}const user=document.getElementById('smtp-user').value.trim();if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');}}
-
-// ── Speed Test ────────────────────────────────────────────────────────────
-const GAUGE_ARC = Math.PI * 55;  // half-circle circumference ≈ 172.8
-const GAUGE_MAX = 1000;           // 0–1000 Mbps = full sweep
-
-function setGauge(arcId, needleId, mbps) {
-  const pct    = Math.min(mbps / GAUGE_MAX, 1);
-  const filled = pct * GAUGE_ARC;
-  const arc    = document.getElementById(arcId);
-  const needle = document.getElementById(needleId);
-  if (arc)    arc.style.strokeDasharray = `${filled} ${GAUGE_ARC}`;
-  // SVG rotate(angle, cx, cy) — pivot at gauge centre (65, 75)
-  // Needle starts pointing left (-90°) and sweeps 180° to the right (+90°)
-  const deg = -90 + pct * 180;
-  if (needle) needle.setAttribute('transform', `rotate(${deg}, 65, 75)`);
-}
-
-function resetGauges() {
-  ['gauge-down-arc','gauge-up-arc'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.strokeDasharray = `0 ${GAUGE_ARC}`;
-  });
-  ['gauge-down-needle','gauge-up-needle'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.setAttribute('transform', 'rotate(-90, 65, 75)');
-  });
-  document.getElementById('val-down').textContent = '—';
-  document.getElementById('val-up').textContent   = '—';
-  document.getElementById('val-ping').textContent = '—';
-  document.getElementById('speedtest-phase').textContent = '';
-}
-
-const PHASE_LABELS = {
-  ping:     '◎ Measuring latency…',
-  download: '↓ Testing download speed…',
-  upload:   '↑ Testing upload speed…',
-};
-
-async function runSpeedtest() {
-  const btn = document.getElementById('btn-speedtest');
-  btn.disabled = true; btn.textContent = 'Running…';
-  resetGauges();
-  try {
-    const es = new EventSource('/api/tools/speedtest');
-    es.addEventListener('phase', e => {
-      const d = JSON.parse(e.data);
-      document.getElementById('speedtest-phase').textContent = PHASE_LABELS[d.phase] || '';
-    });
-    es.addEventListener('ping', e => {
-      const d = JSON.parse(e.data), el = document.getElementById('val-ping');
-      if (d.ping_ms !== null && d.ping_ms !== undefined) {
-        el.textContent = d.ping_ms;
-        el.style.color = d.ping_ms < 30 ? '#27ae60' : d.ping_ms < 80 ? '#f39c12' : '#e74c3c';
-      } else { el.textContent = 'timeout'; el.style.color = '#e74c3c'; }
-    });
-    es.addEventListener('download', e => {
-      const d = JSON.parse(e.data);
-      if (d.down_mbps !== null && d.down_mbps !== undefined) {
-        document.getElementById('val-down').textContent = d.down_mbps;
-        setGauge('gauge-down-arc', 'gauge-down-needle', d.down_mbps);
-      } else { document.getElementById('val-down').textContent = 'err'; }
-    });
-    es.addEventListener('upload', e => {
-      const d = JSON.parse(e.data);
-      if (d.up_mbps !== null && d.up_mbps !== undefined) {
-        document.getElementById('val-up').textContent = d.up_mbps;
-        setGauge('gauge-up-arc', 'gauge-up-needle', d.up_mbps);
-      } else { document.getElementById('val-up').textContent = 'err'; }
-    });
-    es.addEventListener('done', () => {
-      es.close();
-      document.getElementById('speedtest-phase').textContent = '✓ Test complete';
-      btn.disabled = false;       btn.textContent = 'Run Test';
-    });
-    es.onerror = () => {
-      es.close();
-      document.getElementById('speedtest-phase').textContent = '✗ Test failed — check connection';
-      btn.disabled = false; btn.textContent = 'Run Speed Test';
-    };
-  } catch(e) {
-    document.getElementById('speedtest-phase').textContent = '✗ Error: ' + e.message;
-    btn.disabled = false; btn.textContent = 'Run Speed Test';
-  }
-}
 
 // ── Simulate Threat ───────────────────────────────────────────────────────
 async function runSimulate(){

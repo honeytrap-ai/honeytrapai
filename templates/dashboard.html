@@ -1,7 +1,8 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.31
-     Revised: 2026-03-11
-     Rev: 34 -->
+     Version: v0.3.32
+     Revised: 2026-03-12
+     Rev: 36 -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1287,7 +1288,9 @@ async function installUpdate() {
 
 function showUpdateCountdown() {
   let countdown = 60;
-  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div><div style="color:#888;font-size:.88rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
+  const ver = document.querySelector('.nav-version')?.textContent?.trim() || '';
+  const verLine = ver ? `<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>` : '';
+  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">HoneytrapAI update complete.</div>${verLine}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
   setTimeout(() => {
     const timer = setInterval(() => {
       countdown--;
@@ -1297,7 +1300,6 @@ function showUpdateCountdown() {
     }, 1000);
   }, 100);
 }
-
 async function restoreBackup(input) {
   const f = input.files[0]; if (!f) return;
   const fd = new FormData(); fd.append('backup', f);
@@ -1484,6 +1486,7 @@ function wireCountryClicks() {
   document.getElementById('threat-map-wrap').addEventListener('click', function(e) {
     if (!e.target.closest('#countries-layer')) hideCountryTooltip();
   });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideCountryTooltip(); });
 }
 
 function onCountryClick(e, cc, name) {

@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.27
+     Version: v0.3.29
      Revised: 2026-03-11
-     Rev: 31 -->
+     Rev: 32 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,7 +82,6 @@
     .map-clock-time{color:#777;letter-spacing:.04em}
     .map-clock-sep{color:#333;font-size:.9rem}
     .map-legend{display:flex;gap:.9rem;align-items:center;flex-shrink:0}
-    /* Severity toggle buttons — replace static legend items */
     .sev-toggle{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:#888;
                 cursor:pointer;user-select:none;padding:.2rem .35rem;border-radius:4px;
                 border:1px solid transparent;transition:all .15s;background:none}
@@ -115,6 +114,25 @@
                  box-shadow:0 4px 20px rgba(0,0,0,.5)}
     .map-empty{text-align:center;padding:2rem 1rem;color:#555;font-size:.8rem}
     .map-count{font-size:.72rem;color:#555;margin-left:.5rem}
+    /* ── Country blocking ── */
+    .country-blocked{fill:rgba(231,76,60,0.28) !important}
+    #country-tooltip{position:absolute;background:#1a1a2e;border:1px solid #3a3a5a;
+                      border-radius:8px;padding:.7rem 1rem;font-size:.78rem;color:#e0e0e0;
+                      display:none;z-index:300;white-space:nowrap;line-height:2;min-width:180px;
+                      box-shadow:0 4px 20px rgba(0,0,0,.6);pointer-events:all}
+    #country-tooltip .ct-name{color:#f5a623;font-weight:700;margin-bottom:.2rem;font-size:.85rem}
+    #country-tooltip .ct-row{color:#aaa}
+    #country-tooltip .ct-row span{color:#e0e0e0}
+    .btn-ct-block{background:#e74c3c;color:#fff;border:none;border-radius:5px;
+                  padding:.3rem .85rem;font-size:.75rem;font-weight:700;cursor:pointer;
+                  width:100%;margin-top:.5rem;transition:background .15s}
+    .btn-ct-block:hover{background:#c0392b}
+    .btn-ct-block:disabled{background:#555;cursor:default}
+    .btn-ct-unblock{background:#2a2a4a;color:#e0e0e0;border:1px solid #3a3a5a;border-radius:5px;
+                    padding:.3rem .85rem;font-size:.75rem;font-weight:700;cursor:pointer;
+                    width:100%;margin-top:.5rem;transition:background .15s}
+    .btn-ct-unblock:hover{background:#3a3a5a}
+    .btn-ct-unblock:disabled{background:#555;cursor:default}
     /* ── end map ── */
     #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
                         background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
@@ -302,10 +320,7 @@
   <!-- Live Threat Map -->
   <div class="map-card">
     <div class="map-header">
-      <!-- Left: title + event count -->
       <span class="map-title">🌍 Live Threat Map — Last 24 Hours <span class="map-count" id="map-event-count"></span></span>
-
-      <!-- Center: UTC / Local clocks -->
       <div class="map-clocks">
         <div class="map-clock-item">
           <span class="map-clock-label">UTC</span>
@@ -317,8 +332,6 @@
           <span class="map-clock-time" id="clock-local">--:--:--</span>
         </div>
       </div>
-
-      <!-- Right: severity filter toggles -->
       <div class="map-legend">
         <button class="sev-toggle active" id="sev-btn-high"   onclick="toggleSeverity('high')"   title="Toggle High severity dots">
           <div class="sev-toggle-dot high"></div>High
@@ -342,6 +355,15 @@
     </div>
     <div id="map-empty" class="map-empty" style="display:none">
       No external threat IPs detected in the last 24 hours.
+    </div>
+
+    <!-- Country tooltip — absolutely positioned inside .map-card -->
+    <div id="country-tooltip" style="display:none">
+      <div class="ct-name" id="ct-name">—</div>
+      <div class="ct-row">Threats (24h): <span id="ct-threats">0</span></div>
+      <div class="ct-row" id="ct-blocked-row" style="display:none">Status: <span style="color:#e74c3c">Blocked</span></div>
+      <button class="btn-ct-block"   id="btn-ct-block"   onclick="countryToggleBlock(true)">Block Country</button>
+      <button class="btn-ct-unblock" id="btn-ct-unblock" onclick="countryToggleBlock(false)" style="display:none">Unblock Country</button>
     </div>
   </div>
   <!-- /Live Threat Map -->
@@ -747,7 +769,7 @@
   </div>
 </div>
 
-<!-- Map tooltip -->
+<!-- Map dot tooltip (fixed, follows cursor) -->
 <div id="map-tooltip"></div>
 
 <div id="toast"></div>
@@ -761,7 +783,7 @@
 let allEvents = [], summaryData = {}, currentFilter = 'all', offenderTab = 'types';
 let lastDnsHistory = {};
 
-// ── Severity filter state — high+medium active, low inactive by default ──
+// ── Severity filter state ─────────────────────────────────────────────────
 const sevActive = { high: true, medium: true, low: false };
 
 function toggleSeverity(sev) {
@@ -784,19 +806,11 @@ function pad2(n) { return String(n).padStart(2, '0'); }
 
 function tickClocks() {
   const now  = new Date();
-  const utcH = pad2(now.getUTCHours());
-  const utcM = pad2(now.getUTCMinutes());
-  const utcS = pad2(now.getUTCSeconds());
-  const locH = pad2(now.getHours());
-  const locM = pad2(now.getMinutes());
-  const locS = pad2(now.getSeconds());
   const utcEl = document.getElementById('clock-utc');
   const locEl = document.getElementById('clock-local');
-  if (utcEl) utcEl.textContent = `${utcH}:${utcM}:${utcS}`;
-  if (locEl) locEl.textContent = `${locH}:${locM}:${locS}`;
+  if (utcEl) utcEl.textContent = `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`;
+  if (locEl) locEl.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
 }
-
-// Start clock immediately and tick every second
 tickClocks();
 setInterval(tickClocks, 1000);
 
@@ -806,10 +820,9 @@ let _lifetimeAnimDone = false;
 function animateCounter(el, target, duration) {
   const start = performance.now();
   function step(now) {
-    const t = Math.min((now - start) / duration, 1);
+    const t    = Math.min((now - start) / duration, 1);
     const ease = 1 - (1 - t) * (1 - t);
-    const val  = Math.round(ease * target);
-    el.textContent = val.toLocaleString();
+    el.textContent = Math.round(ease * target).toLocaleString();
     if (t < 1) requestAnimationFrame(step);
     else el.textContent = target.toLocaleString();
   }
@@ -823,14 +836,13 @@ function updateLifetimeCounter(n) {
   else el.textContent = n.toLocaleString();
 }
 
-// ── World Map (D3 + Natural Earth 110m) ──────────────────────────────────
+// ── World Map ─────────────────────────────────────────────────────────────
 function initMap() {
   const W = 1000, H = 507;
   const projection = d3.geoEquirectangular()
     .scale(H / Math.PI)
     .translate([W / 2, H / 2])
     .precision(0.1);
-
   const path = d3.geoPath().projection(projection);
 
   const graticule = d3.geoGraticule().step([30, 30]);
@@ -854,7 +866,12 @@ function initMap() {
         .attr('fill', '#1e2035')
         .attr('stroke', '#2d2d50')
         .attr('stroke-width', '0.5')
-        .attr('stroke-linejoin', 'round');
+        .attr('stroke-linejoin', 'round')
+        .attr('data-cc',   f => (f.properties.iso_a2  || f.properties.ISO_A2  || ''))
+        .attr('data-name', f => (f.properties.name     || f.properties.NAME    || ''));
+
+      wireCountryClicks();
+      applyBlockedFills();
     })
     .catch(err => console.warn('Map data failed to load:', err));
 }
@@ -862,9 +879,7 @@ function initMap() {
 // ── Threat Map dots ───────────────────────────────────────────────────────
 function latLonToXY(lat, lon) {
   const W = 1000, H = 507;
-  const x = (lon + 180) / 360 * W;
-  const y = (90 - lat) / 180 * H;
-  return { x, y };
+  return { x: (lon + 180) / 360 * W, y: (90 - lat) / 180 * H };
 }
 
 function renderThreatMap(events) {
@@ -884,36 +899,26 @@ function renderThreatMap(events) {
   if (countEl) countEl.textContent = `(${events.length} event${events.length !== 1 ? 's' : ''})`;
 
   const VW = 1000, VH = 507;
-
   events.forEach(ev => {
     const { x, y } = latLonToXY(ev.lat, ev.lon);
-    const pctX = (x / VW) * 100;
-    const pctY = (y / VH) * 100;
-
     const dot = document.createElement('div');
     dot.className = `map-dot ${ev.severity}`;
     dot.dataset.severity = ev.severity;
-
-    // Apply current filter state immediately on render
     if (!sevActive[ev.severity]) dot.classList.add('sev-hidden');
-
     const sz = ev.severity === 'high' ? 10 : ev.severity === 'medium' ? 8 : 7;
-    dot.style.cssText = `width:${sz}px;height:${sz}px;left:${pctX}%;top:${pctY}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
-
+    dot.style.cssText = `width:${sz}px;height:${sz}px;left:${(x/VW)*100}%;top:${(y/VH)*100}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
     dot.addEventListener('mouseenter', e => {
       tip.innerHTML = `
         <div style="color:#f5a623;font-weight:700;margin-bottom:.2rem">${ev.ip}</div>
         <div><span style="color:#666">Country:</span> ${ev.country_name}</div>
         <div><span style="color:#666">Trail:</span> <span style="color:#f5a623">${ev.trail}</span></div>
         <div><span style="color:#666">Severity:</span> <span class="sev-badge sev-${ev.severity}" style="font-size:.68rem">${ev.severity.toUpperCase()}</span></div>
-        <div><span style="color:#666">Time:</span> ${ev.timestamp}</div>
-      `;
+        <div><span style="color:#666">Time:</span> ${ev.timestamp}</div>`;
       tip.style.display = 'block';
       positionTip(e);
     });
     dot.addEventListener('mousemove', positionTip);
     dot.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-
     dotLayer.appendChild(dot);
   });
 }
@@ -931,7 +936,8 @@ function positionTip(e) {
 async function loadThreatMap() {
   try {
     const d = await fetch('/api/threat-map').then(r => r.json());
-    renderThreatMap(d.events || []);
+    mapDotData = d.events || [];
+    renderThreatMap(mapDotData);
   } catch(e) {
     console.error('Threat map error', e);
   }
@@ -1095,16 +1101,16 @@ function drawDnsChart(canvas, data) {
   const H = 140, dpr = window.devicePixelRatio || 1;
   canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  const PAD_L=42, PAD_R=12, PAD_T=10, PAD_B=26, cW=W-PAD_L-PAD_R, cH=H-PAD_T-PAD_B, n=queries.length;
-  const maxVal=Math.max(...queries,1), rawStep=maxVal/4, mag=Math.pow(10,Math.floor(Math.log10(rawStep||1)));
-  const niceStep=Math.ceil(rawStep/mag)*mag||1, yMax=niceStep*4;
+  const PAD_L=42,PAD_R=12,PAD_T=10,PAD_B=26,cW=W-PAD_L-PAD_R,cH=H-PAD_T-PAD_B,n=queries.length;
+  const maxVal=Math.max(...queries,1),rawStep=maxVal/4,mag=Math.pow(10,Math.floor(Math.log10(rawStep||1)));
+  const niceStep=Math.ceil(rawStep/mag)*mag||1,yMax=niceStep*4;
   const xPos=i=>PAD_L+(i/(n-1))*cW, yPos=v=>PAD_T+cH-(v/yMax)*cH;
   ctx.clearRect(0,0,W,H);
   ctx.strokeStyle='#1f1f38'; ctx.lineWidth=1;
   for(let t=0;t<=4;t++){const y=PAD_T+(t/4)*cH;ctx.beginPath();ctx.moveTo(PAD_L,y);ctx.lineTo(W-PAD_R,y);ctx.stroke();}
-  ctx.fillStyle='#555'; ctx.font='10px -apple-system,sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  ctx.fillStyle='#555';ctx.font='10px -apple-system,sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
   for(let t=0;t<=4;t++){const v=yMax-t*niceStep,y=PAD_T+(t/4)*cH,lbl=v>=1000?(v/1000).toFixed(v%1000===0?0:1)+'k':String(v);ctx.fillText(lbl,PAD_L-5,y);}
-  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.textAlign='center';ctx.textBaseline='top';
   for(let i=0;i<n;i++){if(i%4!==0)continue;ctx.fillStyle='#555';ctx.fillText(hours[i]||'',xPos(i),H-PAD_B+5);}
   function drawSeries(vals,fg0,fg1,stroke,lw){
     const grad=ctx.createLinearGradient(0,PAD_T,0,PAD_T+cH);grad.addColorStop(0,fg0);grad.addColorStop(1,fg1);
@@ -1114,7 +1120,7 @@ function drawDnsChart(canvas, data) {
     ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();
   }
   drawSeries(queries,'rgba(52,152,219,0.28)','rgba(52,152,219,0.02)','#3498db',2);
-  drawSeries(blocked,'rgba(231,76,60,0.22)', 'rgba(231,76,60,0.02)', '#e74c3c',1.5);
+  drawSeries(blocked,'rgba(231,76,60,0.22)','rgba(231,76,60,0.02)','#e74c3c',1.5);
   const tip=document.getElementById('dns-chart-tooltip');
   if(_dnsMouseMove)  canvas.removeEventListener('mousemove',_dnsMouseMove);
   if(_dnsMouseLeave) canvas.removeEventListener('mouseleave',_dnsMouseLeave);
@@ -1133,236 +1139,372 @@ function drawDnsChart(canvas, data) {
 }
 
 function renderDnsChart(data) {
-  const canvas=document.getElementById('dns-chart-canvas');
-  if(!canvas)return;
-  if(!canvas.getBoundingClientRect().width){requestAnimationFrame(()=>renderDnsChart(data));return;}
-  drawDnsChart(canvas,data);
+  const canvas = document.getElementById('dns-chart-canvas');
+  if (!canvas) return;
+  if (!canvas.getBoundingClientRect().width) { requestAnimationFrame(() => renderDnsChart(data)); return; }
+  drawDnsChart(canvas, data);
 }
-window.addEventListener('resize',()=>{
-  if(lastDnsHistory.queries) renderDnsChart(lastDnsHistory);
+window.addEventListener('resize', () => {
+  if (lastDnsHistory.queries) renderDnsChart(lastDnsHistory);
   loadThreatMap();
 });
 
 // ── Settings ──────────────────────────────────────────────────────────────
 async function loadSettings() {
   try {
-    const d=await fetch('/api/settings').then(r=>r.json());
-    document.getElementById('cfg-email').value=d.alert_email||'';
-    document.getElementById('cfg-threshold').value=d.alert_threshold||'medium';
-    const chk=document.getElementById('chk-disable-email');
-    chk.checked=!!d.email_disabled; applyEmailDisabledState(chk.checked);
-  } catch(e){}
+    const d = await fetch('/api/settings').then(r => r.json());
+    document.getElementById('cfg-email').value     = d.alert_email     || '';
+    document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
+    const chk = document.getElementById('chk-disable-email');
+    chk.checked = !!d.email_disabled; applyEmailDisabledState(chk.checked);
+  } catch(e) {}
   loadSmtp(); checkUpdate(false);
 }
 
 async function saveSettings() {
-  const payload={alert_email:document.getElementById('cfg-email').value,alert_threshold:document.getElementById('cfg-threshold').value,email_disabled:document.getElementById('chk-disable-email').checked};
-  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  r.ok?toast('Settings saved.'):toast('Error saving settings.',true);
+  const payload = {
+    alert_email:     document.getElementById('cfg-email').value,
+    alert_threshold: document.getElementById('cfg-threshold').value,
+    email_disabled:  document.getElementById('chk-disable-email').checked
+  };
+  const r = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  r.ok ? toast('Settings saved.') : toast('Error saving settings.', true);
 }
 
 async function changePassword() {
-  const payload={current:document.getElementById('pw-current').value,new_password:document.getElementById('pw-new').value,confirm:document.getElementById('pw-confirm').value};
-  const r=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const d=await r.json();
-  if(r.ok){toast('Password updated.');['pw-current','pw-new','pw-confirm'].forEach(id=>document.getElementById(id).value='');}
-  else toast(d.error||'Error updating password.',true);
+  const payload = {
+    current:      document.getElementById('pw-current').value,
+    new_password: document.getElementById('pw-new').value,
+    confirm:      document.getElementById('pw-confirm').value
+  };
+  const r = await fetch('/api/password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const d = await r.json();
+  if (r.ok) { toast('Password updated.'); ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = ''); }
+  else toast(d.error || 'Error updating password.', true);
 }
 
 async function checkUpdate(force) {
   const msgEl=document.getElementById('update-status-msg'),lcEl=document.getElementById('update-last-check'),btnEl=document.getElementById('btn-check-update');
-  if(force){msgEl.className='checking';msgEl.textContent='Checking for updates…';btnEl.disabled=true;btnEl.textContent='Checking…';}
+  if (force) { msgEl.className='checking'; msgEl.textContent='Checking for updates…'; btnEl.disabled=true; btnEl.textContent='Checking…'; }
   try {
-    const d=await fetch('/api/update/check'+(force?'?force=1':'')).then(r=>r.json());
-    if(lcEl&&d.checked_at)lcEl.textContent='Last checked: '+d.checked_at;
-    if(d.update_available){
-      const cleanNotes=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').split('\n').find(l=>l.trim())||'';
-      document.getElementById('update-version').textContent=d.latest_version;
-      document.getElementById('update-notes').textContent=cleanNotes.slice(0,80);
+    const d = await fetch('/api/update/check' + (force ? '?force=1' : '')).then(r => r.json());
+    if (lcEl && d.checked_at) lcEl.textContent = 'Last checked: ' + d.checked_at;
+    if (d.update_available) {
+      const cleanNotes = (d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').split('\n').find(l=>l.trim()) || '';
+      document.getElementById('update-version').textContent      = d.latest_version;
+      document.getElementById('update-notes').textContent        = cleanNotes.slice(0,80);
       document.getElementById('update-banner').classList.add('visible');
-      document.getElementById('update-card').style.display='block';
-      document.getElementById('update-card-version').textContent=d.latest_version;
-      const fullClean=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
-      document.getElementById('update-card-notes').textContent=fullClean.slice(0,600);
-      msgEl.className='available';msgEl.textContent=`Update available: ${d.latest_version}`;
+      document.getElementById('update-card').style.display       = 'block';
+      document.getElementById('update-card-version').textContent = d.latest_version;
+      const fullClean = (d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
+      document.getElementById('update-card-notes').textContent   = fullClean.slice(0,600);
+      msgEl.className='available'; msgEl.textContent=`Update available: ${d.latest_version}`;
     } else {
-      document.getElementById('update-card').style.display='none';
-      msgEl.className='uptodate';msgEl.textContent='✓ Your HoneytrapAI appliance is up to date!';
+      document.getElementById('update-card').style.display = 'none';
+      msgEl.className='uptodate'; msgEl.textContent='✓ Your HoneytrapAI appliance is up to date!';
     }
-  } catch(e){msgEl.className='error';msgEl.textContent='Could not check for updates.';}
-  finally{if(btnEl){btnEl.disabled=false;btnEl.textContent='Check Now';}}
+  } catch(e) { msgEl.className='error'; msgEl.textContent='Could not check for updates.'; }
+  finally { if (btnEl) { btnEl.disabled=false; btnEl.textContent='Check Now'; } }
 }
 
 async function installUpdate() {
   clearInterval(statsInterval); toast('Starting update…');
-  await fetch('/api/update/install',{method:'POST'});
-  let countdownStarted=false;
-  const poll=setInterval(async()=>{
-    try{
-      const d=await fetch('/api/update/status').then(r=>r.json());
-      if(d.state==='complete'||d.state==='downloading'||d.state==='starting'){if(!countdownStarted){countdownStarted=true;clearInterval(poll);showUpdateCountdown();}}
-      if(d.state==='error'){clearInterval(poll);toast(d.message,true);}
-    }catch(e){if(!countdownStarted){countdownStarted=true;clearInterval(poll);showUpdateCountdown();}}
-  },2000);
+  await fetch('/api/update/install', {method:'POST'});
+  let countdownStarted = false;
+  const poll = setInterval(async () => {
+    try {
+      const d = await fetch('/api/update/status').then(r => r.json());
+      if (d.state==='complete'||d.state==='downloading'||d.state==='starting') {
+        if (!countdownStarted) { countdownStarted=true; clearInterval(poll); showUpdateCountdown(); }
+      }
+      if (d.state==='error') { clearInterval(poll); toast(d.message, true); }
+    } catch(e) { if (!countdownStarted) { countdownStarted=true; clearInterval(poll); showUpdateCountdown(); } }
+  }, 2000);
 }
 
 function showUpdateCountdown() {
-  let countdown=60;
-  document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div><div style="color:#888;font-size:.88rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
-  setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('update-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.reload();}},1000);},100);
+  let countdown = 60;
+  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Update complete.</div><div style="color:#888;font-size:.88rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
+  setTimeout(() => {
+    const timer = setInterval(() => {
+      countdown--;
+      const el = document.getElementById('update-countdown');
+      if (el) el.textContent = countdown;
+      if (countdown <= 0) { clearInterval(timer); location.reload(); }
+    }, 1000);
+  }, 100);
 }
 
 async function restoreBackup(input) {
-  const f=input.files[0];if(!f)return;
-  const fd=new FormData();fd.append('backup',f);
-  const r=await fetch('/api/restore',{method:'POST',body:fd});
-  r.ok?toast('Backup restored. Refreshing…'):toast('Restore failed.',true);
-  if(r.ok)setTimeout(()=>location.reload(),1500);
+  const f = input.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('backup', f);
+  const r = await fetch('/api/restore', {method:'POST', body:fd});
+  r.ok ? toast('Backup restored. Refreshing…') : toast('Restore failed.', true);
+  if (r.ok) setTimeout(() => location.reload(), 1500);
 }
 
-function showResetOverlay(){document.getElementById('reset-pw').value='';document.getElementById('reset-error').style.display='none';document.getElementById('reset-overlay').classList.add('visible');setTimeout(()=>document.getElementById('reset-pw').focus(),50);}
-function hideResetOverlay(){document.getElementById('reset-overlay').classList.remove('visible');}
-document.getElementById('reset-overlay').addEventListener('click',function(e){if(e.target===this)hideResetOverlay();});
+function showResetOverlay() { document.getElementById('reset-pw').value=''; document.getElementById('reset-error').style.display='none'; document.getElementById('reset-overlay').classList.add('visible'); setTimeout(()=>document.getElementById('reset-pw').focus(),50); }
+function hideResetOverlay() { document.getElementById('reset-overlay').classList.remove('visible'); }
+document.getElementById('reset-overlay').addEventListener('click', function(e) { if (e.target===this) hideResetOverlay(); });
 
 async function confirmReset() {
-  const pw=document.getElementById('reset-pw').value,errEl=document.getElementById('reset-error');
+  const pw=document.getElementById('reset-pw').value, errEl=document.getElementById('reset-error');
   errEl.style.display='none';
-  if(!pw){errEl.textContent='Please enter your current password.';errEl.style.display='block';return;}
-  const btn=document.querySelector('.btn-confirm-reset');btn.disabled=true;btn.textContent='Resetting…';
-  try{
-    const r=await fetch('/api/factory-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
-    const d=await r.json();
-    if(!r.ok){errEl.textContent=d.error||'Reset failed.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
-    else{
-      hideResetOverlay();let countdown=60;
+  if (!pw) { errEl.textContent='Please enter your current password.'; errEl.style.display='block'; return; }
+  const btn=document.querySelector('.btn-confirm-reset'); btn.disabled=true; btn.textContent='Resetting…';
+  try {
+    const r = await fetch('/api/factory-reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw})});
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent=d.error||'Reset failed.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Reset & Reboot'; }
+    else {
+      hideResetOverlay(); let countdown=60;
       document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div><div style="color:#888;font-size:.88rem">Redirecting in <span id="reset-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.</div></div></div>`;
       setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('reset-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.replace('http://honeytrap.local');}},1000);},100);
     }
-  }catch(e){errEl.textContent='Network error.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
+  } catch(e) { errEl.textContent='Network error.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Reset & Reboot'; }
 }
 
 // ── SMTP ──────────────────────────────────────────────────────────────────
-function smtpEncChange(sel,userTriggered){
-  const hints={starttls:'Encrypts credentials in transit. Required by most providers.',ssl:'Direct SSL connection. Use if your provider requires port 465.',none:'⚠ No encryption. Only use for local or internal mail servers.'};
-  const ports={starttls:'587',ssl:'465',none:'25'};
-  if(userTriggered)document.getElementById('smtp-port').value=ports[sel.value];
-  const hint=document.getElementById('smtp-enc-hint');hint.textContent=hints[sel.value];hint.style.color=sel.value==='none'?'#e74c3c':'#666';
+function smtpEncChange(sel, userTriggered) {
+  const hints = {starttls:'Encrypts credentials in transit. Required by most providers.',ssl:'Direct SSL connection. Use if your provider requires port 465.',none:'⚠ No encryption. Only use for local or internal mail servers.'};
+  const ports  = {starttls:'587', ssl:'465', none:'25'};
+  if (userTriggered) document.getElementById('smtp-port').value = ports[sel.value];
+  const hint = document.getElementById('smtp-enc-hint');
+  hint.textContent = hints[sel.value]; hint.style.color = sel.value==='none' ? '#e74c3c' : '#666';
 }
 
-async function loadSmtp(){
-  try{
-    const d=await fetch('/api/smtp').then(r=>r.json());
-    if(d.host)document.getElementById('smtp-host').value=d.host;
-    if(d.port)document.getElementById('smtp-port').value=d.port;
-    if(d.username)document.getElementById('smtp-user').value=d.username;
-    if(d.from_addr)document.getElementById('smtp-from').value=d.from_addr;
-    const enc=document.getElementById('smtp-enc');
-    if(d.ssl)enc.value='ssl';else if(d.tls)enc.value='starttls';else enc.value='none';
-    smtpEncChange(enc,false);
-    const ind=document.getElementById('smtp-saved-indicator');
-    if(d.host){ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';}
-  }catch(e){}
+async function loadSmtp() {
+  try {
+    const d = await fetch('/api/smtp').then(r => r.json());
+    if (d.host)      document.getElementById('smtp-host').value  = d.host;
+    if (d.port)      document.getElementById('smtp-port').value  = d.port;
+    if (d.username)  document.getElementById('smtp-user').value  = d.username;
+    if (d.from_addr) document.getElementById('smtp-from').value  = d.from_addr;
+    const enc = document.getElementById('smtp-enc');
+    if (d.ssl) enc.value='ssl'; else if (d.tls) enc.value='starttls'; else enc.value='none';
+    smtpEncChange(enc, false);
+    const ind = document.getElementById('smtp-saved-indicator');
+    if (d.host) { ind.textContent='✓ SMTP configured'; ind.style.color='#27ae60'; }
+  } catch(e) {}
 }
 
-async function saveSmtp(){
-  const result=document.getElementById('smtp-result'),pw=document.getElementById('smtp-pass').value,enc=document.getElementById('smtp-enc').value;
-  const payload={host:document.getElementById('smtp-host').value.trim(),port:parseInt(document.getElementById('smtp-port').value)||587,username:document.getElementById('smtp-user').value.trim(),from_addr:document.getElementById('smtp-from').value.trim(),tls:enc==='starttls',ssl:enc==='ssl'};
-  if(pw)payload.password=pw;
-  const r=await fetch('/api/smtp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const d=await r.json();result.style.display='block';
-  if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent='✓ SMTP settings saved.';const ind=document.getElementById('smtp-saved-indicator');ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';document.getElementById('smtp-pass').value='';}
-  else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Save failed.');}
+async function saveSmtp() {
+  const result=document.getElementById('smtp-result'), pw=document.getElementById('smtp-pass').value, enc=document.getElementById('smtp-enc').value;
+  const payload = {host:document.getElementById('smtp-host').value.trim(), port:parseInt(document.getElementById('smtp-port').value)||587, username:document.getElementById('smtp-user').value.trim(), from_addr:document.getElementById('smtp-from').value.trim(), tls:enc==='starttls', ssl:enc==='ssl'};
+  if (pw) payload.password = pw;
+  const r = await fetch('/api/smtp', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const d = await r.json(); result.style.display='block';
+  if (r.ok) { result.style.borderColor='#27ae60'; result.style.color='#27ae60'; result.textContent='✓ SMTP settings saved.'; const ind=document.getElementById('smtp-saved-indicator'); ind.textContent='✓ SMTP configured'; ind.style.color='#27ae60'; document.getElementById('smtp-pass').value=''; }
+  else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Save failed.'); }
 }
 
-async function sendTestEmail(){
-  const btn=document.getElementById('btn-test-email'),result=document.getElementById('smtp-result'),email=document.getElementById('cfg-email').value.trim();
-  if(!email){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Enter an alert email address above first.';result.style.display='block';return;}
-  btn.disabled=true;btn.textContent='Sending…';result.style.display='none';
-  try{
-    const r=await fetch('/api/email/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    const d=await r.json();result.style.display='block';
-    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Test email sent to ${email}. Check your inbox.`;}
-    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Failed to send.');}
-  }catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
-  finally{btn.disabled=false;btn.textContent='Send Test Email';}
+async function sendTestEmail() {
+  const btn=document.getElementById('btn-test-email'), result=document.getElementById('smtp-result'), email=document.getElementById('cfg-email').value.trim();
+  if (!email) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Enter an alert email address above first.'; result.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Sending…'; result.style.display='none';
+  try {
+    const r = await fetch('/api/email/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email})});
+    const d = await r.json(); result.style.display='block';
+    if (r.ok) { result.style.borderColor='#27ae60'; result.style.color='#27ae60'; result.textContent=`✓ Test email sent to ${email}. Check your inbox.`; }
+    else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Failed to send.'); }
+  } catch(e) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Network error.'; result.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Send Test Email'; }
 }
 
-function applyEmailDisabledState(disabled){
-  const wrap=document.getElementById('smtp-fields-wrap'),testBtn=document.getElementById('btn-test-email'),saveBtn=document.querySelector('button[onclick="saveSmtp()"]');
-  wrap.classList.toggle('disabled',disabled);if(testBtn)testBtn.disabled=disabled;if(saveBtn)saveBtn.disabled=disabled;
+function applyEmailDisabledState(disabled) {
+  const wrap=document.getElementById('smtp-fields-wrap'), testBtn=document.getElementById('btn-test-email'), saveBtn=document.querySelector('button[onclick="saveSmtp()"]');
+  wrap.classList.toggle('disabled', disabled); if (testBtn) testBtn.disabled=disabled; if (saveBtn) saveBtn.disabled=disabled;
 }
 
-async function toggleEmailDisabled(chk){
+async function toggleEmailDisabled(chk) {
   applyEmailDisabledState(chk.checked);
-  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_disabled:chk.checked})});
-  if(r.ok)toast(chk.checked?'Alert emails disabled.':'Alert emails enabled.');
-  else{toast('Failed to save preference.',true);chk.checked=!chk.checked;applyEmailDisabledState(chk.checked);}
+  const r = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email_disabled:chk.checked})});
+  if (r.ok) toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
+  else { toast('Failed to save preference.', true); chk.checked=!chk.checked; applyEmailDisabledState(chk.checked); }
 }
 
-function isValidEmail(val){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());}
-function showFieldErr(errId,msg){const el=document.getElementById(errId);if(!el)return;el.textContent=msg;el.style.display=msg?'block':'none';}
-function validateEmailField(input,errId){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;}if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;}input.classList.remove('invalid');showFieldErr(errId,'');return true;}
-function validateSmtpHost(input){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;}if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;}input.classList.remove('invalid');showFieldErr('smtp-host-err','');}
-function validateFromAddr(input){const val=input.value.trim(),errEl=document.getElementById('smtp-from-err');if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;}if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;}const user=document.getElementById('smtp-user').value.trim();if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');}}
+function isValidEmail(val) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()); }
+function showFieldErr(errId, msg) { const el=document.getElementById(errId); if(!el)return; el.textContent=msg; el.style.display=msg?'block':'none'; }
+function validateEmailField(input, errId) { const val=input.value.trim(); if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;} if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;} input.classList.remove('invalid');showFieldErr(errId,'');return true; }
+function validateSmtpHost(input) { const val=input.value.trim(); if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;} if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;} input.classList.remove('invalid');showFieldErr('smtp-host-err',''); }
+function validateFromAddr(input) { const val=input.value.trim(),errEl=document.getElementById('smtp-from-err'); if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;} if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;} const user=document.getElementById('smtp-user').value.trim(); if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');} }
 
 // ── Simulate Threat ───────────────────────────────────────────────────────
-async function runSimulate(){
-  const btn=document.getElementById('btn-simulate'),result=document.getElementById('sim-result'),type=document.getElementById('sim-type').value,ip=document.getElementById('sim-ip').value.trim();
-  btn.disabled=true;btn.textContent='Injecting…';result.style.display='none';
-  try{
-    const r=await fetch('/api/simulate/threat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threat_type:type,src_ip:ip||null})});
-    const d=await r.json();
-    if(r.ok){
-      result.style.borderColor='#27ae60';result.style.color='#27ae60';
+async function runSimulate() {
+  const btn=document.getElementById('btn-simulate'), result=document.getElementById('sim-result');
+  const type=document.getElementById('sim-type').value, ip=document.getElementById('sim-ip').value.trim();
+  btn.disabled=true; btn.textContent='Injecting…'; result.style.display='none';
+  try {
+    const r = await fetch('/api/simulate/threat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({threat_type:type, src_ip:ip||null})});
+    const d = await r.json();
+    if (r.ok) {
+      result.style.borderColor='#27ae60'; result.style.color='#27ae60';
       result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;
       result.style.display='block';
       await loadStats();
       await loadThreatMap();
-    }
-    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Injection failed.');result.style.display='block';}
-  }catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
-  finally{btn.disabled=false;btn.textContent='Inject Test Entry';}
+    } else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Injection failed.'); result.style.display='block'; }
+  } catch(e) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Network error.'; result.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Inject Test Entry'; }
 }
 
-function showPurgeConfirm(){document.getElementById('purge-confirm').style.display='block';}
-function hidePurgeConfirm(){document.getElementById('purge-confirm').style.display='none';}
+function showPurgeConfirm() { document.getElementById('purge-confirm').style.display='block'; }
+function hidePurgeConfirm() { document.getElementById('purge-confirm').style.display='none'; }
 
-async function confirmPurge(){
+async function confirmPurge() {
   hidePurgeConfirm();
-  const r=await fetch('/api/threats/purge',{method:'POST'});
-  if(r.ok){allEvents=[];summaryData={};renderAlerts();renderOffenders();['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0');toast('Threat log purged.');}
-  else toast('Purge failed.',true);
+  const r = await fetch('/api/threats/purge', {method:'POST'});
+  if (r.ok) { allEvents=[]; summaryData={}; renderAlerts(); renderOffenders(); ['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0'); toast('Threat log purged.'); }
+  else toast('Purge failed.', true);
 }
 
-async function runTool(tool){
+async function runTool(tool) {
   const hostMap={ping:'ping-host',dns:'dns-host',traceroute:'traceroute-host',portscan:'portscan-host'};
   const labelMap={ping:'Ping',dns:'Lookup',traceroute:'Trace',portscan:'Scan'};
-  const outEl=document.getElementById('out-'+tool),hostEl=document.getElementById(hostMap[tool]);
-  const btn=hostEl.closest('.tool-card').querySelector('.btn-save'),host=hostEl.value.trim();
-  if(!host){hostEl.focus();return;}
+  const outEl=document.getElementById('out-'+tool), hostEl=document.getElementById(hostMap[tool]);
+  const btn=hostEl.closest('.tool-card').querySelector('.btn-save'), host=hostEl.value.trim();
+  if (!host) { hostEl.focus(); return; }
   const payload={host};
-  if(tool==='portscan')payload.ports=document.getElementById('portscan-ports').value.trim()||'22,80,443,3000,8080';
-  btn.disabled=true;btn.textContent='Running…';outEl.className='tool-output visible';outEl.textContent='Running…';
-  try{
-    const r=await fetch(`/api/tools/${tool}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const d=await r.json();
-    if(d.error){outEl.className='tool-output visible failure';outEl.textContent='✗ '+d.error;}
-    else{outEl.className='tool-output visible '+(d.success?'success':'failure');outEl.textContent=d.output||'(no output)';}
-  }catch(e){outEl.className='tool-output visible failure';outEl.textContent='✗ Network error.';}
-  finally{btn.disabled=false;btn.textContent=labelMap[tool];}
+  if (tool==='portscan') payload.ports=document.getElementById('portscan-ports').value.trim()||'22,80,443,3000,8080';
+  btn.disabled=true; btn.textContent='Running…'; outEl.className='tool-output visible'; outEl.textContent='Running…';
+  try {
+    const r = await fetch(`/api/tools/${tool}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.error) { outEl.className='tool-output visible failure'; outEl.textContent='✗ '+d.error; }
+    else { outEl.className='tool-output visible '+(d.success?'success':'failure'); outEl.textContent=d.output||'(no output)'; }
+  } catch(e) { outEl.className='tool-output visible failure'; outEl.textContent='✗ Network error.'; }
+  finally { btn.disabled=false; btn.textContent=labelMap[tool]; }
 }
 
-function downloadResetFile(){
+function downloadResetFile() {
   const blob=new Blob(['HoneytrapAI factory reset trigger\nPlace this file in the root of a USB drive and insert at boot.\n'],{type:'text/plain'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='honeytrap-reset.txt';a.click();URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='honeytrap-reset.txt'; a.click(); URL.revokeObjectURL(a.href);
 }
 
 history.pushState({page:'dashboard'},'',window.location.href);
 history.pushState({page:'dashboard'},'',window.location.href);
-window.addEventListener('popstate',()=>history.pushState({page:'dashboard'},'',window.location.href));
+window.addEventListener('popstate', () => history.pushState({page:'dashboard'},'',window.location.href));
+
+// ── Country blocking ──────────────────────────────────────────────────────
+let mapDotData       = [];
+let blockedCountries = [];
+let _ctActiveCode    = null;
+
+async function loadBlockedCountries() {
+  try {
+    const d = await fetch('/api/country/blocked').then(r => r.json());
+    blockedCountries = d.blocked || [];
+    applyBlockedFills();
+  } catch(e) { console.error('loadBlockedCountries error', e); }
+}
+
+function applyBlockedFills() {
+  document.querySelectorAll('#countries-layer path').forEach(path => {
+    const cc = path.getAttribute('data-cc');
+    if (cc && blockedCountries.includes(cc)) path.classList.add('country-blocked');
+    else path.classList.remove('country-blocked');
+  });
+}
+
+function wireCountryClicks() {
+  document.querySelectorAll('#countries-layer path').forEach(path => {
+    path.style.cursor = 'pointer';
+    path.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const cc   = this.getAttribute('data-cc');
+      const name = this.getAttribute('data-name') || cc || 'Unknown';
+      if (!cc) return;
+      onCountryClick(e, cc, name);
+    });
+  });
+  // Click anywhere on the map wrap (outside a country path) → dismiss tooltip
+  document.getElementById('threat-map-wrap').addEventListener('click', function() {
+    hideCountryTooltip();
+  });
+}
+
+function onCountryClick(e, cc, name) {
+  _ctActiveCode = cc;
+  const isBlocked   = blockedCountries.includes(cc);
+  const threatCount = mapDotData.filter(ev => ev.country_code === cc).length;
+
+  document.getElementById('ct-name').textContent    = name;
+  document.getElementById('ct-threats').textContent = threatCount;
+
+  const blockedRow = document.getElementById('ct-blocked-row');
+  blockedRow.style.display = isBlocked ? 'block' : 'none';
+
+  document.getElementById('btn-ct-block').style.display   = isBlocked ? 'none'  : 'block';
+  document.getElementById('btn-ct-unblock').style.display = isBlocked ? 'block' : 'none';
+  document.getElementById('btn-ct-block').disabled   = false;
+  document.getElementById('btn-ct-unblock').disabled = false;
+
+  // Position tooltip relative to .map-card (which is position:relative)
+  const mapCard  = document.querySelector('.map-card');
+  const cardRect = mapCard.getBoundingClientRect();
+  const ct = document.getElementById('country-tooltip');
+  ct.style.left = '0'; ct.style.top = '0';
+  ct.style.display = 'block';
+
+  requestAnimationFrame(() => {
+    const tw = ct.offsetWidth  || 200;
+    const th = ct.offsetHeight || 130;
+    let lx = e.clientX - cardRect.left + 12;
+    let ly = e.clientY - cardRect.top  + 12;
+    if (lx + tw > cardRect.width  - 8) lx = e.clientX - cardRect.left - tw - 12;
+    if (ly + th > cardRect.height - 8) ly = e.clientY - cardRect.top  - th - 12;
+    ct.style.left = Math.max(4, lx) + 'px';
+    ct.style.top  = Math.max(4, ly) + 'px';
+  });
+}
+
+function hideCountryTooltip() {
+  document.getElementById('country-tooltip').style.display = 'none';
+  _ctActiveCode = null;
+}
+
+async function countryToggleBlock(doBlock) {
+  if (!_ctActiveCode) return;
+  const cc     = _ctActiveCode;
+  const btnB   = document.getElementById('btn-ct-block');
+  const btnU   = document.getElementById('btn-ct-unblock');
+  const active = doBlock ? btnB : btnU;
+  active.disabled    = true;
+  active.textContent = doBlock ? 'Blocking…' : 'Unblocking…';
+
+  try {
+    const endpoint = doBlock ? '/api/country/block' : '/api/country/unblock';
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({country_code: cc})
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      toast(d.error || (doBlock ? 'Block failed.' : 'Unblock failed.'), true);
+      active.disabled    = false;
+      active.textContent = doBlock ? 'Block Country' : 'Unblock Country';
+      return;
+    }
+    if (doBlock) {
+      if (!blockedCountries.includes(cc)) blockedCountries.push(cc);
+      toast(`${cc} blocked — ${d.cidr_count || '?'} CIDRs pushed to AdGuard.`);
+    } else {
+      blockedCountries = blockedCountries.filter(c => c !== cc);
+      toast(`${cc} unblocked — rules removed from AdGuard.`);
+    }
+    applyBlockedFills();
+    hideCountryTooltip();
+  } catch(e) {
+    toast('Network error.', true);
+    active.disabled    = false;
+    active.textContent = doBlock ? 'Block Country' : 'Unblock Country';
+  }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────
 initMap();
+loadBlockedCountries();
 loadStats();
 loadThreatMap();
 updateSensorStatus();

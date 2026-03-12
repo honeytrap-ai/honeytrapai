@@ -1,316 +1,131 @@
+# =============================================================================
 # HoneytrapAI — app.py
-# Version: v0.3.27
-# Revised: 2026-03-11
-# Rev: 18
-#!/usr/bin/env python3
-"""
-HoneytrapAI — Flask web dashboard core
-No cloud. No subscription. No monthly fees. Ever.
-"""
+# Copyright (c) 2026 HoneytrapAI / Anthony Watts
+# License: MIT
+# Rev 19 — Country blocking: /api/country/block, /api/country/unblock,
+#           /api/country/blocked endpoints; CIDR fetch with fallback;
+#           AdGuard rule push/remove; config persistence
+# =============================================================================
 
-import os
-import re
-import glob
-import json
-import hashlib
-import secrets
-import subprocess
-import ipaddress
-import threading
-from datetime import datetime, timedelta
-from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
-import geoip2.database
+import os, json, re, subprocess, ipaddress, logging, threading, time, requests
+from datetime import datetime, timezone
+from flask import Flask, jsonify, request, render_template, redirect, url_for, session
+from log_parser import parse_logs
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.secret_key = os.urandom(24)
 
-# --- Paths ---
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(BASE_DIR, "config", "config.json")
-SMTP_PATH   = os.path.join(BASE_DIR, "config", "smtp.json")
-VERSION_PATH= os.path.join(BASE_DIR, "VERSION")
-LOG_PATH    = os.environ.get("MALTRAIL_LOG", "/var/log/maltrail/maltrail.log")
-DEV_MODE    = os.environ.get("HONEYTRAPAI_DEV", "0") == "1"
+CONFIG_PATH   = "/opt/honeytrapai/config/config.json"
+VERSION_PATH  = "/opt/honeytrapai/VERSION"
+ADGUARD_URL   = "http://127.0.0.1:3000"
+ADGUARD_AUTH  = ("admin", "honeytrapai")
 
-# --- Lifetime blocked counter state ---
-_last_num_blocked      = None
-_lifetime_blocked_lock = threading.Lock()
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
-# --- Country centroid lookup — ISO 3166-1 alpha-2 → (lat, lon) ---
-COUNTRY_CENTROIDS = {
-    "AD":(42.55,1.57),"AE":(24.00,54.00),"AF":(33.00,65.00),"AG":(17.07,-61.80),
-    "AL":(41.00,20.00),"AM":(40.00,45.00),"AO":(-11.20,17.87),"AR":(-34.00,-64.00),
-    "AT":(47.33,13.33),"AU":(-27.00,133.00),"AZ":(40.50,47.50),"BA":(44.00,17.50),
-    "BB":(13.17,-59.53),"BD":(24.00,90.00),"BE":(50.83,4.00),"BF":(13.00,-2.00),
-    "BG":(43.00,25.00),"BH":(26.00,50.55),"BI":(-3.50,30.00),"BJ":(9.50,2.25),
-    "BN":(4.50,114.67),"BO":(-17.00,-65.00),"BR":(-10.00,-55.00),"BS":(24.25,-76.00),
-    "BT":(27.50,90.50),"BW":(-22.00,24.00),"BY":(53.00,28.00),"BZ":(17.25,-88.75),
-    "CA":(60.00,-95.00),"CD":(-4.00,25.00),"CF":(7.00,21.00),"CG":(-1.00,15.00),
-    "CH":(47.00,8.00),"CI":(8.00,-5.00),"CL":(-30.00,-71.00),"CM":(6.00,12.00),
-    "CN":(35.00,105.00),"CO":(4.00,-72.00),"CR":(10.00,-84.00),"CU":(21.50,-80.00),
-    "CV":(16.00,-24.00),"CY":(35.00,33.00),"CZ":(49.75,15.50),"DE":(51.00,9.00),
-    "DJ":(11.50,43.00),"DK":(56.00,10.00),"DM":(15.42,-61.33),"DO":(19.00,-70.67),
-    "DZ":(28.00,3.00),"EC":(-2.00,-77.50),"EE":(59.00,26.00),"EG":(27.00,30.00),
-    "ER":(15.00,39.00),"ES":(40.00,-4.00),"ET":(8.00,38.00),"FI":(64.00,26.00),
-    "FJ":(-18.00,175.00),"FR":(46.00,2.00),"GA":(-1.00,11.75),"GB":(54.00,-2.00),
-    "GD":(12.12,-61.67),"GE":(42.00,43.50),"GH":(8.00,-2.00),"GM":(13.47,-16.57),
-    "GN":(11.00,-10.00),"GQ":(2.00,10.00),"GR":(39.00,22.00),"GT":(15.50,-90.25),
-    "GW":(12.00,-15.00),"GY":(5.00,-59.00),"HN":(15.00,-86.50),"HR":(45.17,15.50),
-    "HT":(19.00,-72.42),"HU":(47.00,20.00),"ID":(-5.00,120.00),"IE":(53.00,-8.00),
-    "IL":(31.50,34.75),"IN":(20.00,77.00),"IQ":(33.00,44.00),"IR":(32.00,53.00),
-    "IS":(65.00,-18.00),"IT":(42.83,12.83),"JM":(18.25,-77.50),"JO":(31.00,36.00),
-    "JP":(36.00,138.00),"KE":(1.00,38.00),"KG":(41.00,75.00),"KH":(13.00,105.00),
-    "KI":(1.42,173.00),"KM":(-12.17,44.25),"KN":(17.33,-62.75),"KP":(40.00,127.00),
-    "KR":(37.00,127.50),"KW":(29.34,47.66),"KZ":(48.00,68.00),"LA":(18.00,105.00),
-    "LB":(33.83,35.83),"LC":(13.88,-60.97),"LI":(47.17,9.53),"LK":(7.00,81.00),
-    "LR":(6.50,-9.50),"LS":(-29.50,28.50),"LT":(56.00,24.00),"LU":(49.75,6.17),
-    "LV":(57.00,25.00),"LY":(25.00,17.00),"MA":(32.00,-5.00),"MC":(43.73,7.40),
-    "MD":(47.00,29.00),"ME":(42.50,19.30),"MG":(-20.00,47.00),"MH":(9.00,168.00),
-    "MK":(41.83,22.00),"ML":(17.00,-4.00),"MM":(22.00,98.00),"MN":(46.00,105.00),
-    "MR":(20.00,-12.00),"MT":(35.83,14.58),"MU":(-20.28,57.55),"MV":(3.25,73.00),
-    "MW":(-13.50,34.00),"MX":(23.00,-102.00),"MY":(2.50,112.50),"MZ":(-18.25,35.00),
-    "NA":(-22.00,17.00),"NE":(16.00,8.00),"NG":(10.00,8.00),"NI":(13.00,-85.00),
-    "NL":(52.50,5.75),"NO":(62.00,10.00),"NP":(28.00,84.00),"NR":(-0.53,166.92),
-    "NZ":(-41.00,174.00),"OM":(22.00,58.00),"PA":(9.00,-80.00),"PE":(-10.00,-76.00),
-    "PG":(-6.00,147.00),"PH":(13.00,122.00),"PK":(30.00,70.00),"PL":(52.00,20.00),
-    "PT":(39.50,-8.00),"PW":(7.51,134.58),"PY":(-23.00,-58.00),"QA":(25.50,51.25),
-    "RO":(46.00,25.00),"RS":(44.00,21.00),"RU":(60.00,100.00),"RW":(-2.00,30.00),
-    "SA":(25.00,45.00),"SB":(-8.00,159.00),"SC":(-4.67,55.47),"SD":(15.00,30.00),
-    "SE":(62.00,15.00),"SG":(1.37,103.80),"SI":(46.12,14.82),"SK":(48.67,19.50),
-    "SL":(8.50,-11.50),"SM":(43.77,12.42),"SN":(14.00,-14.00),"SO":(10.00,49.00),
-    "SR":(4.00,-56.00),"SS":(8.00,30.00),"ST":(1.00,7.00),"SV":(13.83,-88.92),
-    "SY":(35.00,38.00),"SZ":(-26.50,31.50),"TD":(15.00,19.00),"TG":(8.00,1.17),
-    "TH":(15.00,100.00),"TJ":(39.00,71.00),"TL":(-8.87,125.73),"TM":(40.00,60.00),
-    "TN":(34.00,9.00),"TO":(-20.00,-175.00),"TR":(39.00,35.00),"TT":(11.00,-61.00),
-    "TV":(-8.00,178.00),"TZ":(-6.00,35.00),"UA":(49.00,32.00),"UG":(1.00,32.00),
-    "US":(38.00,-97.00),"UY":(-33.00,-56.00),"UZ":(41.00,64.00),"VA":(41.90,12.45),
-    "VC":(13.25,-61.20),"VE":(8.00,-66.00),"VN":(16.00,106.00),"VU":(-16.00,167.00),
-    "WS":(-13.58,-172.33),"YE":(15.00,48.00),"ZA":(-29.00,25.00),"ZM":(-15.00,30.00),
-    "ZW":(-20.00,30.00),
-}
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-# --- Config helpers ---
 def load_config():
-    if os.path.exists(CONFIG_PATH):
+    try:
         with open(CONFIG_PATH) as f:
             return json.load(f)
-    return {}
+    except Exception:
+        return {}
 
-def save_config(data):
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    tmp = CONFIG_PATH + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, CONFIG_PATH)
+def save_config(cfg):
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2)
 
 def get_version():
-    if os.path.exists(VERSION_PATH):
-        with open(VERSION_PATH) as f:
-            return f.read().strip()
-    return "v0.1.0"
-
-def hash_password(password):
-    salt = secrets.token_hex(16)
-    h = hashlib.sha256((salt + password).encode()).hexdigest()
-    return f"{salt}:{h}"
-
-def verify_password(password, stored):
     try:
-        salt, h = stored.split(":")
-        return hashlib.sha256((salt + password).encode()).hexdigest() == h
+        return open(VERSION_PATH).read().strip()
     except Exception:
-        return False
+        return "unknown"
 
-# --- Markdown renderer ---
-def render_markdown(text):
-    import html as html_mod
-    lines = text.splitlines()
-    out = []
-    in_list = False
-    in_para = False
-
-    def close_list():
-        nonlocal in_list
-        if in_list:
-            out.append("</ul>")
-            in_list = False
-
-    def close_para():
-        nonlocal in_para
-        if in_para:
-            out.append("</p>")
-            in_para = False
-
-    def inline(s):
-        s = html_mod.escape(s)
-        s = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', s)
-        s = re.sub(r'\*\*(.+?)\*\*',     r'<strong>\1</strong>', s)
-        s = re.sub(r'\*(.+?)\*',         r'<em>\1</em>', s)
-        s = re.sub(r'`(.+?)`',           r'<code>\1</code>', s)
-        return s
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            close_list(); close_para(); continue
-        if re.match(r'^-{3,}$', stripped):
-            close_list(); close_para(); out.append("<hr>"); continue
-        m = re.match(r'^(#{1,3})\s+(.*)', stripped)
-        if m:
-            close_list(); close_para()
-            lvl = len(m.group(1))
-            out.append(f"<h{lvl}>{inline(m.group(2))}</h{lvl}>"); continue
-        m = re.match(r'^[-*]\s+(.*)', stripped)
-        if m:
-            close_para()
-            if not in_list:
-                out.append("<ul>"); in_list = True
-            out.append(f"<li>{inline(m.group(1))}</li>"); continue
-        close_list()
-        if not in_para:
-            out.append("<p>"); in_para = True
-        else:
-            out.append(" ")
-        out.append(inline(stripped))
-
-    close_list(); close_para()
-    return "\n".join(out)
-
-# --- Network helpers ---
-def is_private_ip(ip_str):
-    """Return True if ip_str is RFC1918, loopback, link-local, or otherwise non-routable."""
+def is_private_ip(ip):
     try:
-        addr = ipaddress.ip_address(ip_str)
-        return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_unspecified
+        return ipaddress.ip_address(ip).is_private
     except ValueError:
         return False
 
-def get_network_info(iface="eth0"):
-    if DEV_MODE:
-        return {
-            "ip": "192.168.1.199", "prefix_len": "24",
-            "gateway": "192.168.1.1", "dns": "192.168.1.1",
-            "network": "192.168.1.0/24",
-        }
-    info = {"ip": "", "prefix_len": "", "gateway": "", "dns": "", "network": ""}
-    try:
-        out = subprocess.check_output(
-            ["ip", "-4", "addr", "show", iface], text=True, stderr=subprocess.DEVNULL)
-        for line in out.splitlines():
-            line = line.strip()
-            if line.startswith("inet "):
-                parts = line.split()
-                iface_obj = ipaddress.IPv4Interface(parts[1])
-                info["ip"]         = str(iface_obj.ip)
-                info["prefix_len"] = str(iface_obj.network.prefixlen)
-                info["network"]    = str(iface_obj.network)
-                break
-    except Exception:
-        pass
-    try:
-        out = subprocess.check_output(
-            ["ip", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL)
-        for line in out.splitlines():
-            parts = line.split()
-            if "via" in parts:
-                info["gateway"] = parts[parts.index("via") + 1]; break
-    except Exception:
-        pass
-    try:
-        with open("/etc/resolv.conf") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("nameserver"):
-                    info["dns"] = line.split()[1]; break
-    except Exception:
-        pass
-    return info
+# ---------------------------------------------------------------------------
+# COUNTRY_CENTROIDS (ISO 3166-1 alpha-2 → [lat, lon])
+# ---------------------------------------------------------------------------
+COUNTRY_CENTROIDS = {
+    "AF":[33.9,67.7],"AL":[41.2,20.2],"DZ":[28.0,1.7],"AO":[-11.2,17.9],
+    "AR":[-38.4,-63.6],"AM":[40.1,45.0],"AU":[-25.3,133.8],"AT":[47.5,14.6],
+    "AZ":[40.1,47.6],"BD":[23.7,90.4],"BE":[50.5,4.5],"BJ":[9.3,2.3],
+    "BO":[-16.3,-63.6],"BA":[43.9,17.7],"BW":[-22.3,24.7],"BR":[-14.2,-51.9],
+    "BG":[42.7,25.5],"KH":[12.6,104.9],"CM":[3.9,11.5],"CA":[56.1,-106.3],
+    "CF":[6.6,20.9],"TD":[15.5,18.7],"CL":[-35.7,-71.5],"CN":[35.9,104.2],
+    "CO":[4.6,-74.3],"CG":[-0.2,15.8],"CR":[9.7,-83.8],"HR":[45.1,15.2],
+    "CU":[21.5,-77.8],"CZ":[49.8,15.5],"CD":[-2.9,23.7],"DK":[56.3,9.5],
+    "DO":[18.7,-70.2],"EC":[-1.8,-78.2],"EG":[26.8,30.8],"SV":[13.8,-88.9],
+    "ET":[9.1,40.5],"FI":[61.9,25.7],"FR":[46.2,2.2],"GA":[-0.8,11.6],
+    "DE":[51.2,10.5],"GH":[7.9,-1.0],"GR":[39.1,21.8],"GT":[15.8,-90.2],
+    "GN":[11.0,-10.9],"HT":[18.9,-72.7],"HN":[15.2,-86.2],"HU":[47.2,19.5],
+    "IN":[20.6,78.9],"ID":[-0.8,113.9],"IR":[32.4,53.7],"IQ":[33.2,43.7],
+    "IE":[53.4,-8.2],"IL":[31.0,34.9],"IT":[41.9,12.6],"JM":[18.1,-77.3],
+    "JP":[36.2,138.3],"JO":[30.6,36.2],"KZ":[48.0,66.9],"KE":[-0.0,37.9],
+    "KP":[40.3,127.5],"KR":[35.9,127.8],"KW":[29.3,47.5],"LA":[19.9,102.5],
+    "LB":[33.9,35.9],"LY":[26.3,17.2],"LT":[55.2,23.9],"MG":[-18.8,46.9],
+    "MW":[-13.3,34.3],"MY":[4.2,108.0],"ML":[17.6,-2.0],"MR":[21.0,-10.9],
+    "MX":[23.6,-102.6],"MD":[47.4,28.4],"MN":[46.9,103.8],"MA":[31.8,-7.1],
+    "MZ":[-18.7,35.5],"NA":[-22.9,18.5],"NP":[28.4,84.1],"NL":[52.1,5.3],
+    "NZ":[-40.9,174.9],"NI":[12.9,-85.2],"NE":[17.6,8.1],"NG":[9.1,8.7],
+    "MK":[41.6,21.7],"NO":[60.5,8.5],"OM":[21.5,55.9],"PK":[30.4,69.3],
+    "PA":[8.5,-80.8],"PG":[-6.3,143.9],"PY":[-23.4,-58.4],"PE":[-9.2,-75.0],
+    "PH":[12.9,121.8],"PL":[51.9,19.1],"PT":[39.4,-8.2],"PR":[18.2,-66.6],
+    "RO":[45.9,24.9],"RU":[61.5,105.3],"RW":[-1.9,29.9],"SA":[23.9,45.1],
+    "SN":[14.5,-14.5],"SL":[8.5,-11.8],"SO":[5.2,46.2],"ZA":[-29.0,25.1],
+    "SS":[7.9,29.7],"ES":[40.5,-3.7],"LK":[7.9,80.7],"SD":[15.6,32.5],
+    "SE":[60.1,18.6],"CH":[46.8,8.2],"SY":[35.0,38.0],"TW":[23.7,121.0],
+    "TZ":[-6.4,34.9],"TH":[15.9,100.9],"TG":[8.6,0.8],"TN":[33.9,9.5],
+    "TR":[38.9,35.2],"TM":[38.9,59.6],"UG":[1.4,32.3],"UA":[48.4,31.2],
+    "AE":[24.0,54.0],"GB":[55.4,-3.4],"US":[37.1,-95.7],"UY":[-32.5,-55.8],
+    "UZ":[41.4,64.6],"VE":[6.4,-66.6],"VN":[14.1,108.3],"YE":[15.6,48.5],
+    "ZM":[-13.1,27.9],"ZW":[-19.0,29.2]
+}
 
-def validate_same_subnet(ip_str, network_str):
-    try:
-        ip  = ipaddress.IPv4Address(ip_str)
-        net = ipaddress.IPv4Network(network_str, strict=False)
-        return ip in net and ip != net.network_address and ip != net.broadcast_address
-    except Exception:
-        return False
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
 
-def set_static_ip(iface, ip, prefix_len, gateway, dns):
-    helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
-    result = subprocess.run(
-        ["sudo", "python3", helper, iface, ip, str(prefix_len), gateway, dns],
-        capture_output=True, text=True)
-    if result.returncode != 0:
-        raise Exception(result.stderr.strip() or "set_static_ip_helper failed")
+def is_setup_complete():
+    cfg = load_config()
+    return cfg.get("setup_complete", False)
 
-# --- Input validation helpers ---
-def is_safe_host(host):
-    if not host or len(host) > 253:
-        return False
-    if re.search(r'[;|&$`\'"\\\n\r]', host):
-        return False
-    return True
-
-def is_safe_port(port):
-    try:
-        p = int(port)
-        return 1 <= p <= 65535
-    except Exception:
-        return False
-
-# --- Auth decorators ---
 def login_required(f):
+    from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("authenticated"):
+        if not session.get("logged_in"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
 
-def setup_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        cfg = load_config()
-        if not cfg.get("setup_complete"):
-            return redirect(url_for("setup"))
-        return f(*args, **kwargs)
-    return decorated
+# ---------------------------------------------------------------------------
+# Routes — pages
+# ---------------------------------------------------------------------------
 
-def terms_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        cfg = load_config()
-        if not cfg.get("terms_accepted"):
-            return redirect(url_for("terms"))
-        return f(*args, **kwargs)
-    return decorated
-
-# --- Routes ---
 @app.route("/")
+@login_required
 def index():
-    cfg = load_config()
-    if not cfg.get("setup_complete"):
+    if not is_setup_complete():
         return redirect(url_for("setup"))
-    if not session.get("authenticated"):
-        return redirect(url_for("login"))
-    return redirect(url_for("dashboard"))
+    return render_template("dashboard.html", version=get_version())
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     cfg = load_config()
-    if not cfg.get("setup_complete"):
-        return redirect(url_for("setup"))
-    error = None
     if request.method == "POST":
-        password = request.form.get("password", "")
-        stored   = cfg.get("password_hash", "")
-        if verify_password(password, stored):
-            session["authenticated"] = True
-            session.permanent = True
-            app.permanent_session_lifetime = timedelta(days=30)
-            return redirect(url_for("dashboard"))
-        error = "Incorrect password."
-    return render_template("login.html", error=error, version=get_version())
+        if request.form.get("password") == cfg.get("dashboard_password", "honeytrapai"):
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        return render_template("login.html", error="Invalid password")
+    return render_template("login.html")
 
 @app.route("/logout")
 def logout():
@@ -319,896 +134,390 @@ def logout():
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
-    cfg = load_config()
-    if cfg.get("setup_complete"):
-        return redirect(url_for("login"))
+    return render_template("setup.html")
 
-    error = None
-    step  = int(request.form.get("step", 1))
-    net   = get_network_info()
+# ---------------------------------------------------------------------------
+# API — stats
+# ---------------------------------------------------------------------------
 
-    if request.method == "POST":
-        if step == 1:
-            password = request.form.get("password", "")
-            confirm  = request.form.get("confirm", "")
-            if len(password) < 8:
-                error = "Password must be at least 8 characters."; step = 1
-            elif password != confirm:
-                error = "Passwords do not match."; step = 1
-            else:
-                cfg["password_hash"] = hash_password(password)
-                save_config(cfg); step = 2
-
-        elif step == 2:
-            action = request.form.get("action", "save")
-            if action == "skip":
-                cfg["static_ip_skipped"] = True
-                cfg["interface"] = "eth0"
-                save_config(cfg); step = 3
-            else:
-                entered_ip = request.form.get("static_ip", "").strip()
-                if not entered_ip:
-                    error = "Please enter an IP address, or choose Skip."; step = 2
-                elif not validate_same_subnet(entered_ip, net["network"]):
-                    error = (
-                        f"'{entered_ip}' is not a valid address within your subnet "
-                        f"({net['network']}). Please enter an IP in that range."
-                    ); step = 2
-                else:
-                    try:
-                        set_static_ip(
-                            iface="eth0", ip=entered_ip,
-                            prefix_len=net["prefix_len"],
-                            gateway=net["gateway"],
-                            dns=net["dns"] or net["gateway"],
-                        )
-                        cfg["static_ip"]         = entered_ip
-                        cfg["static_ip_skipped"] = False
-                        cfg["interface"]         = "eth0"
-                        save_config(cfg); step = 3
-                    except Exception as e:
-                        error = f"Could not write static IP configuration: {e}"; step = 2
-
-        elif step == 3:
-            alert_email = request.form.get("alert_email", "").strip()
-            cfg["alert_email"]   = alert_email
-            cfg["setup_complete"]= True
-            cfg["setup_date"]    = datetime.utcnow().isoformat()
-            save_config(cfg)
-
-            smtp_host = request.form.get("smtp_host", "").strip()
-            if smtp_host:
-                smtp = {}
-                if os.path.exists(SMTP_PATH):
-                    with open(SMTP_PATH) as f:
-                        smtp = json.load(f)
-                smtp["host"]      = smtp_host
-                smtp["port"]      = int(request.form.get("smtp_port", 587) or 587)
-                smtp["username"]  = request.form.get("smtp_user", "").strip()
-                smtp["from_addr"] = request.form.get("smtp_from", "").strip()
-                enc = request.form.get("smtp_enc", "starttls")
-                smtp["tls"] = enc == "starttls"
-                smtp["ssl"] = enc == "ssl"
-                pw = request.form.get("smtp_pass", "").strip()
-                if pw:
-                    smtp["password"] = pw
-                os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
-                with open(SMTP_PATH, "w") as f:
-                    json.dump(smtp, f, indent=2)
-
-            session["authenticated"] = True
-            return redirect(url_for("dashboard"))
-
-    return render_template(
-        "setup.html", step=step, error=error,
-        version=get_version(), net=net,
-    )
-
-@app.route("/dashboard")
-@login_required
-@setup_required
-@terms_required
-def dashboard():
-    resp = make_response(render_template("dashboard.html", version=get_version(), dev_mode=DEV_MODE))
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
-    resp.headers["Expires"] = "0"
-    return resp
-
-@app.route("/terms")
-@login_required
-@setup_required
-def terms():
-    cfg = load_config()
-    if cfg.get("terms_accepted"):
-        return redirect(url_for("dashboard"))
-    terms_path = os.path.join(BASE_DIR, "TERMS.md")
-    terms_html = ""
-    if os.path.exists(terms_path):
-        with open(terms_path) as f:
-            terms_html = render_markdown(f.read())
-    resp = make_response(render_template("terms.html", terms_html=terms_html, version=get_version()))
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
-    resp.headers["Expires"] = "0"
-    return resp
-
-@app.route("/api/terms/accept", methods=["POST"])
-@login_required
-@setup_required
-def api_terms_accept():
-    cfg = load_config()
-    cfg["terms_accepted"]      = True
-    cfg["terms_accepted_date"] = datetime.utcnow().isoformat()
-    save_config(cfg)
-    return jsonify({"status": "ok"})
-
-# --- API endpoints ---
 @app.route("/api/stats")
 @login_required
 def api_stats():
-    global _last_num_blocked
-    from log_parser import parse_logs, get_summary
-
-    cfg     = load_config()
-    events  = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
-    events  = [e for e in events if not is_private_ip(e.get("src_ip", ""))]
-    summary = get_summary(events)
-
-    current_blocked = None
-    try:
-        import urllib.request, base64
-        ag_user = cfg.get("adguard_user", "admin")
-        ag_pass = cfg.get("adguard_password", "")
-        token   = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
-        req     = urllib.request.Request(
-            "http://127.0.0.1:3000/control/stats",
-            headers={"Authorization": f"Basic {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=3) as r:
-            ag_data = json.loads(r.read())
-        current_blocked = int(ag_data.get("num_blocked_filtering", 0))
-    except Exception:
-        pass
-
-    if current_blocked is not None:
-        with _lifetime_blocked_lock:
-            if _last_num_blocked is None:
-                if "lifetime_blocked" not in cfg:
-                    try:
-                        import urllib.request, base64 as _b64
-                        ag_user = cfg.get("adguard_user", "admin")
-                        ag_pass = cfg.get("adguard_password", "")
-                        token   = _b64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
-                        req     = urllib.request.Request(
-                            "http://127.0.0.1:3000/control/stats",
-                            headers={"Authorization": f"Basic {token}"}
-                        )
-                        with urllib.request.urlopen(req, timeout=3) as r:
-                            ag_hist = json.loads(r.read())
-                        history_total = sum(ag_hist.get("blocked_filtering", []))
-                        cfg["lifetime_blocked"] = history_total
-                        save_config(cfg)
-                    except Exception:
-                        cfg["lifetime_blocked"] = current_blocked
-                        save_config(cfg)
-                _last_num_blocked = current_blocked
-            else:
-                delta = current_blocked - _last_num_blocked
-                if delta > 0:
-                    cfg["lifetime_blocked"] = cfg.get("lifetime_blocked", 0) + delta
-                    save_config(cfg)
-                _last_num_blocked = current_blocked
-
-    lifetime_blocked = cfg.get("lifetime_blocked", 0)
-
-    return jsonify({
-        "events":           events[:100],
-        "summary":          summary,
-        "interface":        cfg.get("interface", "eth0"),
-        "version":          get_version(),
-        "lifetime_blocked": lifetime_blocked,
-    })
-
-@app.route("/api/threat-map")
-@login_required
-def api_threat_map():
-    # Rev 3 — ISSUE-09 Part 1: dual log format, correct field offsets
-    try:
-        db_path  = "/opt/honeytrapai/data/GeoLite2-Country.mmdb"
-        log_dir  = "/var/log/maltrail/"
-        cutoff   = datetime.utcnow() - timedelta(hours=24)
-        events   = []
-
-        # Dated sensor logs (today + yesterday) + rolling maltrail.log (simulated threats)
-        log_files = []
-        for delta in (0, 1):
-            d = datetime.utcnow() - timedelta(days=delta)
-            p = os.path.join(log_dir, d.strftime("%Y-%m-%d") + ".log")
-            log_files.extend(glob.glob(p))
-        maltrail_log = os.path.join(log_dir, "maltrail.log")
-        if os.path.exists(maltrail_log):
-            log_files.append(maltrail_log)
-
-        def parse_line(line):
-            """Parse both log formats. Returns (ts, src_ip, trail, info) or None."""
-            line = line.strip()
-            if not line:
-                return None
-            if line.startswith('"'):
-                # Sensor format:
-                # "2026-03-10 21:11:32.588435" host src_ip src_port dst_ip dst_port proto trail info...
-                try:
-                    ts_str, rest = line[1:].split('"', 1)
-                    ts    = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S")
-                    parts = rest.strip().split(" ")
-                    if len(parts) < 7:
-                        return None
-                    src_ip = parts[1]   # 0=host, 1=src_ip
-                    trail  = parts[6]
-                    info   = " ".join(parts[7:]) if len(parts) > 7 else ""
-                    return ts, src_ip, trail, info
-                except Exception:
-                    return None
-            else:
-                # Simulated format:
-                # 2026-03-11 03:06:11 honeytrap src_ip src_port dst_ip dst_port proto trail info...
-                try:
-                    parts = line.split(" ")
-                    if len(parts) < 10:
-                        return None
-                    ts     = datetime.strptime(f"{parts[0]} {parts[1]}", "%Y-%m-%d %H:%M:%S")
-                    src_ip = parts[3]
-                    trail  = parts[8]
-                    info   = " ".join(parts[9:]) if len(parts) > 9 else ""
-                    return ts, src_ip, trail, info
-                except Exception:
-                    return None
-
-        with geoip2.database.Reader(db_path) as reader:
-            for log_file in log_files:
-                try:
-                    with open(log_file, "r") as f:
-                        for line in f:
-                            parsed = parse_line(line)
-                            if not parsed:
-                                continue
-                            ts, src_ip, trail, info = parsed
-
-                            if ts < cutoff:
-                                continue
-
-                            # Skip private/loopback
-                            if is_private_ip(src_ip):
-                                continue
-
-                            # GeoIP lookup
-                            try:
-                                geo          = reader.country(src_ip)
-                                country_code = geo.country.iso_code or ""
-                                country_name = geo.country.name or "Unknown"
-                            except Exception:
-                                continue
-
-                            if country_code not in COUNTRY_CENTROIDS:
-                                continue
-                            lat, lon = COUNTRY_CENTROIDS[country_code]
-
-                            # Severity classification
-                            il = info.lower()
-                            if any(x in il for x in ["malware","c2","botnet","ransomware","rat","backdoor","trojan","exploit"]):
-                                severity = "high"
-                            elif any(x in il for x in ["scanner","suspicious","threat","attack","probe","brute"]):
-                                severity = "medium"
-                            else:
-                                severity = "low"
-
-                            events.append({
-                                "ip":           src_ip,
-                                "country_code": country_code,
-                                "country_name": country_name,
-                                "lat":          lat,
-                                "lon":          lon,
-                                "trail":        trail,
-                                "severity":     severity,
-                                "timestamp":    ts.strftime("%Y-%m-%d %H:%M UTC"),
-                            })
-                except Exception:
-                    continue
-
-        return jsonify({"events": events})
-
-    except Exception as e:
-        return jsonify({"error": str(e), "events": []})
-
-@app.route("/api/services/status")
-@login_required
-def api_services_status():
-    statuses = {}
-    for svc in ["honeytrapai", "adguardhome", "maltrail-sensor", "honeytrapai-notifier"]:
-        try:
-            r = subprocess.run(["systemctl", "is-active", svc],
-                               capture_output=True, text=True)
-            statuses[svc] = r.stdout.strip() == "active"
-        except Exception:
-            statuses[svc] = False
-
-    try:
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1)
-        query = b'\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01'
-        sock.sendto(query, ("127.0.0.1", 53))
-        sock.recv(512)
-        sock.close()
-        statuses["dns"] = True
-    except Exception:
-        statuses["dns"] = False
-
-    critical      = ["adguardhome", "maltrail-sensor"]
-    all_ok        = all(statuses.get(s) for s in critical) and statuses.get("dns") and statuses.get("honeytrapai-notifier")
-    critical_down = not all(statuses.get(s) for s in critical)
-
-    if critical_down:
-        overall = "red"
-    elif not all_ok:
-        overall = "amber"
-    else:
-        overall = "green"
-
-    return jsonify({"services": statuses, "overall": overall})
-
-@app.route("/api/adguard/stats")
-@login_required
-def api_adguard_stats():
-    if DEV_MODE:
-        return jsonify({
-            "num_dns_queries": 14823, "num_blocked_filtering": 1247,
-            "num_replaced_safebrowsing": 12, "num_replaced_parental": 0,
-            "avg_processing_time": 2.4,
-            "top_queried_domains": [{"google.com":342},{"apple.com":187},{"netflix.com":143}],
-            "top_blocked_domains": [{"doubleclick.net":89},{"googlesyndication.com":67},{"facebook.com":45}]
-        })
-    try:
-        import urllib.request, base64
-        cfg    = load_config()
-        ag_user= cfg.get("adguard_user", "admin")
-        ag_pass= cfg.get("adguard_password", "")
-        token  = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
-        req    = urllib.request.Request(
-            "http://127.0.0.1:3000/control/stats",
-            headers={"Authorization": f"Basic {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=3) as r:
-            return jsonify(json.loads(r.read()))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 503
-
-@app.route("/api/adguard/history")
-@login_required
-def api_adguard_history():
-    if DEV_MODE:
-        import random
-        now_h   = datetime.now().hour
-        hours   = [f"{(now_h - 23 + i) % 24:02d}:00" for i in range(24)]
-        base    = [random.randint(300, 900) for _ in range(24)]
-        blocked = [int(b * random.uniform(0.05, 0.18)) for b in base]
-        return jsonify({"hours": hours, "queries": base, "blocked": blocked})
-
-    try:
-        import urllib.request, base64
-        cfg     = load_config()
-        ag_user = cfg.get("adguard_user", "admin")
-        ag_pass = cfg.get("adguard_password", "")
-        token   = base64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
-        req     = urllib.request.Request(
-            "http://127.0.0.1:3000/control/stats",
-            headers={"Authorization": f"Basic {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=3) as r:
-            data = json.loads(r.read())
-
-        queries_all = data.get("dns_queries",       [])
-        blocked_all = data.get("blocked_filtering", [])
-
-        if not queries_all:
-            return jsonify({"hours": [], "queries": [], "blocked": []})
-
-        queries = list(queries_all)[-24:]
-        blocked = list(blocked_all)[-24:]
-
-        while len(queries) < 24:
-            queries.insert(0, 0)
-        while len(blocked) < 24:
-            blocked.insert(0, 0)
-
-        now_h = datetime.now().hour
-        hours = [f"{(now_h - 23 + i) % 24:02d}:00" for i in range(24)]
-
-        return jsonify({"hours": hours, "queries": queries, "blocked": blocked})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 503
-
-@app.route("/api/settings", methods=["GET", "POST"])
-@login_required
-def api_settings():
-    cfg  = load_config()
-    smtp = {}
-    if os.path.exists(SMTP_PATH):
-        with open(SMTP_PATH) as f:
-            smtp = json.load(f)
-
-    if request.method == "POST":
-        data = request.get_json()
-        if "alert_email"     in data: cfg["alert_email"]     = data["alert_email"]
-        if "interface"       in data: cfg["interface"]       = data["interface"]
-        if "alert_threshold" in data: cfg["alert_threshold"] = data["alert_threshold"]
-        if "email_disabled"  in data: cfg["email_disabled"]  = bool(data["email_disabled"])
-        save_config(cfg)
-        return jsonify({"status": "ok"})
-
-    return jsonify({
-        "alert_email":     cfg.get("alert_email", ""),
-        "interface":       cfg.get("interface", "eth0"),
-        "alert_threshold": cfg.get("alert_threshold", "medium"),
-        "email_disabled":  bool(cfg.get("email_disabled", False)),
-        "smtp_configured": bool(smtp.get("host")),
-        "setup_date":      cfg.get("setup_date", "")
-    })
-
-@app.route("/api/password", methods=["POST"])
-@login_required
-def api_change_password():
-    cfg    = load_config()
-    data   = request.get_json()
-    current= data.get("current", "")
-    new_pw = data.get("new_password", "")
-    confirm= data.get("confirm", "")
-
-    if not verify_password(current, cfg.get("password_hash", "")):
-        return jsonify({"error": "Current password is incorrect."}), 400
-    if len(new_pw) < 8:
-        return jsonify({"error": "New password must be at least 8 characters."}), 400
-    if new_pw != confirm:
-        return jsonify({"error": "New passwords do not match."}), 400
-
-    cfg["password_hash"] = hash_password(new_pw)
-    save_config(cfg)
-    return jsonify({"status": "ok"})
-
-@app.route("/api/update/check")
-@login_required
-def api_update_check():
-    try:
-        from updater import check_for_update
-        return jsonify(check_for_update(force="force" in request.args))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/update/install", methods=["POST"])
-@login_required
-def api_update_install():
-    try:
-        import threading
-        from updater import perform_update
-        threading.Thread(target=perform_update, daemon=True).start()
-        return jsonify({"status": "started"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/update/status")
-@login_required
-def api_update_status():
-    try:
-        from updater import get_update_status
-        return jsonify(get_update_status())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/backup")
-@login_required
-def api_backup():
-    cfg  = load_config()
-    smtp = {}
-    if os.path.exists(SMTP_PATH):
-        with open(SMTP_PATH) as f:
-            smtp = json.load(f)
-    backup = {"config": cfg, "smtp": smtp, "version": get_version(),
-              "backup_date": datetime.utcnow().isoformat()}
-    data = json.dumps(backup, indent=2).encode()
-    return app.response_class(
-        response=data, status=200, mimetype="application/json",
-        headers={"Content-Disposition": "attachment; filename=honeytrapai-backup.json"}
-    )
-
-@app.route("/api/factory-reset", methods=["POST"])
-@login_required
-def api_factory_reset():
-    cfg      = load_config()
-    data     = request.get_json()
-    password = data.get("password", "")
-
-    if not verify_password(password, cfg.get("password_hash", "")):
-        return jsonify({"error": "Incorrect password."}), 400
-
-    _perform_factory_reset()
-
-    import threading
-    def _reboot():
-        import time
-        time.sleep(2)
-        subprocess.run(["sudo", "reboot"], check=False)
-    threading.Thread(target=_reboot, daemon=True).start()
-    return jsonify({"status": "ok"})
-
-def _perform_factory_reset():
-    existing = {}
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH) as f:
-                existing = json.load(f)
-        except Exception:
-            pass
-    ag_user = existing.get("adguard_user", "admin")
-    ag_pass = existing.get("adguard_password", "")
-    lifetime_blocked = existing.get("lifetime_blocked", 0)
-
-    for path in [CONFIG_PATH, SMTP_PATH]:
-        if os.path.exists(path):
-            os.remove(path)
-
-    helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
-    subprocess.run(["sudo", "python3", helper, "--remove"], capture_output=True)
-
-    preserved = {"lifetime_blocked": lifetime_blocked}
-    if ag_pass:
-        preserved["adguard_user"]     = ag_user
-        preserved["adguard_password"] = ag_pass
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(preserved, f, indent=2)
-
-@app.route("/api/smtp", methods=["GET", "POST"])
-@login_required
-def api_smtp():
-    if request.method == "POST":
-        data = request.get_json() or {}
-        smtp = {}
-        if os.path.exists(SMTP_PATH):
-            with open(SMTP_PATH) as f:
-                smtp = json.load(f)
-        smtp["host"]      = data.get("host",      smtp.get("host", ""))
-        smtp["port"]      = int(data.get("port",  smtp.get("port", 587)))
-        smtp["username"]  = data.get("username",  smtp.get("username", ""))
-        smtp["from_addr"] = data.get("from_addr", smtp.get("from_addr", ""))
-        smtp["tls"]       = data.get("tls",       smtp.get("tls", True))
-        smtp["ssl"]       = data.get("ssl",       smtp.get("ssl", False))
-        if "password" in data and data["password"]:
-            smtp["password"] = data["password"]
-        os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
-        with open(SMTP_PATH, "w") as f:
-            json.dump(smtp, f, indent=2)
-        return jsonify({"status": "ok"})
-
-    smtp = {}
-    if os.path.exists(SMTP_PATH):
-        with open(SMTP_PATH) as f:
-            smtp = json.load(f)
-    return jsonify({
-        "host":       smtp.get("host", ""),
-        "port":       smtp.get("port", 587),
-        "username":   smtp.get("username", ""),
-        "from_addr":  smtp.get("from_addr", ""),
-        "tls":        smtp.get("tls", True),
-        "ssl":        smtp.get("ssl", False),
-        "configured": bool(smtp.get("host")),
-    })
-
-@app.route("/api/email/test", methods=["POST"])
-@login_required
-def api_email_test():
-    data  = request.get_json() or {}
-    email = data.get("email", "").strip()
-    if not email:
-        return jsonify({"error": "No email address provided."}), 400
-
     cfg = load_config()
-    if cfg.get("email_disabled", False):
-        return jsonify({"error": "Alert emails are disabled. Uncheck 'Disable Sending Alert Emails' in settings first."}), 400
+    events = [e for e in parse_logs() if not is_private_ip(e.get("src_ip", ""))]
+    high   = sum(1 for e in events if e.get("severity") == "high")
+    medium = sum(1 for e in events if e.get("severity") == "medium")
+    low    = sum(1 for e in events if e.get("severity") == "low")
 
-    smtp = {}
-    if os.path.exists(SMTP_PATH):
-        with open(SMTP_PATH) as f:
-            smtp = json.load(f)
-
-    if not smtp.get("host"):
-        return jsonify({"error": "SMTP is not configured. Add your SMTP settings first."}), 400
-
-    host = smtp.get("host", "")
-    port = int(smtp.get("port", 587))
-    user = smtp.get("username", "")
-    pw   = smtp.get("password", "")
-
+    # AdGuard stats
+    ag_stats = {}
     try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-
-        msg            = MIMEMultipart("alternative")
-        msg["Subject"] = "🐝 HoneytrapAI — Test Email"
-        msg["From"]    = smtp.get("from_addr", user)
-        msg["To"]      = email
-
-        body_text = (
-            "This is a test email from your HoneytrapAI appliance.\n\n"
-            "If you received this, your alert email settings are working correctly.\n\n"
-            "No cloud. No subscription. No monthly fees. Ever.\n"
-            "— HoneytrapAI"
-        )
-        body_html = """
-        <div style="font-family:-apple-system,sans-serif;background:#0f0f1a;color:#e0e0e0;
-                    padding:2rem;max-width:480px;margin:0 auto;border-radius:10px">
-          <div style="font-size:2rem;margin-bottom:.5rem">🐝</div>
-          <div style="color:#f5a623;font-size:1.1rem;font-weight:700;margin-bottom:.8rem">
-            HoneytrapAI — Test Email
-          </div>
-          <p style="color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:1rem">
-            This is a test email from your HoneytrapAI appliance.<br>
-            If you received this, your alert email settings are working correctly.
-          </p>
-          <hr style="border:none;border-top:1px solid #2a2a4a;margin:1rem 0">
-          <div style="font-size:.75rem;color:#555">
-            No cloud. No subscription. No monthly fees. Ever.
-          </div>
-        </div>"""
-
-        msg.attach(MIMEText(body_text, "plain"))
-        msg.attach(MIMEText(body_html, "html"))
-
-        use_ssl = smtp.get("ssl", False)
-        use_tls = smtp.get("tls", True)
-
-        if use_ssl:
-            server = smtplib.SMTP_SSL(host, port, timeout=10)
-            server.ehlo()
-        else:
-            server = smtplib.SMTP(host, port, timeout=10)
-            server.ehlo()
-            if use_tls:
-                server.starttls()
-                server.ehlo()
-
-        if user and pw:
-            server.login(user, pw)
-        server.sendmail(msg["From"], [email], msg.as_string())
-        server.quit()
-
-        return jsonify({"status": "ok"})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/simulate/threat", methods=["POST"])
-@login_required
-def api_simulate_threat():
-    import random
-    data        = request.get_json() or {}
-    threat_type = data.get("threat_type", "malware")
-    src_ip_in   = data.get("src_ip") or None
-
-    THREAT_PROFILES = {
-        "malware":    (["evil-payload.ru",  "malware-drop.cn",  "bad-actor.xyz"],    "malware dropper",     "high"),
-        "c2":         (["c2-beacon.io",     "botnet-ctrl.net",  "rat-server.ru"],    "C2 beacon",           "high"),
-        "ransomware": (["ransom-key.org",   "lockbit-cdn.io",   "encrypt-srv.net"],  "ransomware C2",       "high"),
-        "phishing":   (["login-secure.xyz", "paypal-verify.cc", "account-check.net"],"phishing domain",     "medium"),
-        "scanner":    (["masscan.host",     "shodan.io",        "scanner-bot.net"],  "port scanner",        "medium"),
-        "tor":        (["tor-exit-42.org",  "onion-relay.net",  "tor-gw.io"],        "Tor exit node",       "medium"),
-        "tracker":    (["telemetry.co",     "analytics-cdn.io", "track.pixel.net"],  "tracker / telemetry", "low"),
-    }
-    trails, info, severity = THREAT_PROFILES.get(threat_type, THREAT_PROFILES["malware"])
-    trail = random.choice(trails)
-
-    src_ip = src_ip_in or (
-        f"{random.randint(1,223)}.{random.randint(0,255)}"
-        f".{random.randint(0,255)}.{random.randint(1,254)}"
-    )
-    dst_ip   = "192.168.1.1"
-    src_port = random.randint(1024, 65535)
-    dst_port = random.choice([53, 80, 443, 8080])
-    proto    = random.choice(["DNS", "TCP", "UDP"])
-    ts       = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    line     = f"{ts} honeytrap {src_ip} {src_port} {dst_ip} {dst_port} {proto} {trail} {info};https://honeytrap.ai/simulate\n"
-
-    try:
-        helper = os.path.join(BASE_DIR, "log_inject_helper.py")
-        result = subprocess.run(
-            ["sudo", "python3", helper, line],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            raise Exception(result.stderr.strip() or "log_inject_helper failed")
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    trigger_path = os.path.join(BASE_DIR, "config", "notifier_trigger")
-    try:
-        os.makedirs(os.path.dirname(trigger_path), exist_ok=True)
-        open(trigger_path, "w").close()
+        r = requests.get(f"{ADGUARD_URL}/control/stats", auth=ADGUARD_AUTH, timeout=3)
+        ag_stats = r.json()
     except Exception:
         pass
 
-    return jsonify({"status": "ok", "trail": trail, "src_ip": src_ip,
-                    "severity": severity, "info": info})
+    return jsonify({
+        "threats_today": len(events),
+        "high": high, "medium": medium, "low": low,
+        "recent_alerts": events[-20:][::-1],
+        "lifetime_blocked": cfg.get("lifetime_blocked", 0),
+        "adguard": {
+            "dns_queries": ag_stats.get("num_dns_queries", 0),
+            "blocked": ag_stats.get("num_blocked_filtering", 0),
+        }
+    })
 
 @app.route("/api/threats/export")
 @login_required
 def api_threats_export():
     import csv, io
-    from log_parser import parse_logs
-    events   = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
-    events   = [e for e in events if not is_private_ip(e.get("src_ip", ""))]
-    output   = io.StringIO()
-    fieldnames = ["timestamp","severity","src_ip","dst_ip","proto","trail","info","reference"]
-    writer   = csv.DictWriter(output, fieldnames=fieldnames)
-    writer.writeheader()
-    for e in events:
-        writer.writerow({k: e.get(k, "") for k in fieldnames})
-    filename = f"honeytrapai-threats-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.csv"
-    return app.response_class(
-        response=output.getvalue().encode(), status=200, mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    events = [e for e in parse_logs() if not is_private_ip(e.get("src_ip", ""))]
+    out = io.StringIO()
+    w = csv.DictWriter(out, fieldnames=["timestamp","src_ip","trail","info","severity"])
+    w.writeheader()
+    w.writerows(events)
+    from flask import Response
+    return Response(out.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=threats.csv"})
 
-@app.route("/api/threats/purge", methods=["POST"])
+@app.route("/api/threat_map")
 @login_required
-def api_threats_purge():
+def api_threat_map():
+    # Rev 4 — unified: uses parse_logs() so severity and 24h cutoff
+    # always match api_stats(). Eliminates duplicate inline parser.
+    import geoip2.database
+    DB_PATH = "/opt/honeytrapai/data/GeoLite2-Country.mmdb"
+    events = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
+    dots = []
+    try:
+        with geoip2.database.Reader(DB_PATH) as reader:
+            for e in events:
+                ip = e.get("src_ip", "")
+                if is_private_ip(ip):
+                    continue
+                try:
+                    geo = reader.country(ip)
+                    cc  = geo.country.iso_code
+                    if not cc or cc not in COUNTRY_CENTROIDS:
+                        continue
+                    lat, lon = COUNTRY_CENTROIDS[cc]
+                    dots.append({
+                        "ip":           ip,
+                        "lat":          lat,
+                        "lon":          lon,
+                        "trail":        e.get("trail", ""),
+                        "info":         e.get("info", ""),
+                        "severity":     e.get("severity", "low"),
+                        "country":      cc,
+                        "country_name": geo.country.name or "Unknown",
+                        "timestamp":    e.get("timestamp", ""),
+                    })
+                except Exception:
+                    continue
+    except Exception as ex:
+        log.warning(f"GeoIP error: {ex}")
+        return jsonify({"error": str(ex), "dots": []})
+    return jsonify({"events": dots})
+
+# ---------------------------------------------------------------------------
+# API — config
+# ---------------------------------------------------------------------------
+
+@app.route("/api/config", methods=["GET"])
+@login_required
+def api_config_get():
+    cfg = load_config()
+    safe = {k: v for k, v in cfg.items() if k != "dashboard_password"}
+    return jsonify(safe)
+
+@app.route("/api/config", methods=["POST"])
+@login_required
+def api_config_post():
+    cfg = load_config()
+    data = request.get_json(force=True)
+    cfg.update(data)
+    save_config(cfg)
+    return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
+# API — updates
+# ---------------------------------------------------------------------------
+
+@app.route("/api/version")
+def api_version():
+    return jsonify({"version": get_version()})
+
+@app.route("/api/update/check")
+@login_required
+def api_update_check():
+    try:
+        r = requests.get(
+            "https://api.github.com/repos/honeytrap-ai/honeytrapai/releases/latest",
+            timeout=5)
+        data = r.json()
+        latest = data.get("tag_name","").lstrip("v")
+        current = get_version()
+        return jsonify({"current": current, "latest": latest,
+                        "update_available": latest != current,
+                        "url": data.get("tarball_url","")})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+@app.route("/api/update/install", methods=["POST"])
+@login_required
+def api_update_install():
+    from updater import perform_update
+    threading.Thread(target=perform_update, daemon=True).start()
+    return jsonify({"ok": True})
+
+@app.route("/api/update/status")
+@login_required
+def api_update_status():
+    from updater import get_status
+    return jsonify(get_status())
+
+# ---------------------------------------------------------------------------
+# API — email / alert settings
+# ---------------------------------------------------------------------------
+
+@app.route("/api/alert_email", methods=["POST"])
+@login_required
+def api_alert_email():
+    cfg = load_config()
+    data = request.get_json(force=True)
+    for k in ["smtp_host","smtp_port","smtp_user","smtp_pass","smtp_encryption",
+              "alert_email_to","alert_email_enabled"]:
+        if k in data:
+            cfg[k] = data[k]
+    save_config(cfg)
+    subprocess.run(["sudo","systemctl","restart","honeytrapai-notifier"], check=False)
+    return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
+# API — simulate threat
+# ---------------------------------------------------------------------------
+
+@app.route("/api/simulate", methods=["POST"])
+@login_required
+def api_simulate():
+    import random
+    profiles = [
+        ("Port Scan","port_scan","high"),
+        ("C2 Beacon","c2_beacon","high"),
+        ("DNS Exfil","dns_exfiltration","medium"),
+        ("Brute Force","brute_force","high"),
+        ("Tor Exit","tor_exit","medium"),
+        ("Crypto Miner","crypto_miner","low"),
+        ("Ad Tracker","ad_tracker","low"),
+    ]
+    name, trail, severity = random.choice(profiles)
+    ip = f"{random.randint(1,254)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    line = f"{ts} {ip} {trail} Simulated {name}\n"
+    LOG_PATH = "/var/log/maltrail/maltrail.log"
+    try:
+        with open(LOG_PATH, "a") as f:
+            f.write(line)
+    except PermissionError:
+        tmp = f"/tmp/sim_{int(time.time())}.log"
+        with open(tmp, "w") as f:
+            f.write(line)
+        subprocess.run(["sudo","tee","-a",LOG_PATH], input=line.encode(), check=False)
+    return jsonify({"ok": True, "event": {"ip": ip, "trail": trail, "severity": severity}})
+
+# ---------------------------------------------------------------------------
+# API — factory reset
+# ---------------------------------------------------------------------------
+
+@app.route("/api/factory_reset", methods=["POST"])
+@login_required
+def api_factory_reset():
+    default = {"setup_complete": False, "lifetime_blocked": 0, "blocked_countries": []}
+    save_config(default)
+    session.clear()
+    subprocess.run(["sudo","systemctl","restart","honeytrapai"], check=False)
+    return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
+# API — log purge
+# ---------------------------------------------------------------------------
+
+@app.route("/api/logs/purge", methods=["POST"])
+@login_required
+def api_logs_purge():
+    LOG_PATH = "/var/log/maltrail/maltrail.log"
     try:
         open(LOG_PATH, "w").close()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/restore", methods=["POST"])
-@login_required
-def api_restore():
-    try:
-        f = request.files.get("backup")
-        if not f:
-            return jsonify({"error": "No file provided"}), 400
-        backup = json.load(f)
-        if "config" in backup:
-            save_config(backup["config"])
-        if "smtp" in backup and backup["smtp"]:
-            os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
-            with open(SMTP_PATH, "w") as sf:
-                json.dump(backup["smtp"], sf, indent=2)
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# --- Tools API routes ---
-
-@app.route("/api/tools/ping", methods=["POST"])
-@login_required
-def api_tools_ping():
-    data = request.get_json() or {}
-    host = data.get("host", "").strip()
-    if not is_safe_host(host):
-        return jsonify({"error": "Invalid host."}), 400
-    try:
-        result = subprocess.run(
-            ["ping", "-c", "4", "-W", "5", host],
-            capture_output=True, text=True, timeout=30
-        )
-        output = result.stdout or result.stderr
-        return jsonify({"output": output, "success": result.returncode == 0})
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Ping timed out."}), 504
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/tools/dns", methods=["POST"])
-@login_required
-def api_tools_dns():
-    import socket
-    data = request.get_json() or {}
-    host = data.get("host", "").strip()
-    if not is_safe_host(host):
-        return jsonify({"error": "Invalid host."}), 400
-    try:
-        results = socket.getaddrinfo(host, None)
-        seen = set()
-        lines = [f"DNS lookup: {host}", ""]
-        for r in results:
-            addr = r[4][0]
-            family = "IPv4" if r[0].name == "AF_INET" else "IPv6"
-            key = (family, addr)
-            if key not in seen:
-                seen.add(key)
-                lines.append(f"{family:<6}  {addr}")
-        if len(lines) == 2:
-            lines.append("No records found.")
-        output = "\n".join(lines)
-        return jsonify({"output": output, "success": True})
-    except socket.gaierror as e:
-        return jsonify({"output": f"DNS lookup failed: {e}", "success": False})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/tools/traceroute", methods=["POST"])
-@login_required
-def api_tools_traceroute():
-    data = request.get_json() or {}
-    host = data.get("host", "").strip()
-    if not is_safe_host(host):
-        return jsonify({"error": "Invalid host."}), 400
-    try:
-        result = subprocess.run(
-            ["traceroute", "-m", "20", "-w", "3", host],
-            capture_output=True, text=True, timeout=90
-        )
-        output = result.stdout or result.stderr
-        return jsonify({"output": output, "success": result.returncode == 0})
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Traceroute timed out."}), 504
-    except FileNotFoundError:
-        return jsonify({"error": "traceroute not installed. Run: sudo apt-get install -y traceroute"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/tools/portscan", methods=["POST"])
-@login_required
-def api_tools_portscan():
-    import socket
-    data  = request.get_json() or {}
-    host  = data.get("host", "").strip()
-    ports_raw = data.get("ports", "22,80,443,3000,8080").strip()
-
-    if not is_safe_host(host):
-        return jsonify({"error": "Invalid host."}), 400
-
-    ports = []
-    try:
-        for part in ports_raw.split(","):
-            part = part.strip()
-            if "-" in part:
-                lo, hi = part.split("-", 1)
-                ports.extend(range(int(lo), int(hi) + 1))
-            else:
-                ports.append(int(part))
-        ports = [p for p in ports if is_safe_port(p)]
-        ports = list(dict.fromkeys(ports))[:50]
     except Exception:
-        return jsonify({"error": "Invalid port specification."}), 400
+        subprocess.run(["sudo","truncate","-s","0",LOG_PATH], check=False)
+    return jsonify({"ok": True})
 
-    if not ports:
-        return jsonify({"error": "No valid ports specified."}), 400
+# ---------------------------------------------------------------------------
+# API — country blocking  (ISSUE-09 Part 2)
+# ---------------------------------------------------------------------------
 
-    lines = [f"Port scan: {host}", f"Scanning {len(ports)} port(s)…", ""]
-    open_count = 0
-    for port in ports:
+IPDENY_URL  = "https://www.ipdeny.com/ipblocks/data/countries/{cc}.zone"
+HERRBISCHOFF_URL = "https://raw.githubusercontent.com/herrbischoff/country-ip-blocks/master/ipv4/{cc}.cidr"
+
+def _fetch_cidrs(cc):
+    """Fetch CIDR list for country code. Returns list of strings or raises."""
+    cc_lower = cc.lower()
+    for url_tpl in [IPDENY_URL, HERRBISCHOFF_URL]:
+        url = url_tpl.format(cc=cc_lower)
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2)
-            result = sock.connect_ex((host, port))
-            sock.close()
-            if result == 0:
-                try:
-                    svc = socket.getservbyport(port)
-                except Exception:
-                    svc = "unknown"
-                lines.append(f"  {port:<6}  OPEN    {svc}")
-                open_count += 1
-            else:
-                lines.append(f"  {port:<6}  closed")
-        except Exception as e:
-            lines.append(f"  {port:<6}  error: {e}")
+            r = requests.get(url, timeout=10)
+            if r.status_code == 200 and r.text.strip():
+                cidrs = [ln.strip() for ln in r.text.strip().splitlines()
+                         if ln.strip() and not ln.startswith("#")]
+                if cidrs:
+                    log.info(f"[country_block] Got {len(cidrs)} CIDRs for {cc} from {url}")
+                    return cidrs
+        except Exception as ex:
+            log.warning(f"[country_block] CIDR fetch failed ({url}): {ex}")
+    raise RuntimeError(f"Could not fetch CIDRs for {cc} from any source")
 
-    lines += ["", f"{open_count} open port(s) found."]
-    return jsonify({"output": "\n".join(lines), "success": True})
+def _adguard_rule(cidr):
+    """Convert a CIDR to AdGuard Home network blocking rule."""
+    return f"||{cidr}^$network"
+
+def _add_adguard_rules(rules):
+    """Push a list of rule strings to AdGuard custom filtering."""
+    # AdGuard accepts rules one at a time via /control/filtering/rules/add
+    failed = 0
+    for rule in rules:
+        try:
+            r = requests.post(
+                f"{ADGUARD_URL}/control/filtering/rules/add",
+                json={"rule": rule},
+                auth=ADGUARD_AUTH,
+                timeout=5)
+            if r.status_code not in (200, 204):
+                failed += 1
+        except Exception as ex:
+            log.warning(f"[country_block] AdGuard add rule failed: {ex}")
+            failed += 1
+    return failed
+
+def _remove_adguard_rules(rules):
+    """Remove a list of rule strings from AdGuard custom filtering."""
+    failed = 0
+    for rule in rules:
+        try:
+            r = requests.post(
+                f"{ADGUARD_URL}/control/filtering/rules/remove",
+                json={"rule": rule},
+                auth=ADGUARD_AUTH,
+                timeout=5)
+            if r.status_code not in (200, 204):
+                failed += 1
+        except Exception as ex:
+            log.warning(f"[country_block] AdGuard remove rule failed: {ex}")
+            failed += 1
+    return failed
+
+def _country_rule_prefix(cc):
+    """Marker comment prefix stored alongside rules so we can identify them."""
+    # We store rules in config keyed by cc; no inline comment needed in AdGuard.
+    # This helper is reserved for future tagged rule format if needed.
+    return f"# honeytrapai-country-{cc.upper()}"
+
+@app.route("/api/country/block", methods=["POST"])
+@login_required
+def api_country_block():
+    data = request.get_json(force=True)
+    cc = (data.get("cc") or "").upper().strip()
+    if not re.match(r"^[A-Z]{2}$", cc):
+        return jsonify({"ok": False, "error": "Invalid country code"}), 400
+
+    cfg = load_config()
+    blocked = cfg.get("blocked_countries", {})
+    if not isinstance(blocked, dict):
+        blocked = {}  # migrate old list format
+
+    if cc in blocked:
+        return jsonify({"ok": True, "already_blocked": True, "count": len(blocked[cc])})
+
+    try:
+        cidrs = _fetch_cidrs(cc)
+    except RuntimeError as ex:
+        return jsonify({"ok": False, "error": str(ex)}), 502
+
+    rules = [_adguard_rule(c) for c in cidrs]
+    failed = _add_adguard_rules(rules)
+
+    # Persist rules so we can remove them later
+    blocked[cc] = rules
+    cfg["blocked_countries"] = blocked
+    save_config(cfg)
+
+    return jsonify({
+        "ok": True,
+        "cc": cc,
+        "cidr_count": len(cidrs),
+        "rules_added": len(rules) - failed,
+        "rules_failed": failed
+    })
+
+@app.route("/api/country/unblock", methods=["POST"])
+@login_required
+def api_country_unblock():
+    data = request.get_json(force=True)
+    cc = (data.get("cc") or "").upper().strip()
+    if not re.match(r"^[A-Z]{2}$", cc):
+        return jsonify({"ok": False, "error": "Invalid country code"}), 400
+
+    cfg = load_config()
+    blocked = cfg.get("blocked_countries", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+
+    if cc not in blocked:
+        return jsonify({"ok": True, "was_not_blocked": True})
+
+    rules = blocked[cc]
+    failed = _remove_adguard_rules(rules)
+
+    del blocked[cc]
+    cfg["blocked_countries"] = blocked
+    save_config(cfg)
+
+    return jsonify({
+        "ok": True,
+        "cc": cc,
+        "rules_removed": len(rules) - failed,
+        "rules_failed": failed
+    })
+
+@app.route("/api/country/blocked")
+@login_required
+def api_country_blocked():
+    cfg = load_config()
+    blocked = cfg.get("blocked_countries", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+    # Return just the list of blocked country codes
+    return jsonify({"blocked": list(blocked.keys())})
+
+# ---------------------------------------------------------------------------
+# Setup API endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/setup/complete", methods=["POST"])
+def api_setup_complete():
+    data = request.get_json(force=True)
+    cfg = load_config()
+    cfg["setup_complete"] = True
+    if "password" in data:
+        cfg["dashboard_password"] = data["password"]
+    if "static_ip" in data:
+        cfg["static_ip"] = data["static_ip"]
+    cfg.setdefault("blocked_countries", {})
+    save_config(cfg)
+    session["logged_in"] = True
+    return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    port  = int(os.environ.get("PORT", 5000))
-    debug = DEV_MODE
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
      Version: v0.3.34
      Revised: 2026-03-12
-     Rev: 40 -->
+     Rev: 41 -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -48,6 +48,16 @@
                 padding:.3rem .8rem;font-size:.78rem;cursor:pointer}
     .btn-later{background:none;border:1px solid #2a2a4a;color:#888;border-radius:4px;
                padding:.3rem .8rem;font-size:.78rem;cursor:pointer}
+    /* ── Network visibility warning banner — ISSUE-40 ── */
+    #network-banner{display:none;background:#2a2200;border-bottom:1px solid #b8860b;
+                    padding:.6rem 1.2rem;align-items:center;justify-content:space-between;gap:.8rem}
+    #network-banner.visible{display:flex}
+    #network-banner .nb-text{color:#f0c040;font-size:.82rem;flex:1}
+    #network-banner .nb-text a{color:#f5a623;text-decoration:underline;cursor:pointer}
+    .btn-nb-dismiss{background:none;border:1px solid #5a4a00;color:#888;border-radius:4px;
+                    padding:.3rem .8rem;font-size:.78rem;cursor:pointer;flex-shrink:0}
+    .btn-nb-dismiss:hover{border-color:#b8860b;color:#f0c040}
+    /* ── end ISSUE-40 ── */
     .container{max-width:1200px;margin:0 auto;padding:1rem;width:100%}
     .page{display:none}.page.active{display:block}
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.8rem;margin-bottom:1.2rem}
@@ -285,6 +295,15 @@
     <button class="btn-update" onclick="installUpdate()">Install Update</button>
     <button class="btn-later" onclick="document.getElementById('update-banner').classList.remove('visible')">Later</button>
   </div>
+</div>
+
+<!-- Network visibility warning banner — ISSUE-40 -->
+<div id="network-banner">
+  <span class="nb-text">
+    ⚠️ HoneytrapAI may not be monitoring your full network. Your router may be proxying DNS queries.
+    <a onclick="showPage('settings', document.querySelector('.nav-tab:nth-child(2)'))"> Learn More</a>
+  </span>
+  <button class="btn-nb-dismiss" onclick="dismissNetworkBanner()">Dismiss</button>
 </div>
 
 <nav>
@@ -1016,7 +1035,6 @@ function renderYouAreHere(lat, lon, city) {
   const svg = document.getElementById('threat-map-svg');
   if (!svg) return;
 
-  // Remove any stale marker
   const existing = svg.querySelector('.yah-pin');
   if (existing) existing.remove();
 
@@ -1029,19 +1047,16 @@ function renderYouAreHere(lat, lon, city) {
   g.setAttribute('class', 'yah-pin');
   g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
 
-  // Outer ring
   const outer = document.createElementNS(ns, 'circle');
   outer.setAttribute('class', 'yah-outer');
   outer.setAttribute('r', '7');
   g.appendChild(outer);
 
-  // Inner dot
   const inner = document.createElementNS(ns, 'circle');
   inner.setAttribute('class', 'yah-inner');
   inner.setAttribute('r', '3');
   g.appendChild(inner);
 
-  // Crosshair lines
   [[-13,0,-9,0],[9,0,13,0],[0,-13,0,-9],[0,9,0,13]].forEach(([x1,y1,x2,y2]) => {
     const l = document.createElementNS(ns, 'line');
     l.setAttribute('class', 'yah-line');
@@ -1050,10 +1065,8 @@ function renderYouAreHere(lat, lon, city) {
     g.appendChild(l);
   });
 
-  // Append last so it renders above country fills and threat dots
   svg.appendChild(g);
 
-  // Tooltip
   const tip = document.getElementById('yah-tooltip');
   const label = city ? `📍 You are here — ${city}` : '📍 You are here';
   g.addEventListener('mouseenter', () => { tip.textContent = label; tip.style.display = 'block'; });
@@ -1075,6 +1088,30 @@ async function fetchAndRenderYAH() {
   }
 }
 // ── end ISSUE-35 ──────────────────────────────────────────────────────────
+
+// ── Network visibility banner — ISSUE-40 ─────────────────────────────────
+let _netBannerDismissed = false;
+
+function dismissNetworkBanner() {
+  _netBannerDismissed = true;
+  document.getElementById('network-banner').classList.remove('visible');
+}
+
+async function checkNetworkVisibility() {
+  if (_netBannerDismissed) return;
+  try {
+    const d = await fetch('/api/network-visibility').then(r => r.json());
+    const banner = document.getElementById('network-banner');
+    if (!d.visible) {
+      banner.classList.add('visible');
+    } else {
+      banner.classList.remove('visible');
+    }
+  } catch(e) {
+    console.warn('[HTAI] network-visibility check failed:', e);
+  }
+}
+// ── end ISSUE-40 ──────────────────────────────────────────────────────────
 
 // ── Page & nav ────────────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1643,9 +1680,11 @@ initMap().then(() => {
 loadStats();
 loadThreatMap();
 updateSensorStatus();
+checkNetworkVisibility();  // ISSUE-40 — check on page load
 const statsInterval = setInterval(loadStats, 30000);
 setInterval(loadThreatMap, 30000);
 setInterval(updateSensorStatus, 30000);
+setInterval(checkNetworkVisibility, 300000);  // re-check every 5 min
 checkUpdate(false);
 </script>
 </body>

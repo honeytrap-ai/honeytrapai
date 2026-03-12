@@ -1,7 +1,8 @@
 # HoneytrapAI — app.py
-# Version: v0.3.33
+# Version: v0.3.34
 # Revised: 2026-03-12
-# Rev: 22
+# Rev: 23
+# Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -23,8 +24,19 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import geoip2.database
 
 app = Flask(__name__)
+
 # Cache for /api/my-location — ISSUE-35
 _my_location_cache = None
+
+# Cache for ip-api.com geo lookups — ISSUE-39
+# Key: IP string → {"lat": float, "lon": float, "city": str}
+_geo_cache = {}
+
+# Rate limit tracker for ip-api.com — ISSUE-39
+# Free tier: 45 req/min. Reset every 60s.
+_geo_rate_lock = threading.Lock()
+_geo_rate = {"count": 0, "window_start": None}
+_GEO_RATE_LIMIT = 40  # stay safely under the 45/min hard limit
 
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
@@ -45,6 +57,7 @@ _last_num_blocked      = None
 _lifetime_blocked_lock = threading.Lock()
 
 # --- Country centroid lookup — ISO 3166-1 alpha-2 → (lat, lon) ---
+# Used as fallback when ip-api.com is unavailable or rate-limited (ISSUE-39)
 COUNTRY_CENTROIDS = {
     "AD":(42.55,1.57),"AE":(24.00,54.00),"AF":(33.00,65.00),"AG":(17.07,-61.80),
     "AL":(41.00,20.00),"AM":(40.00,45.00),"AO":(-11.20,17.87),"AR":(-34.00,-64.00),
@@ -96,6 +109,65 @@ COUNTRY_CENTROIDS = {
     "WS":(-13.58,-172.33),"YE":(15.00,48.00),"ZA":(-29.00,25.00),"ZM":(-15.00,30.00),
     "ZW":(-20.00,30.00),
 }
+
+# --- Geo lookup helper — ISSUE-39 ---
+
+def _resolve_geo(ip, country_code):
+    """Return (lat, lon, city) for a threat IP.
+
+    Priority:
+      1. Process-lifetime _geo_cache hit → free, instant
+      2. ip-api.com live lookup → city-level precision
+         (skipped if rate limit reached this window)
+      3. COUNTRY_CENTROIDS fallback → country-center dot (same as pre-ISSUE-39)
+
+    Rate limit: ip-api.com free tier = 45 req/min.
+    We cap at _GEO_RATE_LIMIT (40) per 60s window to stay safely under.
+    """
+    global _geo_cache, _geo_rate
+
+    # 1. Cache hit
+    if ip in _geo_cache:
+        c = _geo_cache[ip]
+        return c["lat"], c["lon"], c.get("city", "")
+
+    # 2. Rate limit check
+    now = datetime.utcnow()
+    can_call = False
+    with _geo_rate_lock:
+        if _geo_rate["window_start"] is None or \
+                (now - _geo_rate["window_start"]).total_seconds() >= 60:
+            _geo_rate["window_start"] = now
+            _geo_rate["count"] = 0
+        if _geo_rate["count"] < _GEO_RATE_LIMIT:
+            _geo_rate["count"] += 1
+            can_call = True
+
+    if can_call:
+        try:
+            import urllib.request as _ur
+            url = f"http://ip-api.com/json/{ip}?fields=status,lat,lon,city"
+            req = _ur.Request(url, headers={"User-Agent": "HoneytrapAI/1.0"})
+            with _ur.urlopen(req, timeout=3) as r:
+                data = json.loads(r.read().decode())
+            if data.get("status") == "success":
+                lat  = float(data["lat"])
+                lon  = float(data["lon"])
+                city = data.get("city", "")
+                _geo_cache[ip] = {"lat": lat, "lon": lon, "city": city}
+                return lat, lon, city
+        except Exception:
+            pass  # fall through to centroid
+
+    # 3. COUNTRY_CENTROIDS fallback
+    if country_code in COUNTRY_CENTROIDS:
+        lat, lon = COUNTRY_CENTROIDS[country_code]
+        # Cache centroid result too so we don't keep hitting the rate check
+        _geo_cache[ip] = {"lat": lat, "lon": lon, "city": ""}
+        return lat, lon, ""
+
+    return None, None, ""
+
 
 # --- Config helpers ---
 def load_config():
@@ -520,7 +592,7 @@ def api_stats():
 @app.route("/api/threat-map")
 @login_required
 def api_threat_map():
-    # Rev 3 — ISSUE-09 Part 1: dual log format, correct field offsets
+    # Rev 4 — ISSUE-39: city-level dots via ip-api.com; COUNTRY_CENTROIDS as fallback
     try:
         db_path  = "/opt/honeytrapai/data/GeoLite2-Country.mmdb"
         log_dir  = "/var/log/maltrail/"
@@ -589,7 +661,7 @@ def api_threat_map():
                             if is_private_ip(src_ip):
                                 continue
 
-                            # GeoIP lookup
+                            # GeoIP lookup — still needed for country_code (country blocking)
                             try:
                                 geo          = reader.country(src_ip)
                                 country_code = geo.country.iso_code or ""
@@ -597,9 +669,11 @@ def api_threat_map():
                             except Exception:
                                 continue
 
-                            if country_code not in COUNTRY_CENTROIDS:
+                            # City-level geo — ISSUE-39
+                            # _resolve_geo tries ip-api.com first, falls back to COUNTRY_CENTROIDS
+                            lat, lon, city = _resolve_geo(src_ip, country_code)
+                            if lat is None or lon is None:
                                 continue
-                            lat, lon = COUNTRY_CENTROIDS[country_code]
 
                             # Severity classification
                             il = info.lower()
@@ -614,6 +688,7 @@ def api_threat_map():
                                 "ip":           src_ip,
                                 "country_code": country_code,
                                 "country_name": country_name,
+                                "city":         city,
                                 "lat":          lat,
                                 "lon":          lon,
                                 "trail":        trail,
@@ -1407,4 +1482,3 @@ def api_my_location():
         return jsonify({'error': 'ip-api lookup failed'}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 502
-

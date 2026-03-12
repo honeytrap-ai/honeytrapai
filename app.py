@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.32
+# Version: v0.3.33
 # Revised: 2026-03-12
-# Rev: 21
+# Rev: 22
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -23,6 +23,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import geoip2.database
 
 app = Flask(__name__)
+# Cache for /api/my-location — ISSUE-35
+_my_location_cache = None
+
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # --- Paths ---
@@ -1381,3 +1384,27 @@ if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))
     debug = DEV_MODE
     app.run(host="0.0.0.0", port=port, debug=debug)
+
+@app.route('/api/my-location')
+@login_required
+def api_my_location():
+    # Rev 1 - ISSUE-35 You Are Here marker
+    global _my_location_cache
+    if _my_location_cache is not None:
+        return jsonify(_my_location_cache)
+    try:
+        import urllib.request, json as _json
+        with urllib.request.urlopen('http://ip-api.com/json/?fields=status,lat,lon,city,isp', timeout=5) as resp:
+            data = _json.loads(resp.read().decode())
+        if data.get('status') == 'success':
+            _my_location_cache = {
+                'lat': data['lat'],
+                'lon': data['lon'],
+                'city': data.get('city', ''),
+                'isp': data.get('isp', '')
+            }
+            return jsonify(_my_location_cache)
+        return jsonify({'error': 'ip-api lookup failed'}), 502
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+

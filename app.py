@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.29
+# Version: v0.3.30
 # Revised: 2026-03-11
-# Rev: 19
+# Rev: 20
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -912,38 +912,50 @@ def _ag_request(cfg, method, path, payload=None):
     with _ur.urlopen(req, timeout=10) as r:
         return r.status, r.read()
 
+def _get_adguard_user_rules(cfg):
+    """Fetch current user rules list from AdGuard. Returns list of rule strings."""
+    try:
+        status, body = _ag_request(cfg, "GET", "/control/filtering/status")
+        data = json.loads(body)
+        return data.get("user_rules") or []
+    except Exception:
+        return []
+
+def _set_adguard_user_rules(cfg, rules):
+    """Replace AdGuard user rules with the given list. Returns True on success."""
+    try:
+        status, _ = _ag_request(cfg, "POST", "/control/filtering/set_rules",
+                                 {"rules": rules})
+        return status in (200, 204)
+    except Exception:
+        return False
+
 def _add_adguard_rules(cfg, rules):
-    """Push rules to AdGuard one at a time. Validates format on first rule.
-    Returns (pushed_count, error_or_None)."""
+    """Add rules to AdGuard by merging with existing user rules.
+    Returns (added_count, error_or_None)."""
     if not rules:
         return 0, None
-    # Validate first rule before committing to the full batch
-    try:
-        status, _ = _ag_request(cfg, "POST", "/control/filtering/rules/add",
-                                 {"rule": rules[0]})
-        if status not in (200, 204):
-            return 0, f"AdGuard rejected rule format (HTTP {status})"
-    except Exception as e:
-        return 0, f"AdGuard API error on validation: {e}"
-    # Push remaining rules — best-effort, don't abort on single failure
-    pushed = 1
-    for rule in rules[1:]:
-        try:
-            _ag_request(cfg, "POST", "/control/filtering/rules/add", {"rule": rule})
-            pushed += 1
-        except Exception:
-            pass
-    return pushed, None
+    existing = _get_adguard_user_rules(cfg)
+    existing_set = set(existing)
+    new_rules = [r for r in rules if r not in existing_set]
+    if not new_rules:
+        return 0, None
+    merged = existing + new_rules
+    if _set_adguard_user_rules(cfg, merged):
+        return len(new_rules), None
+    return 0, "AdGuard rejected the rule update."
 
 def _remove_adguard_rules(cfg, rules):
-    """Remove rules from AdGuard one at a time. Best-effort."""
-    removed = 0
-    for rule in rules:
-        try:
-            _ag_request(cfg, "POST", "/control/filtering/rules/remove", {"rule": rule})
-            removed += 1
-        except Exception:
-            pass
+    """Remove rules from AdGuard user rules list.
+    Returns count of rules removed."""
+    if not rules:
+        return 0
+    rules_set = set(rules)
+    existing  = _get_adguard_user_rules(cfg)
+    kept      = [r for r in existing if r not in rules_set]
+    removed   = len(existing) - len(kept)
+    if removed > 0:
+        _set_adguard_user_rules(cfg, kept)
     return removed
 
 # --- Country blocking routes ---

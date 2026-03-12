@@ -1,5 +1,5 @@
 # HoneytrapAI — log_parser.py
-# Version: v0.3.26
+# Version: v0.3.27
 # Revised: 2026-03-11
 # Rev: 3
 #!/usr/bin/env python3

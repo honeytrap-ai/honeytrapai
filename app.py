@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.24
-# Revised: 2026-03-10
-# Rev: 17
+# Version: v0.3.27
+# Revised: 2026-03-11
+# Rev: 18
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -178,6 +178,14 @@ def render_markdown(text):
     return "\n".join(out)
 
 # --- Network helpers ---
+def is_private_ip(ip_str):
+    """Return True if ip_str is RFC1918, loopback, link-local, or otherwise non-routable."""
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_unspecified
+    except ValueError:
+        return False
+
 def get_network_info(iface="eth0"):
     if DEV_MODE:
         return {
@@ -444,6 +452,7 @@ def api_stats():
 
     cfg     = load_config()
     events  = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
+    events  = [e for e in events if not is_private_ip(e.get("src_ip", ""))]
     summary = get_summary(events)
 
     current_blocked = None
@@ -529,7 +538,6 @@ def api_threat_map():
             if line.startswith('"'):
                 # Sensor format:
                 # "2026-03-10 21:11:32.588435" host src_ip src_port dst_ip dst_port proto trail info...
-                # After split on '"': parts = [host, src_ip, src_port, dst_ip, dst_port, proto, trail, ...]
                 try:
                     ts_str, rest = line[1:].split('"', 1)
                     ts    = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S")
@@ -545,7 +553,6 @@ def api_threat_map():
             else:
                 # Simulated format:
                 # 2026-03-11 03:06:11 honeytrap src_ip src_port dst_ip dst_port proto trail info...
-                # parts: 0=date, 1=time, 2=host, 3=src_ip, 4=src_port, 5=dst_ip, 6=dst_port, 7=proto, 8=trail, 9+=info
                 try:
                     parts = line.split(" ")
                     if len(parts) < 10:
@@ -572,10 +579,7 @@ def api_threat_map():
                                 continue
 
                             # Skip private/loopback
-                            try:
-                                if ipaddress.ip_address(src_ip).is_private:
-                                    continue
-                            except ValueError:
+                            if is_private_ip(src_ip):
                                 continue
 
                             # GeoIP lookup
@@ -1043,6 +1047,7 @@ def api_threats_export():
     import csv, io
     from log_parser import parse_logs
     events   = parse_logs(LOG_PATH, dev_mode=DEV_MODE)
+    events   = [e for e in events if not is_private_ip(e.get("src_ip", ""))]
     output   = io.StringIO()
     fieldnames = ["timestamp","severity","src_ip","dst_ip","proto","trail","info","reference"]
     writer   = csv.DictWriter(output, fieldnames=fieldnames)

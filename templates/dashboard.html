@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.29
+     Version: v0.3.31
      Revised: 2026-03-11
-     Rev: 32 -->
+     Rev: 34 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -356,6 +356,10 @@
     <div id="map-empty" class="map-empty" style="display:none">
       No external threat IPs detected in the last 24 hours.
     </div>
+
+    <p style="font-size:.72rem;color:#555;text-align:center;margin-top:.5rem">
+      Click any country to view threat count and block or unblock traffic from that country.
+    </p>
 
     <!-- Country tooltip — absolutely positioned inside .map-card -->
     <div id="country-tooltip" style="display:none">
@@ -837,6 +841,52 @@ function updateLifetimeCounter(n) {
 }
 
 // ── World Map ─────────────────────────────────────────────────────────────
+// Name-to-ISO lookup for TopoJSON files that lack iso_a2 properties.
+// BUG-A fix: countries-110m.json only has 'name' — no iso_a2/ISO_A2.
+// data-cc falls back to this table so country clicks and blocked fills work.
+const NAME_TO_CC = {
+  'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Angola':'AO','Argentina':'AR',
+  'Armenia':'AM','Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bangladesh':'BD',
+  'Belarus':'BY','Belgium':'BE','Benin':'BJ','Bolivia':'BO','Bosnia and Herz.':'BA',
+  'Botswana':'BW','Brazil':'BR','Bulgaria':'BG','Burkina Faso':'BF','Burundi':'BI',
+  'Cambodia':'KH','Cameroon':'CM','Canada':'CA','Central African Rep.':'CF','Chad':'TD',
+  'Chile':'CL','China':'CN','Colombia':'CO','Congo':'CG','Dem. Rep. Congo':'CD',
+  'Costa Rica':'CR','Croatia':'HR','Cuba':'CU','Czech Rep.':'CZ','Denmark':'DK',
+  'Dominican Rep.':'DO','Ecuador':'EC','Egypt':'EG','El Salvador':'SV','Eritrea':'ER',
+  'Estonia':'EE','Ethiopia':'ET','Finland':'FI','France':'FR','Gabon':'GA',
+  'Germany':'DE','Ghana':'GH','Greece':'GR','Guatemala':'GT','Guinea':'GN',
+  'Haiti':'HT','Honduras':'HN','Hungary':'HU','India':'IN','Indonesia':'ID',
+  'Iran':'IR','Iraq':'IQ','Ireland':'IE','Israel':'IL','Italy':'IT',
+  'Jamaica':'JM','Japan':'JP','Jordan':'JO','Kazakhstan':'KZ','Kenya':'KE',
+  'Kosovo':'XK','Kuwait':'KW','Kyrgyzstan':'KG','Laos':'LA','Latvia':'LV',
+  'Lebanon':'LB','Libya':'LY','Lithuania':'LT','Madagascar':'MG','Malawi':'MW',
+  'Malaysia':'MY','Mali':'ML','Mauritania':'MR','Mexico':'MX','Moldova':'MD',
+  'Mongolia':'MN','Morocco':'MA','Mozambique':'MZ','Myanmar':'MM','Namibia':'NA',
+  'Nepal':'NP','Netherlands':'NL','New Zealand':'NZ','Nicaragua':'NI','Niger':'NE',
+  'Nigeria':'NG','North Korea':'KP','Norway':'NO','Oman':'OM','Pakistan':'PK',
+  'Panama':'PA','Papua New Guinea':'PG','Paraguay':'PY','Peru':'PE','Philippines':'PH',
+  'Poland':'PL','Portugal':'PT','Puerto Rico':'PR','Qatar':'QA','Romania':'RO',
+  'Russia':'RU','Rwanda':'RW','Saudi Arabia':'SA','Senegal':'SN','Serbia':'RS',
+  'Sierra Leone':'SL','Slovakia':'SK','Slovenia':'SI','Somalia':'SO','South Africa':'ZA',
+  'South Korea':'KR','South Sudan':'SS','Spain':'ES','Sri Lanka':'LK','Sudan':'SD',
+  'Sweden':'SE','Switzerland':'CH','Syria':'SY','Taiwan':'TW','Tajikistan':'TJ',
+  'Tanzania':'TZ','Thailand':'TH','Tunisia':'TN','Turkey':'TR','Turkmenistan':'TM',
+  'Uganda':'UG','Ukraine':'UA','United Arab Emirates':'AE','United Kingdom':'GB',
+  'United States of America':'US','Uruguay':'UY','Uzbekistan':'UZ','Venezuela':'VE',
+  'Vietnam':'VN','Yemen':'YE','Zambia':'ZM','Zimbabwe':'ZW','Fiji':'FJ',
+  'Iceland':'IS','Trinidad and Tobago':'TT','Bahamas':'BS',
+  'Cyprus':'CY','Luxembourg':'LU','Malta':'MT','Mauritius':'MU','Bhutan':'BT',
+  'Brunei':'BN','Djibouti':'DJ','Equatorial Guinea':'GQ','Gambia':'GM',
+  'Guinea-Bissau':'GW','Guyana':'GY','Lesotho':'LS','Liberia':'LR',
+  'Macedonia':'MK','Maldives':'MV','Montenegro':'ME','Suriname':'SR',
+  'Swaziland':'SZ','Timor-Leste':'TL','Togo':'TG','W. Sahara':'EH',
+  'Palestine':'PS','Somaliland':'SO','N. Cyprus':'CY',
+  'Greenland':'GL','New Caledonia':'NC','Falkland Is.':'FK'
+};
+
+// Returns a Promise that resolves once country paths are in the DOM.
+// loadBlockedCountries() chains off this so fills are applied after paths exist.
+// BUG-A fix: initMap().then(() => loadBlockedCountries()) in the Init block below.
 function initMap() {
   const W = 1000, H = 507;
   const projection = d3.geoEquirectangular()
@@ -854,7 +904,7 @@ function initMap() {
     .attr('stroke', '#111128')
     .attr('stroke-width', '0.5');
 
-  fetch('/static/countries-110m.json')
+  return fetch('/static/countries-110m.json')
     .then(r => r.json())
     .then(world => {
       const countries = topojson.feature(world, world.objects.countries);
@@ -867,11 +917,18 @@ function initMap() {
         .attr('stroke', '#2d2d50')
         .attr('stroke-width', '0.5')
         .attr('stroke-linejoin', 'round')
-        .attr('data-cc',   f => (f.properties.iso_a2  || f.properties.ISO_A2  || ''))
-        .attr('data-name', f => (f.properties.name     || f.properties.NAME    || ''));
+        .attr('data-cc', f => {
+          const iso = f.properties.iso_a2 || f.properties.ISO_A2 || f.properties.ISO_A2_EH || '';
+          if (iso && iso !== '-99') return iso;
+          const n = (f.properties.name || f.properties.NAME || '').trim();
+          return NAME_TO_CC[n] || '';
+        })
+        .attr('data-name', f => (f.properties.name || f.properties.NAME || ''));
 
       wireCountryClicks();
-      applyBlockedFills();
+      // NOTE: applyBlockedFills() is NOT called here.
+      // loadBlockedCountries() chains off initMap() and calls it once
+      // blockedCountries is populated, guaranteeing both paths and data exist.
     })
     .catch(err => console.warn('Map data failed to load:', err));
 }
@@ -900,6 +957,8 @@ function renderThreatMap(events) {
 
   const VW = 1000, VH = 507;
   events.forEach(ev => {
+    // BUG-B fix: skip events with missing or Null Island (0,0) coordinates
+    if (ev.lat == null || ev.lon == null || (ev.lat === 0 && ev.lon === 0)) return;
     const { x, y } = latLonToXY(ev.lat, ev.lon);
     const dot = document.createElement('div');
     dot.className = `map-dot ${ev.severity}`;
@@ -937,6 +996,10 @@ async function loadThreatMap() {
   try {
     const d = await fetch('/api/threat-map').then(r => r.json());
     mapDotData = d.events || [];
+    // TODO: Remove debug log below in a future cleanup pass
+    console.log('[HTAI] threat-map raw:', JSON.stringify(
+      mapDotData.map(e => ({sev: e.severity, lat: e.lat, lon: e.lon, ip: e.ip}))
+    ));
     renderThreatMap(mapDotData);
   } catch(e) {
     console.error('Threat map error', e);
@@ -1417,9 +1480,9 @@ function wireCountryClicks() {
       onCountryClick(e, cc, name);
     });
   });
-  // Click anywhere on the map wrap (outside a country path) → dismiss tooltip
-  document.getElementById('threat-map-wrap').addEventListener('click', function() {
-    hideCountryTooltip();
+  // BUG-A fix: dismiss tooltip only when clicking outside the countries layer
+  document.getElementById('threat-map-wrap').addEventListener('click', function(e) {
+    if (!e.target.closest('#countries-layer')) hideCountryTooltip();
   });
 }
 
@@ -1503,8 +1566,10 @@ async function countryToggleBlock(doBlock) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
-initMap();
-loadBlockedCountries();
+// initMap() returns a Promise. loadBlockedCountries() chains off it so that
+// country <path> elements are guaranteed to exist before applyBlockedFills()
+// runs. This is the core fix for BUG-A (red fill not appearing).
+initMap().then(() => loadBlockedCountries());
 loadStats();
 loadThreatMap();
 updateSensorStatus();

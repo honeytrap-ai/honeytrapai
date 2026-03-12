@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.32
+     Version: v0.3.33
      Revised: 2026-03-12
-     Rev: 36 -->
+     Rev: 39 -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -135,6 +135,16 @@
     .btn-ct-unblock:hover{background:#3a3a5a}
     .btn-ct-unblock:disabled{background:#555;cursor:default}
     /* ── end map ── */
+    /* ── You Are Here marker — ISSUE-35 ── */
+    .yah-pin{cursor:default;filter:drop-shadow(0 0 4px rgba(255,255,255,0.85))}
+    .yah-pin .yah-outer{fill:#ffffff;stroke:#1a73e8;stroke-width:2}
+    .yah-pin .yah-inner{fill:#1a73e8}
+    .yah-pin .yah-line{stroke:#1a73e8;stroke-width:2;stroke-linecap:round}
+    #yah-tooltip{position:fixed;background:rgba(10,14,23,0.92);border:1px solid #1a73e8;
+                 color:#e0e8ff;font-size:.75rem;padding:.4rem .75rem;border-radius:6px;
+                 pointer-events:none;white-space:nowrap;z-index:450;display:none;
+                 box-shadow:0 2px 12px rgba(0,0,0,.5)}
+    /* ── end You Are Here ── */
     #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
                         background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                         padding:.6rem 1rem;margin-bottom:1.2rem;flex-wrap:wrap}
@@ -777,6 +787,9 @@
 <!-- Map dot tooltip (fixed, follows cursor) -->
 <div id="map-tooltip"></div>
 
+<!-- You Are Here tooltip — ISSUE-35 -->
+<div id="yah-tooltip"></div>
+
 <div id="toast"></div>
 
 <div class="footer">
@@ -842,9 +855,6 @@ function updateLifetimeCounter(n) {
 }
 
 // ── World Map ─────────────────────────────────────────────────────────────
-// Name-to-ISO lookup for TopoJSON files that lack iso_a2 properties.
-// BUG-A fix: countries-110m.json only has 'name' — no iso_a2/ISO_A2.
-// data-cc falls back to this table so country clicks and blocked fills work.
 const NAME_TO_CC = {
   'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Angola':'AO','Argentina':'AR',
   'Armenia':'AM','Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bangladesh':'BD',
@@ -885,9 +895,6 @@ const NAME_TO_CC = {
   'Greenland':'GL','New Caledonia':'NC','Falkland Is.':'FK'
 };
 
-// Returns a Promise that resolves once country paths are in the DOM.
-// loadBlockedCountries() chains off this so fills are applied after paths exist.
-// BUG-A fix: initMap().then(() => loadBlockedCountries()) in the Init block below.
 function initMap() {
   const W = 1000, H = 507;
   const projection = d3.geoEquirectangular()
@@ -927,9 +934,6 @@ function initMap() {
         .attr('data-name', f => (f.properties.name || f.properties.NAME || ''));
 
       wireCountryClicks();
-      // NOTE: applyBlockedFills() is NOT called here.
-      // loadBlockedCountries() chains off initMap() and calls it once
-      // blockedCountries is populated, guaranteeing both paths and data exist.
     })
     .catch(err => console.warn('Map data failed to load:', err));
 }
@@ -958,7 +962,6 @@ function renderThreatMap(events) {
 
   const VW = 1000, VH = 507;
   events.forEach(ev => {
-    // BUG-B fix: skip events with missing or Null Island (0,0) coordinates
     if (ev.lat == null || ev.lon == null || (ev.lat === 0 && ev.lon === 0)) return;
     const { x, y } = latLonToXY(ev.lat, ev.lon);
     const dot = document.createElement('div');
@@ -997,7 +1000,6 @@ async function loadThreatMap() {
   try {
     const d = await fetch('/api/threat-map').then(r => r.json());
     mapDotData = d.events || [];
-    // TODO: Remove debug log below in a future cleanup pass
     console.log('[HTAI] threat-map raw:', JSON.stringify(
       mapDotData.map(e => ({sev: e.severity, lat: e.lat, lon: e.lon, ip: e.ip}))
     ));
@@ -1006,6 +1008,71 @@ async function loadThreatMap() {
     console.error('Threat map error', e);
   }
 }
+
+// ── You Are Here marker — ISSUE-35 ───────────────────────────────────────
+function renderYouAreHere(lat, lon, city) {
+  const svg = document.getElementById('threat-map-svg');
+  if (!svg) return;
+
+  // Remove any stale marker
+  const existing = svg.querySelector('.yah-pin');
+  if (existing) existing.remove();
+
+  const VW = 1000, VH = 507;
+  const x = ((lon + 180) / 360) * VW;
+  const y = ((90 - lat)  / 180) * VH;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const g  = document.createElementNS(ns, 'g');
+  g.setAttribute('class', 'yah-pin');
+  g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+
+  // Outer ring
+  const outer = document.createElementNS(ns, 'circle');
+  outer.setAttribute('class', 'yah-outer');
+  outer.setAttribute('r', '7');
+  g.appendChild(outer);
+
+  // Inner dot
+  const inner = document.createElementNS(ns, 'circle');
+  inner.setAttribute('class', 'yah-inner');
+  inner.setAttribute('r', '3');
+  g.appendChild(inner);
+
+  // Crosshair lines
+  [[-13,0,-9,0],[9,0,13,0],[0,-13,0,-9],[0,9,0,13]].forEach(([x1,y1,x2,y2]) => {
+    const l = document.createElementNS(ns, 'line');
+    l.setAttribute('class', 'yah-line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    g.appendChild(l);
+  });
+
+  // Append last so it renders above country fills and threat dots
+  svg.appendChild(g);
+
+  // Tooltip
+  const tip = document.getElementById('yah-tooltip');
+  const label = city ? `📍 You are here — ${city}` : '📍 You are here';
+  g.addEventListener('mouseenter', () => { tip.textContent = label; tip.style.display = 'block'; });
+  g.addEventListener('mousemove', e => {
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top  = (e.clientY - 10) + 'px';
+  });
+  g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+}
+
+async function fetchAndRenderYAH() {
+  try {
+    const r = await fetch('/api/my-location');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.lat && d.lon) renderYouAreHere(d.lat, d.lon, d.city || '');
+  } catch(e) {
+    console.warn('[HTAI] You Are Here fetch failed:', e);
+  }
+}
+// ── end ISSUE-35 ──────────────────────────────────────────────────────────
 
 // ── Page & nav ────────────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1288,7 +1355,7 @@ async function installUpdate() {
 
 function showUpdateCountdown() {
   let countdown = 60;
-  const ver = document.querySelector('.nav-version')?.textContent?.trim() || '';
+  const ver = (document.getElementById('update-card-version')?.textContent?.trim()) || (document.querySelector('.nav-version')?.textContent?.trim()) || '';
   const verLine = ver ? `<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>` : '';
   document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">HoneytrapAI update complete.</div>${verLine}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
   setTimeout(() => {
@@ -1482,7 +1549,6 @@ function wireCountryClicks() {
       onCountryClick(e, cc, name);
     });
   });
-  // BUG-A fix: dismiss tooltip only when clicking outside the countries layer
   document.getElementById('threat-map-wrap').addEventListener('click', function(e) {
     if (!e.target.closest('#countries-layer')) hideCountryTooltip();
   });
@@ -1505,7 +1571,6 @@ function onCountryClick(e, cc, name) {
   document.getElementById('btn-ct-block').disabled   = false;
   document.getElementById('btn-ct-unblock').disabled = false;
 
-  // Position tooltip relative to .map-card (which is position:relative)
   const mapCard  = document.querySelector('.map-card');
   const cardRect = mapCard.getBoundingClientRect();
   const ct = document.getElementById('country-tooltip');
@@ -1569,10 +1634,10 @@ async function countryToggleBlock(doBlock) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
-// initMap() returns a Promise. loadBlockedCountries() chains off it so that
-// country <path> elements are guaranteed to exist before applyBlockedFills()
-// runs. This is the core fix for BUG-A (red fill not appearing).
-initMap().then(() => loadBlockedCountries());
+initMap().then(() => {
+  loadBlockedCountries();
+  fetchAndRenderYAH();  // ISSUE-35 — runs after map SVG is ready
+});
 loadStats();
 loadThreatMap();
 updateSensorStatus();

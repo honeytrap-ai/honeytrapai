@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
 # Version: v0.3.34
 # Revised: 2026-03-12
-# Rev: 23
+# Rev: 24
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -27,6 +27,11 @@ app = Flask(__name__)
 
 # Cache for /api/my-location — ISSUE-35
 _my_location_cache = None
+
+# Cache for /api/network-visibility — ISSUE-40
+# Stores (result_dict, timestamp_float) tuple; None until first call
+_net_visibility_cache = None
+_NET_VIS_TTL = 300  # 5-minute cache — avoids hammering AdGuard on every page load
 
 # Cache for ip-api.com geo lookups — ISSUE-39
 # Key: IP string → {"lat": float, "lon": float, "city": str}
@@ -443,6 +448,7 @@ def setup():
                         )
                         cfg["static_ip"]         = entered_ip
                         cfg["static_ip_skipped"] = False
+                        cfg["gateway"]           = net["gateway"]
                         cfg["interface"]         = "eth0"
                         save_config(cfg); step = 3
                     except Exception as e:
@@ -1183,7 +1189,7 @@ def api_email_test():
         from email.mime.multipart import MIMEMultipart
 
         msg            = MIMEMultipart("alternative")
-        msg["Subject"] = "🐝 HoneytrapAI — Test Email"
+        msg["Subject"] = "HoneytrapAI — Test Email"
         msg["From"]    = smtp.get("from_addr", user)
         msg["To"]      = email
 
@@ -1196,7 +1202,7 @@ def api_email_test():
         body_html = """
         <div style="font-family:-apple-system,sans-serif;background:#0f0f1a;color:#e0e0e0;
                     padding:2rem;max-width:480px;margin:0 auto;border-radius:10px">
-          <div style="font-size:2rem;margin-bottom:.5rem">🐝</div>
+          <div style="font-size:2rem;margin-bottom:.5rem">&#x1F41D;</div>
           <div style="color:#f5a623;font-size:1.1rem;font-weight:700;margin-bottom:.8rem">
             HoneytrapAI — Test Email
           </div>
@@ -1432,7 +1438,7 @@ def api_tools_portscan():
     if not ports:
         return jsonify({"error": "No valid ports specified."}), 400
 
-    lines = [f"Port scan: {host}", f"Scanning {len(ports)} port(s)…", ""]
+    lines = [f"Port scan: {host}", f"Scanning {len(ports)} port(s)...", ""]
     open_count = 0
     for port in ports:
         try:
@@ -1482,3 +1488,46 @@ def api_my_location():
         return jsonify({'error': 'ip-api lookup failed'}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 502
+
+@app.route('/api/network-visibility')
+@login_required
+def api_network_visibility():
+    # Rev 1 - ISSUE-40 network visibility detection
+    # Returns {"visible": true/false} — false means Pi is not seeing external DNS clients,
+    # which indicates the router is proxying DNS rather than forwarding to the Pi directly.
+    import time as _time
+    global _net_visibility_cache
+    now = _time.time()
+    if _net_visibility_cache is not None:
+        result, ts = _net_visibility_cache
+        if now - ts < _NET_VIS_TTL:
+            return jsonify(result)
+    try:
+        import urllib.request as _ur, json as _json, base64 as _b64
+        cfg    = load_config()
+        user   = cfg.get('adguard_user', 'admin')
+        passwd = cfg.get('adguard_password', 'admin')
+        creds  = _b64.b64encode(f"{user}:{passwd}".encode()).decode()
+        req    = _ur.Request(
+            'http://127.0.0.1:3000/control/stats',
+            headers={'Authorization': f'Basic {creds}'}
+        )
+        with _ur.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read().decode())
+        pi_ip   = cfg.get('static_ip', '192.168.1.199')
+        gateway = cfg.get('gateway', '')
+        pi_ips  = {'127.0.0.1', '::1', pi_ip}
+        # top_clients is a list of single-key dicts: [{"1.2.3.4": 42}, ...]
+        clients  = data.get('top_clients', [])
+        external = [ip for entry in clients for ip in entry.keys() if ip not in pi_ips]
+        if not external:
+            result = {'visible': False, 'reason': 'no_clients'}
+        elif gateway and all(ip == gateway for ip in external):
+            result = {'visible': False, 'reason': 'proxied'}
+        else:
+            result = {'visible': True}
+    except Exception as e:
+        # Fail open — don't false-alarm if AdGuard is temporarily unreachable
+        result = {'visible': True, 'error': str(e)}
+    _net_visibility_cache = (result, now)
+    return jsonify(result)

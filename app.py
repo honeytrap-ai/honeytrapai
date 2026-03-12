@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.30
-# Revised: 2026-03-11
-# Rev: 20
+# Version: v0.3.32
+# Revised: 2026-03-12
+# Rev: 21
 #!/usr/bin/env python3
 """
 HoneytrapAI — Flask web dashboard core
@@ -684,7 +684,12 @@ def api_adguard_stats():
             headers={"Authorization": f"Basic {token}"}
         )
         with urllib.request.urlopen(req, timeout=3) as r:
-            return jsonify(json.loads(r.read()))
+            data = json.loads(r.read())
+        queries_24h = sum(data.get("dns_queries",       [])[-24:])
+        blocked_24h = sum(data.get("blocked_filtering", [])[-24:])
+        data["num_dns_queries"]      = queries_24h
+        data["num_blocked_filtering"] = blocked_24h
+        return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 503
 

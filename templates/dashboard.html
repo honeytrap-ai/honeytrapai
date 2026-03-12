@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.33
+     Version: v0.3.34
      Revised: 2026-03-12
-     Rev: 39 -->
+     Rev: 40 -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -971,9 +971,11 @@ function renderThreatMap(events) {
     const sz = ev.severity === 'high' ? 10 : ev.severity === 'medium' ? 8 : 7;
     dot.style.cssText = `width:${sz}px;height:${sz}px;left:${(x/VW)*100}%;top:${(y/VH)*100}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
     dot.addEventListener('mouseenter', e => {
+      const cityLine = ev.city ? `<div><span style="color:#666">City:</span> ${ev.city}</div>` : '';
       tip.innerHTML = `
         <div style="color:#f5a623;font-weight:700;margin-bottom:.2rem">${ev.ip}</div>
         <div><span style="color:#666">Country:</span> ${ev.country_name}</div>
+        ${cityLine}
         <div><span style="color:#666">Trail:</span> <span style="color:#f5a623">${ev.trail}</span></div>
         <div><span style="color:#666">Severity:</span> <span class="sev-badge sev-${ev.severity}" style="font-size:.68rem">${ev.severity.toUpperCase()}</span></div>
         <div><span style="color:#666">Time:</span> ${ev.timestamp}</div>`;

@@ -691,7 +691,7 @@ def api_threat_map():
                             il = info.lower()
                             if any(x in il for x in ["malware","c2","botnet","ransomware","rat","backdoor","trojan","exploit"]):
                                 severity = "high"
-                            elif any(x in il for x in ["scanner","suspicious","threat","attack","probe","brute"]):
+                            elif any(x in il for x in ["scanner","suspicious","threat","attack","probe","brute","phishing","tor","spam","adware","tracking"]):
                                 severity = "medium"
                             else:
                                 severity = "low"

@@ -270,6 +270,14 @@
     .footer a{color:#666;text-decoration:none}.footer a:hover{color:#f5a623}
     .smtp-fields-wrap{position:relative;transition:opacity .2s}
     .smtp-fields-wrap.disabled{opacity:.35;pointer-events:none;user-select:none}
+    /* ── ISSUE-44 Domain Allowlist ── */
+    .allow-btn{background:none;border:none;cursor:pointer;padding:0 0 0 .4rem;
+               font-size:.85rem;line-height:1;vertical-align:middle;opacity:.3;
+               transition:opacity .15s,color .15s;color:#aaa}
+    .allow-btn:hover{opacity:.7}
+    .allow-btn.allowed{color:#27ae60;opacity:1}
+    .allow-btn.allowed:hover{color:#e74c3c;opacity:1}
+    /* ── end ISSUE-44 ── */
     /* ── Tools page ── */
     .tool-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                padding:1.2rem;margin-bottom:1rem}
@@ -780,19 +788,37 @@
 
   <div class="tool-card">
     <h3>🚫 Top Blocked Domains</h3>
-    <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">The 10 most-blocked domains on your network in the last 7 days.</p>
+    <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">The 10 most-blocked domains on your network in the last 7 days. Click ✓ next to any domain to exempt it from blocking going forward.</p>
     <div id="blocked-domains-loading" style="font-size:.8rem;color:#888">Loading blocked domains…</div>
     <table id="blocked-domains-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
       <thead>
         <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
           <th style="text-align:left;padding:.4rem .6rem">Domain</th>
           <th style="text-align:right;padding:.4rem .6rem">Blocked (7d)</th>
+          <th style="width:1px;padding:.4rem .3rem"></th>
         </tr>
       </thead>
       <tbody id="blocked-domains-tbody"></tbody>
     </table>
     <div id="blocked-domains-empty" style="display:none;font-size:.8rem;color:#555">No blocked domains in the last 7 days.</div>
     <div id="blocked-domains-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
+  </div>
+
+  <div class="tool-card">
+    <h3>✅ Allowlisted Domains</h3>
+    <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">These domains are exempt from AdGuard blocking. Click ✕ to remove a domain from the allowlist.</p>
+    <div id="allowlist-loading" style="display:none;font-size:.8rem;color:#888">Loading…</div>
+    <table id="allowlist-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead>
+        <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
+          <th style="text-align:left;padding:.4rem .6rem">Domain</th>
+          <th style="width:1px;padding:.4rem .6rem"></th>
+        </tr>
+      </thead>
+      <tbody id="allowlist-tbody"></tbody>
+    </table>
+    <div id="allowlist-empty" style="font-size:.8rem;color:#555">No domains are currently allowlisted.</div>
+    <div id="allowlist-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
   </div>
 
   <div class="tool-card">
@@ -1153,6 +1179,7 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'settings') loadSettings();
+  if (name === 'tools')    loadAllowlist();
 }
 
 function toast(msg, err) {
@@ -1736,42 +1763,133 @@ setInterval(checkNetworkVisibility, 300000);  // re-check every 5 min
 checkUpdate(false);
   fetchBlockedDomains();
   fetchDevices();
+  let _allowlistDomains = [];
+
   function fetchBlockedDomains() {
-    fetch('/api/blocked-domains')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var loading = document.getElementById('blocked-domains-loading');
-        var table   = document.getElementById('blocked-domains-table');
-        var tbody   = document.getElementById('blocked-domains-tbody');
-        var emptyEl = document.getElementById('blocked-domains-empty');
-        var errEl   = document.getElementById('blocked-domains-error');
+    Promise.all([
+      fetch('/api/blocked-domains').then(r => r.json()),
+      fetch('/api/allowlist').then(r => r.json())
+    ]).then(function([bdData, alData]) {
+      var loading = document.getElementById('blocked-domains-loading');
+      var table   = document.getElementById('blocked-domains-table');
+      var tbody   = document.getElementById('blocked-domains-tbody');
+      var emptyEl = document.getElementById('blocked-domains-empty');
+      var errEl   = document.getElementById('blocked-domains-error');
+      loading.style.display = 'none';
+      if (bdData.error) {
+        errEl.textContent = 'Error loading blocked domains: ' + bdData.error;
+        errEl.style.display = 'block';
+        return;
+      }
+      _allowlistDomains = alData.domains || [];
+      var domains = bdData.domains || [];
+      if (!domains.length) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+      tbody.innerHTML = '';
+      domains.forEach(function(d, i) {
+        var row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #1e1e3a';
+        if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
+        var isAllowed = _allowlistDomains.includes(d.domain);
+        var btnTitle  = isAllowed ? 'Allowlisted — click to remove' : 'Allow this domain';
+        row.innerHTML =
+          '<td style="padding:.4rem .6rem;font-family:monospace;font-size:.78rem">' +
+            '<span style="color:#aaa">' + d.domain + '</span>' +
+            '<button class="allow-btn' + (isAllowed ? ' allowed' : '') + '" ' +
+              'data-domain="' + d.domain + '" title="' + btnTitle + '" ' +
+              'onclick="toggleAllowlist(\'' + d.domain + '\', ' + !isAllowed + ', this)">✓</button>' +
+          '</td>' +
+          '<td style="padding:.4rem .6rem;text-align:right;color:#e74c3c">' + d.count.toLocaleString() + '</td>' +
+          '<td style="width:1px"></td>';
+        tbody.appendChild(row);
+      });
+      table.style.display = 'table';
+    }).catch(function(e) {
+      document.getElementById('blocked-domains-loading').style.display = 'none';
+      var errEl = document.getElementById('blocked-domains-error');
+      errEl.textContent = 'Error loading blocked domains: ' + e.message;
+      errEl.style.display = 'block';
+    });
+  }
+
+  async function toggleAllowlist(domain, doAdd, btn) {
+    btn.disabled = true;
+    const endpoint = doAdd ? '/api/allowlist/add' : '/api/allowlist/remove';
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: domain})
+      });
+      const d = await r.json();
+      if (!r.ok) { toast((d.error || 'Error updating allowlist.'), true); btn.disabled = false; return; }
+      if (doAdd) {
+        if (!_allowlistDomains.includes(domain)) _allowlistDomains.push(domain);
+        btn.classList.add('allowed');
+        btn.title = 'Allowlisted — click to remove';
+        btn.setAttribute('onclick', 'toggleAllowlist(\'' + domain + '\', false, this)');
+        toast('✓ ' + domain + ' added to allowlist.');
+      } else {
+        _allowlistDomains = _allowlistDomains.filter(function(x) { return x !== domain; });
+        btn.classList.remove('allowed');
+        btn.title = 'Allow this domain';
+        btn.setAttribute('onclick', 'toggleAllowlist(\'' + domain + '\', true, this)');
+        toast(domain + ' removed from allowlist.');
+      }
+      loadAllowlist();
+    } catch(e) {
+      toast('Network error.', true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function loadAllowlist() {
+    const loading = document.getElementById('allowlist-loading');
+    const table   = document.getElementById('allowlist-table');
+    const tbody   = document.getElementById('allowlist-tbody');
+    const emptyEl = document.getElementById('allowlist-empty');
+    const errEl   = document.getElementById('allowlist-error');
+    loading.style.display = 'block';
+    table.style.display   = 'none';
+    emptyEl.style.display = 'none';
+    errEl.style.display   = 'none';
+    fetch('/api/allowlist')
+      .then(r => r.json())
+      .then(data => {
         loading.style.display = 'none';
         if (data.error) {
-          errEl.textContent = 'Error loading blocked domains: ' + data.error;
+          errEl.textContent = 'Error: ' + data.error;
           errEl.style.display = 'block';
           return;
         }
-        var domains = data.domains || [];
-        if (!domains.length) {
+        _allowlistDomains = data.domains || [];
+        if (!_allowlistDomains.length) {
           emptyEl.style.display = 'block';
           return;
         }
         tbody.innerHTML = '';
-        domains.forEach(function(d, i) {
-          var row = document.createElement('tr');
+        _allowlistDomains.forEach(function(domain, i) {
+          const row = document.createElement('tr');
           row.style.borderBottom = '1px solid #1e1e3a';
           if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
           row.innerHTML =
-            '<td style="padding:.4rem .6rem;color:#aaa;font-family:monospace;font-size:.78rem">' + d.domain + '</td>' +
-            '<td style="padding:.4rem .6rem;text-align:right;color:#e74c3c">' + d.count.toLocaleString() + '</td>';
+            '<td style="padding:.4rem .6rem">' +
+            '<span style="font-family:monospace;font-size:.78rem;color:#aaa">' + domain + '</span>' +
+            '<button style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:.8rem;' +
+                'padding:.1rem .4rem;border-radius:3px;opacity:.6;transition:opacity .15s;margin-left:.4rem" ' +
+                'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6" ' +
+                'onclick="toggleAllowlist(\'' + domain + '\', false, this)" title="Remove from allowlist">✕</button>' +
+            '</td>';
           tbody.appendChild(row);
         });
         table.style.display = 'table';
       })
       .catch(function(e) {
-        document.getElementById('blocked-domains-loading').style.display = 'none';
-        var errEl = document.getElementById('blocked-domains-error');
-        errEl.textContent = 'Error loading blocked domains: ' + e.message;
+        loading.style.display = 'none';
+        errEl.textContent = 'Error: ' + e.message;
         errEl.style.display = 'block';
       });
   }

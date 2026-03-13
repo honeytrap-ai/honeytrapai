@@ -787,6 +787,21 @@
   </div>
 
   <div class="tool-card">
+    <h3>🔎 Whois Lookup</h3>
+    <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">Look up registration info for any domain. Useful for identifying suspicious or newly registered domains.</p>
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem">
+      <input type="text" id="whois-host" placeholder="Domain — e.g. example.com"
+             style="flex:1;background:#0d0d1a;border:1px solid #2a2a4a;color:#ccc;padding:.35rem .6rem;border-radius:4px;font-size:.8rem"
+             onkeydown="if(event.key==='Enter')runWhois()">
+      <button class="btn-save" onclick="runWhois()">Lookup</button>
+    </div>
+    <div id="whois-loading" style="display:none;font-size:.8rem;color:#888">Looking up…</div>
+    <table id="whois-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
+      <tbody id="whois-tbody"></tbody>
+    </table>
+    <div id="whois-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
+  </div>
+  <div class="tool-card">
     <h3>🚫 Top Blocked Domains</h3>
     <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">The 10 most-blocked domains on your network in the last 7 days. Click ✓ next to any domain to exempt it from blocking going forward.</p>
     <div id="blocked-domains-loading" style="font-size:.8rem;color:#888">Loading blocked domains…</div>
@@ -1603,6 +1618,51 @@ async function confirmPurge() {
   if (r.ok) { allEvents=[]; summaryData={}; renderAlerts(); renderOffenders(); ['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0'); toast('Threat log purged.'); }
   else toast('Purge failed.', true);
 }
+
+function runWhois() {
+    var domain = document.getElementById('whois-host').value.trim();
+    if (!domain) return;
+    var loading = document.getElementById('whois-loading');
+    var table   = document.getElementById('whois-table');
+    var tbody   = document.getElementById('whois-tbody');
+    var errEl   = document.getElementById('whois-error');
+    loading.style.display = 'block';
+    table.style.display   = 'none';
+    errEl.style.display   = 'none';
+    fetch('/api/whois?domain=' + encodeURIComponent(domain))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        loading.style.display = 'none';
+        if (data.error) {
+          errEl.textContent    = data.error;
+          errEl.style.display  = 'block';
+          return;
+        }
+        var rows = [
+          ['Registrar',   data.registrar   || '\u2014'],
+          ['Registered',  data.created     || '\u2014'],
+          ['Expires',     data.expires     || '\u2014'],
+          ['Org',         data.org         || '\u2014'],
+          ['Country',     data.country     || '\u2014']
+        ];
+        tbody.innerHTML = '';
+        rows.forEach(function(r, i) {
+          var tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #1e1e3a';
+          if (i % 2 === 0) tr.style.background = 'rgba(255,255,255,0.02)';
+          tr.innerHTML =
+            '<td style="padding:.4rem .6rem;color:#f5a623;width:30%">' + r[0] + '</td>' +
+            '<td style="padding:.4rem .6rem;color:#ccc;font-family:monospace;font-size:.76rem">' + r[1] + '</td>';
+          tbody.appendChild(tr);
+        });
+        table.style.display = 'table';
+      })
+      .catch(function(e) {
+        loading.style.display = 'none';
+        errEl.textContent     = 'Error: ' + e.message;
+        errEl.style.display   = 'block';
+      });
+  }
 
 async function runTool(tool) {
   const hostMap={ping:'ping-host',dns:'dns-host',traceroute:'traceroute-host',portscan:'portscan-host'};

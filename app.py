@@ -35,6 +35,8 @@ _devices_cache = None
 _DEVICES_TTL = 60  # 1-minute cache for device list
 _blocked_domains_cache = None
 _BLOCKED_DOMAINS_TTL = 60  # 1-minute cache for blocked domains list
+_allowlist_cache = None
+_ALLOWLIST_TTL   = 30   # 30-second cache — short so toggles feel instant
 _NET_VIS_TTL = 300  # 5-minute cache — avoids hammering AdGuard on every page load
 
 # Cache for ip-api.com geo lookups — ISSUE-39
@@ -1611,3 +1613,66 @@ def api_blocked_domains():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/allowlist')
+@login_required
+def api_allowlist():
+    # Rev 1 - ISSUE-44 Domain Allowlist Manager
+    import time as _time
+    global _allowlist_cache
+    now = _time.time()
+    if _allowlist_cache is not None:
+        result, ts = _allowlist_cache
+        if now - ts < _ALLOWLIST_TTL:
+            return jsonify(result)
+    try:
+        cfg   = load_config()
+        rules = _get_adguard_user_rules(cfg)
+        domains = []
+        for rule in rules:
+            rule = rule.strip()
+            if rule.startswith('@@||'):
+                inner  = rule[4:]
+                domain = inner.split('^')[0]
+                if domain:
+                    domains.append(domain)
+        result = {'domains': domains}
+        _allowlist_cache = (result, now)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/allowlist/add', methods=['POST'])
+@login_required
+def api_allowlist_add():
+    # Rev 1 - ISSUE-44 Domain Allowlist Manager
+    global _allowlist_cache
+    data   = request.get_json() or {}
+    domain = data.get('domain', '').strip().lower()
+    if not domain or not is_safe_host(domain):
+        return jsonify({'error': 'Invalid domain.'}), 400
+    cfg  = load_config()
+    rule = f'@@||{domain}^'
+    added, err = _add_adguard_rules(cfg, [rule])
+    if err:
+        return jsonify({'error': err}), 502
+    _allowlist_cache = None
+    return jsonify({'ok': True, 'domain': domain})
+
+
+@app.route('/api/allowlist/remove', methods=['POST'])
+@login_required
+def api_allowlist_remove():
+    # Rev 1 - ISSUE-44 Domain Allowlist Manager
+    global _allowlist_cache
+    data   = request.get_json() or {}
+    domain = data.get('domain', '').strip().lower()
+    if not domain or not is_safe_host(domain):
+        return jsonify({'error': 'Invalid domain.'}), 400
+    cfg  = load_config()
+    rule = f'@@||{domain}^'
+    _remove_adguard_rules(cfg, [rule])
+    _allowlist_cache = None
+    return jsonify({'ok': True, 'domain': domain})

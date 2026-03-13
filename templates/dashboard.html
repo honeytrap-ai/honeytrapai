@@ -779,6 +779,23 @@
   </div>
 
   <div class="tool-card">
+    <h3>🚫 Top Blocked Domains</h3>
+    <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">The 10 most-blocked domains on your network in the last 7 days.</p>
+    <div id="blocked-domains-loading" style="font-size:.8rem;color:#888">Loading blocked domains…</div>
+    <table id="blocked-domains-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead>
+        <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
+          <th style="text-align:left;padding:.4rem .6rem">Domain</th>
+          <th style="text-align:right;padding:.4rem .6rem">Blocked (7d)</th>
+        </tr>
+      </thead>
+      <tbody id="blocked-domains-tbody"></tbody>
+    </table>
+    <div id="blocked-domains-empty" style="display:none;font-size:.8rem;color:#555">No blocked domains in the last 7 days.</div>
+    <div id="blocked-domains-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
+  </div>
+
+  <div class="tool-card">
     <h3>💻 Device List</h3>
     <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">All devices seen by HoneytrapAI in the last 7 days, sorted by DNS activity.</p>
     <div id="devices-loading" style="font-size:.8rem;color:#888">Loading devices…</div>
@@ -1717,7 +1734,47 @@ setInterval(loadThreatMap, 30000);
 setInterval(updateSensorStatus, 30000);
 setInterval(checkNetworkVisibility, 300000);  // re-check every 5 min
 checkUpdate(false);
+  fetchBlockedDomains();
   fetchDevices();
+  function fetchBlockedDomains() {
+    fetch('/api/blocked-domains')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var loading = document.getElementById('blocked-domains-loading');
+        var table   = document.getElementById('blocked-domains-table');
+        var tbody   = document.getElementById('blocked-domains-tbody');
+        var emptyEl = document.getElementById('blocked-domains-empty');
+        var errEl   = document.getElementById('blocked-domains-error');
+        loading.style.display = 'none';
+        if (data.error) {
+          errEl.textContent = 'Error loading blocked domains: ' + data.error;
+          errEl.style.display = 'block';
+          return;
+        }
+        var domains = data.domains || [];
+        if (!domains.length) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+        tbody.innerHTML = '';
+        domains.forEach(function(d, i) {
+          var row = document.createElement('tr');
+          row.style.borderBottom = '1px solid #1e1e3a';
+          if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
+          row.innerHTML =
+            '<td style="padding:.4rem .6rem;color:#aaa;font-family:monospace;font-size:.78rem">' + d.domain + '</td>' +
+            '<td style="padding:.4rem .6rem;text-align:right;color:#e74c3c">' + d.count.toLocaleString() + '</td>';
+          tbody.appendChild(row);
+        });
+        table.style.display = 'table';
+      })
+      .catch(function(e) {
+        document.getElementById('blocked-domains-loading').style.display = 'none';
+        var errEl = document.getElementById('blocked-domains-error');
+        errEl.textContent = 'Error loading blocked domains: ' + e.message;
+        errEl.style.display = 'block';
+      });
+  }
   function fetchDevices() {
     fetch('/api/devices')
       .then(r => r.json())

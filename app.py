@@ -1615,6 +1615,71 @@ def api_blocked_domains():
         return jsonify({'error': str(e)}), 502
 
 
+@app.route('/api/whois')
+def api_whois():
+    domain = request.args.get('domain', '').strip().lower()
+    if not domain:
+        return jsonify({'error': 'No domain provided'})
+    # Strip protocol/path if user pastes a URL
+    import re as _re
+    domain = _re.sub(r'^https?://', '', domain).split('/')[0]
+    try:
+        result = subprocess.run(
+            ['whois', domain],
+            capture_output=True, text=True, timeout=15
+        )
+        raw = result.stdout
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Whois lookup timed out'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+    def _extract(patterns, text):
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE | re.MULTILINE)
+            if m:
+                return m.group(1).strip()
+        return ''
+
+    registrar = _extract([
+        r'^Registrar:\s*(.+)$',
+        r'^registrar:\s*(.+)$',
+    ], raw)
+    created = _extract([
+        r'^Creation Date:\s*(.+)$',
+        r'^created:\s*(.+)$',
+        r'^Registered on:\s*(.+)$',
+    ], raw)
+    expires = _extract([
+        r'^Registry Expiry Date:\s*(.+)$',
+        r'^Expiry Date:\s*(.+)$',
+        r'^expires:\s*(.+)$',
+    ], raw)
+    org = _extract([
+        r'^Registrant Organization:\s*(.+)$',
+        r'^org-name:\s*(.+)$',
+        r'^Organization:\s*(.+)$',
+    ], raw)
+    country = _extract([
+        r'^Registrant Country:\s*(.+)$',
+        r'^country:\s*(.+)$',
+    ], raw)
+
+    # Trim ISO timestamps to date only
+    for val in [created, expires]:
+        if 'T' in val:
+            val = val.split('T')[0]
+
+    return jsonify({
+        'domain':    domain,
+        'registrar': registrar[:80] if registrar else '',
+        'created':   created.split('T')[0] if 'T' in created else created,
+        'expires':   expires.split('T')[0] if 'T' in expires else expires,
+        'org':       org[:80] if org else '',
+        'country':   country,
+    })
+
+
 @app.route('/api/allowlist')
 @login_required
 def api_allowlist():

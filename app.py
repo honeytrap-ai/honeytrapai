@@ -33,6 +33,8 @@ _my_location_cache = None
 _net_visibility_cache = None
 _devices_cache = None
 _DEVICES_TTL = 60  # 1-minute cache for device list
+_blocked_domains_cache = None
+_BLOCKED_DOMAINS_TTL = 60  # 1-minute cache for blocked domains list
 _NET_VIS_TTL = 300  # 5-minute cache — avoids hammering AdGuard on every page load
 
 # Cache for ip-api.com geo lookups — ISSUE-39
@@ -1574,3 +1576,38 @@ def api_network_visibility():
         result = {'visible': True, 'error': str(e)}
     _net_visibility_cache = (result, now)
     return jsonify(result)
+@app.route('/api/blocked-domains')
+@login_required
+def api_blocked_domains():
+    # Rev 1 - ISSUE-17 Top Blocked Domains List
+    import time as _time
+    global _blocked_domains_cache
+    now = _time.time()
+    if _blocked_domains_cache is not None:
+        result, ts = _blocked_domains_cache
+        if now - ts < _BLOCKED_DOMAINS_TTL:
+            return jsonify(result)
+    try:
+        import urllib.request as _ur, json as _json, base64 as _b64
+        cfg    = load_config()
+        user   = cfg.get('adguard_user', 'admin')
+        passwd = cfg.get('adguard_password', 'admin')
+        creds  = _b64.b64encode(f"{user}:{passwd}".encode()).decode()
+        req = _ur.Request(
+            'http://127.0.0.1:3000/control/stats',
+            headers={'Authorization': f'Basic {creds}'}
+        )
+        with _ur.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read().decode())
+        raw = data.get('top_blocked_domains', [])
+        domains = []
+        for entry in raw:
+            for domain, count in entry.items():
+                domains.append({'domain': domain, 'count': count})
+        domains.sort(key=lambda d: d['count'], reverse=True)
+        domains = domains[:10]
+        result = {'domains': domains}
+        _blocked_domains_cache = (result, now)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502

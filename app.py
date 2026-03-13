@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.36
+# Version: v0.3.37
 # Revised: 2026-03-12
-# Rev: 24
+# Rev: 26
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -31,6 +31,8 @@ _my_location_cache = None
 # Cache for /api/network-visibility — ISSUE-40
 # Stores (result_dict, timestamp_float) tuple; None until first call
 _net_visibility_cache = None
+_devices_cache = None
+_DEVICES_TTL = 60  # 1-minute cache for device list
 _NET_VIS_TTL = 300  # 5-minute cache — avoids hammering AdGuard on every page load
 
 # Cache for ip-api.com geo lookups — ISSUE-39
@@ -1466,6 +1468,47 @@ if __name__ == "__main__":
     debug = DEV_MODE
     app.run(host="0.0.0.0", port=port, debug=debug)
 
+
+@app.route('/api/devices')
+@login_required
+def api_devices():
+    # Rev 1 - ISSUE-18 Device List
+    # Returns all AdGuard top_clients with reverse DNS hostname lookups.
+    import time as _time
+    global _devices_cache
+    now = _time.time()
+    if _devices_cache is not None:
+        result, ts = _devices_cache
+        if now - ts < _DEVICES_TTL:
+            return jsonify(result)
+    try:
+        import urllib.request as _ur, json as _json, base64 as _b64, socket as _sock
+        cfg    = load_config()
+        user   = cfg.get('adguard_user', 'admin')
+        passwd = cfg.get('adguard_password', 'admin')
+        creds  = _b64.b64encode(f"{user}:{passwd}".encode()).decode()
+        req = _ur.Request(
+            'http://127.0.0.1:3000/control/stats',
+            headers={'Authorization': f'Basic {creds}'}
+        )
+        with _ur.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read().decode())
+        clients = data.get('top_clients', [])
+        devices = []
+        for entry in clients:
+            for ip, count in entry.items():
+                try:
+                    hostname = _sock.gethostbyaddr(ip)[0]
+                except Exception:
+                    hostname = ''
+                devices.append({'ip': ip, 'hostname': hostname, 'queries': count})
+        # Sort by query count descending
+        devices.sort(key=lambda d: d['queries'], reverse=True)
+        result = {'devices': devices}
+        _devices_cache = (result, now)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
 @app.route('/api/my-location')
 @login_required
 def api_my_location():

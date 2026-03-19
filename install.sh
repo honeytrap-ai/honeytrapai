@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.27
-# Revised: 2026-03-11
-# Rev: 5
+# Version: v0.3.46
+# Revised: 2026-03-19
+# Rev: 6
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -32,7 +32,8 @@ apt-get install -y -qq \
     git curl wget nginx avahi-daemon \
     nmap net-tools dnsutils \
     unattended-upgrades logrotate \
-    chrony traceroute
+    chrony traceroute \
+    whois openssl
 pip3 install pyyaml --quiet 2>/dev/null || true
 
 systemctl enable chrony
@@ -193,6 +194,7 @@ cfg_path = '${APP_DIR}/config/config.json'
 cfg = json.load(open(cfg_path)) if os.path.exists(cfg_path) else {}
 cfg['adguard_user'] = 'admin'
 cfg['adguard_password'] = '${ADGUARD_PASSWORD}'
+cfg['password_changed'] = False
 json.dump(cfg, open(cfg_path, 'w'), indent=2)
 "
 info "AdGuard credentials written to config.json"
@@ -203,18 +205,70 @@ echo "127.0.0.1 honeytrapai" >> /etc/hosts
 sudo mkdir -p /etc/nginx/sites-available
 sudo mkdir -p /etc/nginx/sites-enabled
 
-section "8. Configure nginx reverse proxy"
-cat > /etc/nginx/sites-available/honeytrapai << 'EOF'
+section "8. Set timezone"
+DEFAULT_TZ="UTC"
+echo ""
+echo "Available timezones can be listed with: timedatectl list-timezones"
+read -r -p "Enter timezone [${DEFAULT_TZ}]: " USER_TZ
+USER_TZ="${USER_TZ:-$DEFAULT_TZ}"
+
+if timedatectl list-timezones | grep -qx "$USER_TZ"; then
+    timedatectl set-timezone "$USER_TZ"
+    info "Timezone set to $USER_TZ"
+else
+    warn "Invalid timezone '$USER_TZ' — defaulting to $DEFAULT_TZ"
+    timedatectl set-timezone "$DEFAULT_TZ"
+    info "Timezone set to $DEFAULT_TZ"
+fi
+
+section "9. Generate self-signed TLS certificate"
+CERT_DIR="/etc/ssl/honeytrapai"
+DEVICE_IP=$(hostname -I | awk '{print $1}')
+mkdir -p "$CERT_DIR"
+
+openssl req -x509 -nodes -newkey rsa:2048 \
+    -keyout "$CERT_DIR/server.key" \
+    -out "$CERT_DIR/server.crt" \
+    -days 3650 \
+    -subj "/CN=honeytrap.local/O=HoneytrapAI/C=US" \
+    -addext "subjectAltName=DNS:honeytrap.local,IP:${DEVICE_IP}"
+
+cp "$CERT_DIR/server.crt" "$APP_DIR/static/ca.crt"
+chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/static/ca.crt"
+chmod 644 "$CERT_DIR/server.crt"
+chmod 600 "$CERT_DIR/server.key"
+info "Self-signed TLS certificate generated (SAN: honeytrap.local, $DEVICE_IP)"
+
+section "10. Configure nginx reverse proxy (HTTPS)"
+cat > /etc/nginx/sites-available/honeytrapai << EOF
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name honeytrap.local _;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name honeytrap.local _;
+
+    ssl_certificate     $CERT_DIR/server.crt;
+    ssl_certificate_key $CERT_DIR/server.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location /ca.crt {
+        alias $APP_DIR/static/ca.crt;
+        default_type application/x-x509-ca-cert;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 30s;
     }
 }
@@ -223,16 +277,16 @@ EOF
 rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/honeytrapai /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-info "nginx configured"
+info "nginx configured (HTTPS on 443, HTTP redirects to HTTPS)"
 
-section "9. Configure mDNS (honeytrap.local)"
+section "11. Configure mDNS (honeytrap.local)"
 hostname honeytrapai
 echo "honeytrapai" > /etc/hostname
 systemctl enable avahi-daemon
 systemctl start avahi-daemon
-info "mDNS configured — device accessible at http://honeytrap.local"
+info "mDNS configured — device accessible at https://honeytrap.local"
 
-section "10. Configure logrotate"
+section "12. Configure logrotate"
 # create 0644 root root — Maltrail sensor (root) writes dated logs world-readable
 # postrotate chmod — ensures rotated/new dated logs remain readable by honeytrapai service user
 cat > /etc/logrotate.d/maltrail << 'EOF'
@@ -251,7 +305,7 @@ cat > /etc/logrotate.d/maltrail << 'EOF'
 EOF
 info "Log rotation configured (30-day retention, world-readable logs)"
 
-section "11. Configure unattended upgrades (OS security patches)"
+section "13. Configure unattended upgrades (OS security patches)"
 cat > /etc/apt/apt.conf.d/20honeytrapai-unattended << 'EOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
@@ -259,14 +313,14 @@ APT::Periodic::AutocleanInterval "7";
 EOF
 info "Unattended OS security upgrades enabled"
 
-section "12. Download world map data (Live Threat Map)"
+section "14. Download world map data (Live Threat Map)"
 mkdir -p "$APP_DIR/static"
 curl -L "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" \
     -o "$APP_DIR/static/countries-110m.json"
 chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/static/countries-110m.json"
 info "Natural Earth 110m world map data downloaded"
 
-section "13. Create systemd services"
+section "15. Create systemd services"
 
 # HoneytrapAI dashboard (gunicorn)
 SECRET=$(cat "$APP_DIR/config/secret_key")
@@ -415,7 +469,7 @@ visudo -c -f /etc/sudoers.d/honeytrapai-updater || { error "Sudoers syntax check
 chmod 440 /etc/sudoers.d/honeytrapai-updater
 info "Sudoers rules added"
 
-section "14. Enable and start services"
+section "16. Enable and start services"
 systemctl daemon-reload
 systemctl enable honeytrapai honeytrapai-notifier adguardhome maltrail-sensor honeytrapai-update.timer
 systemctl enable reset-monitor.service
@@ -431,11 +485,15 @@ section "Installation complete!"
 echo ""
 echo -e "${GREEN}🐝 HoneytrapAI $HONEYTRAPAI_VERSION is installed and running.${NC}"
 echo ""
-echo "  Dashboard:  http://honeytrap.local"
-echo "  Local IP:   http://$(hostname -I | awk '{print $1}')"
+echo "  Dashboard:  https://honeytrap.local"
+echo "  Local IP:   https://$(hostname -I | awk '{print $1}')"
+echo ""
+echo "  Note: Your browser will show a security warning — this is expected."
+echo "  The device uses a self-signed certificate. You can safely proceed."
+echo "  To remove this warning, visit https://$(hostname -I | awk '{print $1}')/ca.crt"
+echo "  to download and install the device certificate on your browser."
 echo ""
 echo "  Next step: point your router's Primary DNS to this device's IP"
 echo "  Then visit the dashboard to complete setup."
 echo ""
 echo "  No cloud. No subscription. No monthly fees. Ever."
-echo ""

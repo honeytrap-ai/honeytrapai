@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.47
+# Version: v0.3.48
 # Revised: 2026-03-19
-# Rev: 7
+# Rev: 8
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -258,7 +258,9 @@ server {
     ssl_certificate_key $CERT_DIR/server.key;
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
-
+    location /static/ {
+        alias $APP_DIR/static/;
+    }
     location /ca.crt {
         alias $APP_DIR/static/ca.crt;
         default_type application/x-x509-ca-cert;

@@ -1,5 +1,5 @@
 # HoneytrapAI — app.py
-# Version: v0.3.47
+# Version: v0.3.48
 # Revised: 2026-03-19
 # Rev: 32
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.46
+# Version: v0.3.47
 # Revised: 2026-03-19
-# Rev: 6
+# Rev: 7
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -65,7 +65,7 @@ mkdir -p "$APP_DIR"
 cp -r . "$APP_DIR/"
 mkdir -p "$APP_DIR/config"
 python3 -m venv "$APP_DIR/venv"
-"$APP_DIR/venv/bin/pip" install --quiet flask gunicorn pyyaml
+"$APP_DIR/venv/bin/pip" install --quiet flask gunicorn pyyaml geoip2
 
 SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 echo "$SECRET_KEY" > "$APP_DIR/config/secret_key"
@@ -209,6 +209,7 @@ section "8. Set timezone"
 DEFAULT_TZ="UTC"
 echo ""
 echo "Available timezones can be listed with: timedatectl list-timezones"
+echo "Examples: America/Los_Angeles, America/New_York, America/Chicago, America/Denver, Europe/London"
 read -r -p "Enter timezone [${DEFAULT_TZ}]: " USER_TZ
 USER_TZ="${USER_TZ:-$DEFAULT_TZ}"
 

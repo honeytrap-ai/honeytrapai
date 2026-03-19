@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.43
-# Revised: 2026-03-13
-# Rev: 30
+# Version: v0.3.47
+# Revised: 2026-03-19
+# Rev: 32
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -453,6 +453,7 @@ def setup():
                 error = "Passwords do not match."; step = 1
             else:
                 cfg["password_hash"] = hash_password(password)
+                cfg["password_changed"] = True
                 save_config(cfg); step = 2
 
         elif step == 2:

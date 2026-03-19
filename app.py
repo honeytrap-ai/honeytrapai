@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.37
-# Revised: 2026-03-12
-# Rev: 26
+# Version: v0.3.43
+# Revised: 2026-03-13
+# Rev: 30
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -354,6 +354,11 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get("authenticated"):
             return redirect(url_for("login"))
+        # Force password change if default password has never been changed
+        cfg = load_config()
+        if not cfg.get("password_changed", True):
+            if request.endpoint != "change_password":
+                return redirect(url_for("change_password"))
         return f(*args, **kwargs)
     return decorated
 
@@ -406,6 +411,27 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Force password change on first login — ISSUE-50"""
+    error   = None
+    success = None
+    if request.method == "POST":
+        cfg     = load_config()
+        new_pw  = request.form.get("new_password", "")
+        confirm = request.form.get("confirm", "")
+        if len(new_pw) < 8:
+            error = "Password must be at least 8 characters."
+        elif new_pw != confirm:
+            error = "Passwords do not match."
+        else:
+            cfg["password_hash"]    = hash_password(new_pw)
+            cfg["password_changed"] = True
+            save_config(cfg)
+            return redirect(url_for("dashboard"))
+    return render_template("change_password.html", error=error, version=get_version())
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
@@ -872,7 +898,8 @@ def api_change_password():
     if new_pw != confirm:
         return jsonify({"error": "New passwords do not match."}), 400
 
-    cfg["password_hash"] = hash_password(new_pw)
+    cfg["password_hash"]    = hash_password(new_pw)
+    cfg["password_changed"] = True
     save_config(cfg)
     return jsonify({"status": "ok"})
 
@@ -960,7 +987,7 @@ def _perform_factory_reset():
     helper = os.path.join(BASE_DIR, "set_static_ip_helper.py")
     subprocess.run(["sudo", "python3", helper, "--remove"], capture_output=True)
 
-    preserved = {"lifetime_blocked": lifetime_blocked}
+    preserved = {"lifetime_blocked": lifetime_blocked, "password_changed": False}
     if ag_pass:
         preserved["adguard_user"]     = ag_user
         preserved["adguard_password"] = ag_pass
@@ -1467,17 +1494,12 @@ def api_tools_portscan():
     lines += ["", f"{open_count} open port(s) found."]
     return jsonify({"output": "\n".join(lines), "success": True})
 
-if __name__ == "__main__":
-    port  = int(os.environ.get("PORT", 5000))
-    debug = DEV_MODE
-    app.run(host="0.0.0.0", port=port, debug=debug)
-
+# --- Device list — ISSUE-18 ---
 
 @app.route('/api/devices')
 @login_required
 def api_devices():
     # Rev 1 - ISSUE-18 Device List
-    # Returns all AdGuard top_clients with reverse DNS hostname lookups.
     import time as _time
     global _devices_cache
     now = _time.time()
@@ -1506,13 +1528,15 @@ def api_devices():
                 except Exception:
                     hostname = ''
                 devices.append({'ip': ip, 'hostname': hostname, 'queries': count})
-        # Sort by query count descending
         devices.sort(key=lambda d: d['queries'], reverse=True)
         result = {'devices': devices}
         _devices_cache = (result, now)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 502
+
+# --- My location — ISSUE-35 ---
+
 @app.route('/api/my-location')
 @login_required
 def api_my_location():
@@ -1536,12 +1560,12 @@ def api_my_location():
     except Exception as e:
         return jsonify({'error': str(e)}), 502
 
+# --- Network visibility — ISSUE-40 ---
+
 @app.route('/api/network-visibility')
 @login_required
 def api_network_visibility():
     # Rev 1 - ISSUE-40 network visibility detection
-    # Returns {"visible": true/false} — false means Pi is not seeing external DNS clients,
-    # which indicates the router is proxying DNS rather than forwarding to the Pi directly.
     import time as _time
     global _net_visibility_cache
     now = _time.time()
@@ -1564,7 +1588,6 @@ def api_network_visibility():
         pi_ip   = cfg.get('static_ip', '192.168.1.199')
         gateway = cfg.get('gateway', '')
         pi_ips  = {'127.0.0.1', '::1', pi_ip}
-        # top_clients is a list of single-key dicts: [{"1.2.3.4": 42}, ...]
         clients  = data.get('top_clients', [])
         external = [ip for entry in clients for ip in entry.keys() if ip not in pi_ips]
         if not external:
@@ -1574,10 +1597,12 @@ def api_network_visibility():
         else:
             result = {'visible': True}
     except Exception as e:
-        # Fail open — don't false-alarm if AdGuard is temporarily unreachable
         result = {'visible': True, 'error': str(e)}
     _net_visibility_cache = (result, now)
     return jsonify(result)
+
+# --- Top blocked domains — ISSUE-17 ---
+
 @app.route('/api/blocked-domains')
 @login_required
 def api_blocked_domains():
@@ -1614,13 +1639,13 @@ def api_blocked_domains():
     except Exception as e:
         return jsonify({'error': str(e)}), 502
 
+# --- Whois — ISSUE-21 ---
 
 @app.route('/api/whois')
 def api_whois():
     domain = request.args.get('domain', '').strip().lower()
     if not domain:
         return jsonify({'error': 'No domain provided'})
-    # Strip protocol/path if user pastes a URL
     import re as _re
     domain = _re.sub(r'^https?://', '', domain).split('/')[0]
     try:
@@ -1641,34 +1666,11 @@ def api_whois():
                 return m.group(1).strip()
         return ''
 
-    registrar = _extract([
-        r'^Registrar:\s*(.+)$',
-        r'^registrar:\s*(.+)$',
-    ], raw)
-    created = _extract([
-        r'^Creation Date:\s*(.+)$',
-        r'^created:\s*(.+)$',
-        r'^Registered on:\s*(.+)$',
-    ], raw)
-    expires = _extract([
-        r'^Registry Expiry Date:\s*(.+)$',
-        r'^Expiry Date:\s*(.+)$',
-        r'^expires:\s*(.+)$',
-    ], raw)
-    org = _extract([
-        r'^Registrant Organization:\s*(.+)$',
-        r'^org-name:\s*(.+)$',
-        r'^Organization:\s*(.+)$',
-    ], raw)
-    country = _extract([
-        r'^Registrant Country:\s*(.+)$',
-        r'^country:\s*(.+)$',
-    ], raw)
-
-    # Trim ISO timestamps to date only
-    for val in [created, expires]:
-        if 'T' in val:
-            val = val.split('T')[0]
+    registrar = _extract([r'^Registrar:\s*(.+)$', r'^registrar:\s*(.+)$'], raw)
+    created   = _extract([r'^Creation Date:\s*(.+)$', r'^created:\s*(.+)$', r'^Registered on:\s*(.+)$'], raw)
+    expires   = _extract([r'^Registry Expiry Date:\s*(.+)$', r'^Expiry Date:\s*(.+)$', r'^expires:\s*(.+)$'], raw)
+    org       = _extract([r'^Registrant Organization:\s*(.+)$', r'^org-name:\s*(.+)$', r'^Organization:\s*(.+)$'], raw)
+    country   = _extract([r'^Registrant Country:\s*(.+)$', r'^country:\s*(.+)$'], raw)
 
     return jsonify({
         'domain':    domain,
@@ -1679,6 +1681,7 @@ def api_whois():
         'country':   country,
     })
 
+# --- Domain allowlist — ISSUE-44 ---
 
 @app.route('/api/allowlist')
 @login_required
@@ -1708,7 +1711,6 @@ def api_allowlist():
     except Exception as e:
         return jsonify({'error': str(e)}), 502
 
-
 @app.route('/api/allowlist/add', methods=['POST'])
 @login_required
 def api_allowlist_add():
@@ -1726,7 +1728,6 @@ def api_allowlist_add():
     _allowlist_cache = None
     return jsonify({'ok': True, 'domain': domain})
 
-
 @app.route('/api/allowlist/remove', methods=['POST'])
 @login_required
 def api_allowlist_remove():
@@ -1741,3 +1742,38 @@ def api_allowlist_remove():
     _remove_adguard_rules(cfg, [rule])
     _allowlist_cache = None
     return jsonify({'ok': True, 'domain': domain})
+
+# --- AdGuard filtering toggle — ISSUE-15 ---
+
+@app.route('/api/filtering/status')
+@login_required
+def api_filtering_status():
+    # Rev 1 - ISSUE-15 AdGuard Filtering Toggle
+    # Returns current AdGuard filtering enabled state, read live from AdGuard.
+    try:
+        cfg    = load_config()
+        status, body = _ag_request(cfg, "GET", "/control/filtering/status")
+        data   = json.loads(body)
+        return jsonify({"enabled": bool(data.get("enabled", True))})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+@app.route('/api/filtering/toggle', methods=['POST'])
+@login_required
+def api_filtering_toggle():
+    # Rev 1 - ISSUE-15 AdGuard Filtering Toggle
+    # Enables or disables AdGuard DNS filtering. State is NOT stored in config.json —
+    # always read live from AdGuard so there is no state drift.
+    data    = request.get_json() or {}
+    enabled = bool(data.get("enabled", True))
+    try:
+        cfg = load_config()
+        _ag_request(cfg, "POST", "/control/filtering/config", {"enabled": enabled})
+        return jsonify({"enabled": enabled})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+if __name__ == "__main__":
+    port  = int(os.environ.get("PORT", 5000))
+    debug = DEV_MODE
+    app.run(host="0.0.0.0", port=port, debug=debug)

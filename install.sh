@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.48
+# Version: v0.3.49
 # Revised: 2026-03-19
-# Rev: 8
+# Rev: 9
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
@@ -15,6 +15,8 @@ LOG_DIR="/var/log/maltrail"
 MALTRAIL_DIR="/opt/maltrail"
 ADGUARD_DIR="/opt/AdGuardHome"
 ADGUARD_VERSION="v0.107.43"
+MAXMIND_ACCOUNT_ID="1311547"
+MAXMIND_LICENSE_KEY="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"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()    { echo -e "${GREEN}[✓]${NC} $*"; }
@@ -64,6 +66,7 @@ section "4. Install HoneytrapAI app"
 mkdir -p "$APP_DIR"
 cp -r . "$APP_DIR/"
 mkdir -p "$APP_DIR/config"
+mkdir -p "$APP_DIR/data"
 python3 -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --quiet flask gunicorn pyyaml geoip2
 
@@ -323,7 +326,19 @@ curl -L "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" \
 chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/static/countries-110m.json"
 info "Natural Earth 110m world map data downloaded"
 
-section "15. Create systemd services"
+section "15. Download MaxMind GeoLite2 database (Threat Map geolocation)"
+mkdir -p "$APP_DIR/data"
+curl -L \
+    -u "${MAXMIND_ACCOUNT_ID}:${MAXMIND_LICENSE_KEY}" \
+    "https://download.maxmind.com/geoip/databases/GeoLite2-Country/download?suffix=tar.gz" \
+    -o /tmp/GeoLite2-Country.tar.gz
+tar -xzf /tmp/GeoLite2-Country.tar.gz -C /tmp/
+cp /tmp/GeoLite2-Country_*/GeoLite2-Country.mmdb "$APP_DIR/data/"
+chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/data/GeoLite2-Country.mmdb"
+rm -rf /tmp/GeoLite2-Country*
+info "MaxMind GeoLite2-Country database installed"
+
+section "16. Create systemd services"
 
 # HoneytrapAI dashboard (gunicorn)
 SECRET=$(cat "$APP_DIR/config/secret_key")
@@ -472,7 +487,7 @@ visudo -c -f /etc/sudoers.d/honeytrapai-updater || { error "Sudoers syntax check
 chmod 440 /etc/sudoers.d/honeytrapai-updater
 info "Sudoers rules added"
 
-section "16. Enable and start services"
+section "17. Enable and start services"
 systemctl daemon-reload
 systemctl enable honeytrapai honeytrapai-notifier adguardhome maltrail-sensor honeytrapai-update.timer
 systemctl enable reset-monitor.service

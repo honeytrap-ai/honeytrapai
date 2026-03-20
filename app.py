@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.48
-# Revised: 2026-03-19
-# Rev: 32
+# Version: v0.3.53
+# Revised: 2026-03-20
+# Rev: 37
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -29,25 +29,22 @@ app = Flask(__name__)
 _my_location_cache = None
 
 # Cache for /api/network-visibility — ISSUE-40
-# Stores (result_dict, timestamp_float) tuple; None until first call
 _net_visibility_cache = None
 _devices_cache = None
-_DEVICES_TTL = 60  # 1-minute cache for device list
+_DEVICES_TTL = 60
 _blocked_domains_cache = None
-_BLOCKED_DOMAINS_TTL = 60  # 1-minute cache for blocked domains list
+_BLOCKED_DOMAINS_TTL = 60
 _allowlist_cache = None
-_ALLOWLIST_TTL   = 30   # 30-second cache — short so toggles feel instant
-_NET_VIS_TTL = 300  # 5-minute cache — avoids hammering AdGuard on every page load
+_ALLOWLIST_TTL   = 30
+_NET_VIS_TTL = 300
 
 # Cache for ip-api.com geo lookups — ISSUE-39
-# Key: IP string → {"lat": float, "lon": float, "city": str}
 _geo_cache = {}
 
 # Rate limit tracker for ip-api.com — ISSUE-39
-# Free tier: 45 req/min. Reset every 60s.
 _geo_rate_lock = threading.Lock()
 _geo_rate = {"count": 0, "window_start": None}
-_GEO_RATE_LIMIT = 40  # stay safely under the 45/min hard limit
+_GEO_RATE_LIMIT = 40
 
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
@@ -63,12 +60,25 @@ DEV_MODE    = os.environ.get("HONEYTRAPAI_DEV", "0") == "1"
 IPDENY_URL       = "https://www.ipdeny.com/ipblocks/data/countries/{cc}.zone"
 HERRBISCHOFF_URL = "https://raw.githubusercontent.com/herrbischoff/country-ip-blocks/master/ipv4/{cc}.cidr"
 
+# --- Parental Controls — ISSUE-11 ---
+PARENTAL_CATEGORIES = {
+    "adult":    "Adult/Pornography",
+    "gambling": "Gambling",
+    "dating":   "Dating Sites",
+    "drugs":    "Drug-Related Content",
+    "violence": "Violence/Gore",
+    "piracy":   "Piracy/Torrents",
+    "vpn":      "Proxy/VPN Bypass Sites",
+}
+
+def _pc_tag(category):
+    return f"# honeytrapai-parental-{category}"
+
 # --- Lifetime blocked counter state ---
 _last_num_blocked      = None
 _lifetime_blocked_lock = threading.Lock()
 
-# --- Country centroid lookup — ISO 3166-1 alpha-2 → (lat, lon) ---
-# Used as fallback when ip-api.com is unavailable or rate-limited (ISSUE-39)
+# --- Country centroid lookup ---
 COUNTRY_CENTROIDS = {
     "AD":(42.55,1.57),"AE":(24.00,54.00),"AF":(33.00,65.00),"AG":(17.07,-61.80),
     "AL":(41.00,20.00),"AM":(40.00,45.00),"AO":(-11.20,17.87),"AR":(-34.00,-64.00),
@@ -124,25 +134,12 @@ COUNTRY_CENTROIDS = {
 # --- Geo lookup helper — ISSUE-39 ---
 
 def _resolve_geo(ip, country_code):
-    """Return (lat, lon, city) for a threat IP.
-
-    Priority:
-      1. Process-lifetime _geo_cache hit → free, instant
-      2. ip-api.com live lookup → city-level precision
-         (skipped if rate limit reached this window)
-      3. COUNTRY_CENTROIDS fallback → country-center dot (same as pre-ISSUE-39)
-
-    Rate limit: ip-api.com free tier = 45 req/min.
-    We cap at _GEO_RATE_LIMIT (40) per 60s window to stay safely under.
-    """
     global _geo_cache, _geo_rate
 
-    # 1. Cache hit
     if ip in _geo_cache:
         c = _geo_cache[ip]
         return c["lat"], c["lon"], c.get("city", "")
 
-    # 2. Rate limit check
     now = datetime.utcnow()
     can_call = False
     with _geo_rate_lock:
@@ -168,12 +165,10 @@ def _resolve_geo(ip, country_code):
                 _geo_cache[ip] = {"lat": lat, "lon": lon, "city": city}
                 return lat, lon, city
         except Exception:
-            pass  # fall through to centroid
+            pass
 
-    # 3. COUNTRY_CENTROIDS fallback
     if country_code in COUNTRY_CENTROIDS:
         lat, lon = COUNTRY_CENTROIDS[country_code]
-        # Cache centroid result too so we don't keep hitting the rate check
         _geo_cache[ip] = {"lat": lat, "lon": lon, "city": ""}
         return lat, lon, ""
 
@@ -269,7 +264,6 @@ def render_markdown(text):
 
 # --- Network helpers ---
 def is_private_ip(ip_str):
-    """Return True if ip_str is RFC1918, loopback, link-local, or otherwise non-routable."""
     try:
         addr = ipaddress.ip_address(ip_str)
         return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_unspecified
@@ -354,7 +348,6 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get("authenticated"):
             return redirect(url_for("login"))
-        # Force password change if default password has never been changed
         cfg = load_config()
         if not cfg.get("password_changed", True):
             if request.endpoint != "change_password":
@@ -444,6 +437,7 @@ def setup():
     net   = get_network_info()
 
     if request.method == "POST":
+
         if step == 1:
             password = request.form.get("password", "")
             confirm  = request.form.get("confirm", "")
@@ -457,20 +451,39 @@ def setup():
                 save_config(cfg); step = 2
 
         elif step == 2:
+            tz = request.form.get("timezone", "").strip()
+            if not tz:
+                error = "Please confirm your timezone before continuing."; step = 2
+            elif not re.match(r'^[A-Za-z_]+(/[A-Za-z_]+){0,2}$', tz) and tz != "UTC":
+                error = "Invalid timezone selected."; step = 2
+            else:
+                try:
+                    subprocess.run(
+                        ["sudo", "timedatectl", "set-timezone", tz],
+                        capture_output=True, text=True, timeout=10, check=True
+                    )
+                except Exception as e:
+                    error = f"Could not set timezone: {e}"; step = 2
+                if not error:
+                    cfg["timezone"] = tz
+                    save_config(cfg)
+                    step = 3
+
+        elif step == 3:
             action = request.form.get("action", "save")
             if action == "skip":
                 cfg["static_ip_skipped"] = True
                 cfg["interface"] = "eth0"
-                save_config(cfg); step = 3
+                save_config(cfg); step = 4
             else:
                 entered_ip = request.form.get("static_ip", "").strip()
                 if not entered_ip:
-                    error = "Please enter an IP address, or choose Skip."; step = 2
+                    error = "Please enter an IP address, or choose Skip."; step = 3
                 elif not validate_same_subnet(entered_ip, net["network"]):
                     error = (
                         f"'{entered_ip}' is not a valid address within your subnet "
                         f"({net['network']}). Please enter an IP in that range."
-                    ); step = 2
+                    ); step = 3
                 else:
                     try:
                         set_static_ip(
@@ -483,15 +496,15 @@ def setup():
                         cfg["static_ip_skipped"] = False
                         cfg["gateway"]           = net["gateway"]
                         cfg["interface"]         = "eth0"
-                        save_config(cfg); step = 3
+                        save_config(cfg); step = 4
                     except Exception as e:
-                        error = f"Could not write static IP configuration: {e}"; step = 2
+                        error = f"Could not write static IP configuration: {e}"; step = 3
 
-        elif step == 3:
+        elif step == 4:
             alert_email = request.form.get("alert_email", "").strip()
-            cfg["alert_email"]   = alert_email
-            cfg["setup_complete"]= True
-            cfg["setup_date"]    = datetime.utcnow().isoformat()
+            cfg["alert_email"]    = alert_email
+            cfg["setup_complete"] = True
+            cfg["setup_date"]     = datetime.utcnow().isoformat()
             save_config(cfg)
 
             smtp_host = request.form.get("smtp_host", "").strip()
@@ -560,6 +573,28 @@ def api_terms_accept():
     cfg["terms_accepted_date"] = datetime.utcnow().isoformat()
     save_config(cfg)
     return jsonify({"status": "ok"})
+
+@app.route("/api/setup/timezone", methods=["POST"])
+def api_setup_timezone():
+    data = request.get_json() or {}
+    tz   = data.get("timezone", "").strip()
+    if not tz or len(tz) > 64:
+        return jsonify({"error": "Invalid timezone."}), 400
+    if not re.match(r'^[A-Za-z_]+(/[A-Za-z_]+){0,2}$', tz) and tz != "UTC":
+        return jsonify({"error": "Invalid timezone format."}), 400
+    try:
+        result = subprocess.run(
+            ["sudo", "timedatectl", "set-timezone", tz],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            raise Exception(result.stderr.strip() or "timedatectl failed")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    cfg = load_config()
+    cfg["timezone"] = tz
+    save_config(cfg)
+    return jsonify({"status": "ok", "timezone": tz})
 
 # --- API endpoints ---
 @app.route("/api/stats")
@@ -631,14 +666,12 @@ def api_stats():
 @app.route("/api/threat-map")
 @login_required
 def api_threat_map():
-    # Rev 4 — ISSUE-39: city-level dots via ip-api.com; COUNTRY_CENTROIDS as fallback
     try:
         db_path  = "/opt/honeytrapai/data/GeoLite2-Country.mmdb"
         log_dir  = "/var/log/maltrail/"
         cutoff   = datetime.utcnow() - timedelta(hours=24)
         events   = []
 
-        # Dated sensor logs (today + yesterday) + rolling maltrail.log (simulated threats)
         log_files = []
         for delta in (0, 1):
             d = datetime.utcnow() - timedelta(days=delta)
@@ -649,28 +682,23 @@ def api_threat_map():
             log_files.append(maltrail_log)
 
         def parse_line(line):
-            """Parse both log formats. Returns (ts, src_ip, trail, info) or None."""
             line = line.strip()
             if not line:
                 return None
             if line.startswith('"'):
-                # Sensor format:
-                # "2026-03-10 21:11:32.588435" host src_ip src_port dst_ip dst_port proto trail info...
                 try:
                     ts_str, rest = line[1:].split('"', 1)
                     ts    = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S")
                     parts = rest.strip().split(" ")
                     if len(parts) < 7:
                         return None
-                    src_ip = parts[1]   # 0=host, 1=src_ip
+                    src_ip = parts[1]
                     trail  = parts[6]
                     info   = " ".join(parts[7:]) if len(parts) > 7 else ""
                     return ts, src_ip, trail, info
                 except Exception:
                     return None
             else:
-                # Simulated format:
-                # 2026-03-11 03:06:11 honeytrap src_ip src_port dst_ip dst_port proto trail info...
                 try:
                     parts = line.split(" ")
                     if len(parts) < 10:
@@ -696,11 +724,9 @@ def api_threat_map():
                             if ts < cutoff:
                                 continue
 
-                            # Skip private/loopback
                             if is_private_ip(src_ip):
                                 continue
 
-                            # GeoIP lookup — still needed for country_code (country blocking)
                             try:
                                 geo          = reader.country(src_ip)
                                 country_code = geo.country.iso_code or ""
@@ -708,13 +734,10 @@ def api_threat_map():
                             except Exception:
                                 continue
 
-                            # City-level geo — ISSUE-39
-                            # _resolve_geo tries ip-api.com first, falls back to COUNTRY_CENTROIDS
                             lat, lon, city = _resolve_geo(src_ip, country_code)
                             if lat is None or lon is None:
                                 continue
 
-                            # Severity classification
                             il = info.lower()
                             if any(x in il for x in ["malware","c2","botnet","ransomware","rat","backdoor","trojan","exploit"]):
                                 severity = "high"
@@ -970,6 +993,7 @@ def api_factory_reset():
     return jsonify({"status": "ok"})
 
 def _perform_factory_reset():
+    """ISSUE-66 — clear AdGuard PC rules before wiping config."""
     existing = {}
     if os.path.exists(CONFIG_PATH):
         try:
@@ -980,6 +1004,15 @@ def _perform_factory_reset():
     ag_user          = existing.get("adguard_user", "admin")
     ag_pass          = existing.get("adguard_password", "")
     lifetime_blocked = existing.get("lifetime_blocked", 0)
+
+    # ISSUE-66: clear all HoneytrapAI-managed AdGuard rules before reset
+    try:
+        existing_rules = _get_adguard_user_rules(existing)
+        clean_rules = [r for r in existing_rules
+                       if not r.strip().startswith("# honeytrapai-parental-")]
+        _set_adguard_user_rules(existing, clean_rules)
+    except Exception:
+        pass
 
     for path in [CONFIG_PATH, SMTP_PATH]:
         if os.path.exists(path):
@@ -999,8 +1032,6 @@ def _perform_factory_reset():
 # --- Country blocking helpers ---
 
 def _fetch_cidrs(cc):
-    """Fetch CIDR list for country code cc. Primary: ipdeny, fallback: herrbischoff.
-    Returns list of CIDR strings, or raises Exception on total failure."""
     import urllib.request as _ur
     cc_lower = cc.lower()
     for url_tpl in (IPDENY_URL, HERRBISCHOFF_URL):
@@ -1021,7 +1052,6 @@ def _adguard_rule(cidr):
     return f"||{cidr}^$network"
 
 def _ag_request(cfg, method, path, payload=None):
-    """Make an authenticated request to the local AdGuard API."""
     import urllib.request as _ur, base64 as _b64
     ag_user = cfg.get("adguard_user", "admin")
     ag_pass = cfg.get("adguard_password", "")
@@ -1036,7 +1066,6 @@ def _ag_request(cfg, method, path, payload=None):
         return r.status, r.read()
 
 def _get_adguard_user_rules(cfg):
-    """Fetch current user rules list from AdGuard. Returns list of rule strings."""
     try:
         status, body = _ag_request(cfg, "GET", "/control/filtering/status")
         data = json.loads(body)
@@ -1045,7 +1074,6 @@ def _get_adguard_user_rules(cfg):
         return []
 
 def _set_adguard_user_rules(cfg, rules):
-    """Replace AdGuard user rules with the given list. Returns True on success."""
     try:
         status, _ = _ag_request(cfg, "POST", "/control/filtering/set_rules",
                                  {"rules": rules})
@@ -1054,8 +1082,6 @@ def _set_adguard_user_rules(cfg, rules):
         return False
 
 def _add_adguard_rules(cfg, rules):
-    """Add rules to AdGuard by merging with existing user rules.
-    Returns (added_count, error_or_None)."""
     if not rules:
         return 0, None
     existing = _get_adguard_user_rules(cfg)
@@ -1069,8 +1095,6 @@ def _add_adguard_rules(cfg, rules):
     return 0, "AdGuard rejected the rule update."
 
 def _remove_adguard_rules(cfg, rules):
-    """Remove rules from AdGuard user rules list.
-    Returns count of rules removed."""
     if not rules:
         return 0
     rules_set = set(rules)
@@ -1359,6 +1383,7 @@ def api_threats_purge():
 @app.route("/api/restore", methods=["POST"])
 @login_required
 def api_restore():
+    """ISSUE-65 — re-sync AdGuard parental control rules after restore."""
     try:
         f = request.files.get("backup")
         if not f:
@@ -1370,6 +1395,14 @@ def api_restore():
             os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
             with open(SMTP_PATH, "w") as sf:
                 json.dump(backup["smtp"], sf, indent=2)
+        # Re-sync AdGuard parental control rules from restored config
+        cfg = load_config()
+        pc  = cfg.get("parental_controls", {})
+        if pc:
+            try:
+                _pc_apply_all(cfg, pc)
+            except Exception:
+                pass
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1500,7 +1533,6 @@ def api_tools_portscan():
 @app.route('/api/devices')
 @login_required
 def api_devices():
-    # Rev 1 - ISSUE-18 Device List
     import time as _time
     global _devices_cache
     now = _time.time()
@@ -1541,20 +1573,20 @@ def api_devices():
 @app.route('/api/my-location')
 @login_required
 def api_my_location():
-    # Rev 1 - ISSUE-35 You Are Here marker
     global _my_location_cache
     if _my_location_cache is not None:
         return jsonify(_my_location_cache)
     try:
         import urllib.request, json as _json
-        with urllib.request.urlopen('http://ip-api.com/json/?fields=status,lat,lon,city,isp', timeout=5) as resp:
+        with urllib.request.urlopen('http://ip-api.com/json/?fields=status,lat,lon,city,isp,timezone', timeout=5) as resp:
             data = _json.loads(resp.read().decode())
         if data.get('status') == 'success':
             _my_location_cache = {
-                'lat': data['lat'],
-                'lon': data['lon'],
-                'city': data.get('city', ''),
-                'isp': data.get('isp', '')
+                'lat':      data['lat'],
+                'lon':      data['lon'],
+                'city':     data.get('city', ''),
+                'isp':      data.get('isp', ''),
+                'timezone': data.get('timezone', ''),
             }
             return jsonify(_my_location_cache)
         return jsonify({'error': 'ip-api lookup failed'}), 502
@@ -1566,7 +1598,6 @@ def api_my_location():
 @app.route('/api/network-visibility')
 @login_required
 def api_network_visibility():
-    # Rev 1 - ISSUE-40 network visibility detection
     import time as _time
     global _net_visibility_cache
     now = _time.time()
@@ -1607,7 +1638,6 @@ def api_network_visibility():
 @app.route('/api/blocked-domains')
 @login_required
 def api_blocked_domains():
-    # Rev 1 - ISSUE-17 Top Blocked Domains List
     import time as _time
     global _blocked_domains_cache
     now = _time.time()
@@ -1687,7 +1717,6 @@ def api_whois():
 @app.route('/api/allowlist')
 @login_required
 def api_allowlist():
-    # Rev 1 - ISSUE-44 Domain Allowlist Manager
     import time as _time
     global _allowlist_cache
     now = _time.time()
@@ -1715,7 +1744,6 @@ def api_allowlist():
 @app.route('/api/allowlist/add', methods=['POST'])
 @login_required
 def api_allowlist_add():
-    # Rev 1 - ISSUE-44 Domain Allowlist Manager
     global _allowlist_cache
     data   = request.get_json() or {}
     domain = data.get('domain', '').strip().lower()
@@ -1732,7 +1760,6 @@ def api_allowlist_add():
 @app.route('/api/allowlist/remove', methods=['POST'])
 @login_required
 def api_allowlist_remove():
-    # Rev 1 - ISSUE-44 Domain Allowlist Manager
     global _allowlist_cache
     data   = request.get_json() or {}
     domain = data.get('domain', '').strip().lower()
@@ -1749,8 +1776,6 @@ def api_allowlist_remove():
 @app.route('/api/filtering/status')
 @login_required
 def api_filtering_status():
-    # Rev 1 - ISSUE-15 AdGuard Filtering Toggle
-    # Returns current AdGuard filtering enabled state, read live from AdGuard.
     try:
         cfg    = load_config()
         status, body = _ag_request(cfg, "GET", "/control/filtering/status")
@@ -1762,9 +1787,6 @@ def api_filtering_status():
 @app.route('/api/filtering/toggle', methods=['POST'])
 @login_required
 def api_filtering_toggle():
-    # Rev 1 - ISSUE-15 AdGuard Filtering Toggle
-    # Enables or disables AdGuard DNS filtering. State is NOT stored in config.json —
-    # always read live from AdGuard so there is no state drift.
     data    = request.get_json() or {}
     enabled = bool(data.get("enabled", True))
     try:
@@ -1773,6 +1795,303 @@ def api_filtering_toggle():
         return jsonify({"enabled": enabled})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
+# --- Security Score — ISSUE-57 ---
+# Scoring breakdown (100pts total):
+#   AdGuard Running        15pts
+#   DNS Filtering ON       15pts
+#   HTTPS Enabled          10pts
+#   Password Changed       10pts
+#   Email Notifications    10pts
+#   Parental Controls      10pts
+#   Threat Block Rate 24h   0-30pts
+
+@app.route('/api/security-score')
+@login_required
+def api_security_score():
+    score   = 0
+    signals = {}
+    cfg     = load_config()
+
+    # AdGuard service running (15pts)
+    try:
+        r = subprocess.run(["systemctl", "is-active", "adguardhome"],
+                           capture_output=True, text=True)
+        ag_running = r.stdout.strip() == "active"
+    except Exception:
+        ag_running = False
+    signals["adguard_running"] = {
+        "label": "AdGuard Running", "ok": ag_running,
+        "points": 15, "earned": 15 if ag_running else 0, "fix": None
+    }
+    score += signals["adguard_running"]["earned"]
+
+    # AdGuard DNS filtering ON (15pts)
+    try:
+        _, body = _ag_request(cfg, "GET", "/control/filtering/status")
+        ag_on = bool(json.loads(body).get("enabled", False))
+    except Exception:
+        ag_on = False
+    signals["adguard_filtering"] = {
+        "label": "DNS Filtering", "ok": ag_on,
+        "points": 15, "earned": 15 if ag_on else 0, "fix": "filtering"
+    }
+    score += signals["adguard_filtering"]["earned"]
+
+    # HTTPS enabled — nginx listening on 443 (10pts)
+    try:
+        r = subprocess.run(["ss", "-tlnp", "sport", "=", ":443"],
+                           capture_output=True, text=True, timeout=5)
+        https_on = ":443" in r.stdout
+    except Exception:
+        https_on = False
+    signals["https"] = {
+        "label": "HTTPS Enabled", "ok": https_on,
+        "points": 10, "earned": 10 if https_on else 0, "fix": None
+    }
+    score += signals["https"]["earned"]
+
+    # Password changed from default (10pts)
+    pw_changed = bool(cfg.get("password_changed", False))
+    signals["password_changed"] = {
+        "label": "Password Changed", "ok": pw_changed,
+        "points": 10, "earned": 10 if pw_changed else 0, "fix": "password"
+    }
+    score += signals["password_changed"]["earned"]
+
+    # Email notifications configured (10pts)
+    smtp_ok = False
+    try:
+        if os.path.exists(SMTP_PATH):
+            with open(SMTP_PATH) as f:
+                smtp_ok = bool(json.load(f).get("host", "").strip())
+    except Exception:
+        smtp_ok = False
+    signals["email_configured"] = {
+        "label": "Email Notifications", "ok": smtp_ok,
+        "points": 10, "earned": 10 if smtp_ok else 0, "fix": "notifications"
+    }
+    score += signals["email_configured"]["earned"]
+
+    # Parental Controls enabled (10pts)
+    pc_cfg = cfg.get("parental_controls", {})
+    pc_on  = bool(pc_cfg.get("enabled", False))
+    signals["parental_controls"] = {
+        "label": "Parental Controls", "ok": pc_on,
+        "points": 10, "earned": 10 if pc_on else 0, "fix": "parental"
+    }
+    score += signals["parental_controls"]["earned"]
+
+    # Block rate last 24h (0-30pts, no grace — 0 queries = 0pts)
+    block_pts = 0
+    block_pct = None
+    queries_24h = 0
+    blocked_24h = 0
+    try:
+        import urllib.request as _ur, base64 as _b64
+        ag_user = cfg.get("adguard_user", "admin")
+        ag_pass = cfg.get("adguard_password", "")
+        token   = _b64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+        req     = _ur.Request("http://127.0.0.1:3000/control/stats",
+                              headers={"Authorization": f"Basic {token}"})
+        with _ur.urlopen(req, timeout=3) as r:
+            ag_stats = json.loads(r.read())
+        queries_24h = sum(list(ag_stats.get("dns_queries",       []))[-24:])
+        blocked_24h = sum(list(ag_stats.get("blocked_filtering", []))[-24:])
+        if queries_24h > 0:
+            block_pct = blocked_24h / queries_24h
+            block_pts = round(block_pct * 30)
+    except Exception:
+        pass
+    signals["block_rate"] = {
+        "label":       "Threat Block Rate (24h)",
+        "ok":          block_pts >= 15,
+        "points":      30,
+        "earned":      block_pts,
+        "fix":         None,
+        "block_pct":   round(block_pct * 100, 1) if block_pct is not None else None,
+        "queries_24h": queries_24h,
+        "blocked_24h": blocked_24h,
+    }
+    score += block_pts
+
+    # Grade
+    if score >= 90:
+        grade = "A"
+    elif score >= 75:
+        grade = "B"
+    elif score >= 50:
+        grade = "C"
+    elif score >= 25:
+        grade = "D"
+    else:
+        grade = "F"
+
+    return jsonify({
+        "score":   score,
+        "grade":   grade,
+        "signals": signals,
+    })
+
+# --- Parental Controls — ISSUE-11 ---
+
+PARENTAL_RULES = {
+    "adult": [
+        "||pornhub.com^", "||xvideos.com^", "||xnxx.com^", "||xhamster.com^",
+        "||redtube.com^", "||youporn.com^", "||tube8.com^", "||spankbang.com^",
+        "||beeg.com^", "||tnaflix.com^", "||porntrex.com^", "||4tube.com^",
+        "||keezmovies.com^", "||xtube.com^", "||slutload.com^",
+    ],
+    "gambling": [
+        "||bet365.com^", "||draftkings.com^", "||fanduel.com^", "||betway.com^",
+        "||888casino.com^", "||pokerstars.com^", "||bovada.lv^", "||mybookie.ag^",
+        "||betonline.ag^", "||sportsbetting.ag^", "||betmgm.com^", "||caesars.com^",
+        "||pointsbet.com^", "||unibet.com^", "||williamhill.com^",
+    ],
+    "dating": [
+        "||tinder.com^", "||match.com^", "||okcupid.com^", "||plentyoffish.com^",
+        "||eharmony.com^", "||bumble.com^", "||hinge.co^", "||grindr.com^",
+        "||scruff.com^", "||adult-friend-finder.com^", "||adultfriendfinder.com^",
+        "||ashley-madison.com^", "||ashleymadison.com^", "||zoosk.com^",
+    ],
+    "drugs": [
+        "||silk-road.com^", "||weedmaps.com^", "||leafly.com^",
+        "||erowid.org^", "||bluelight.org^", "||shroomery.org^",
+        "||dea.gov^$badfilter",
+    ],
+    "violence": [
+        "||bestgore.com^", "||liveleak.com^", "||goregrish.com^",
+        "||theync.com^", "||ogrish.com^", "||efukt.com^",
+    ],
+    "piracy": [
+        "||thepiratebay.org^", "||1337x.to^", "||rarbg.to^", "||nyaa.si^",
+        "||kickasstorrents.to^", "||limetorrents.info^", "||torrentgalaxy.to^",
+        "||torlock.com^", "||yts.mx^", "||eztv.re^", "||zooqle.com^",
+        "||glotorrents.pw^", "||torrent9.ph^", "||torrentz2.eu^",
+    ],
+    "vpn": [
+        "||ultrasurf.us^", "||psiphon.ca^", "||anonymouse.org^",
+        "||hidemyass.com^", "||proxify.com^", "||kproxy.com^",
+        "||hide.me^", "||proxysite.com^", "||filterbypass.me^",
+        "||unblockproject.cyou^", "||croxyproxy.com^",
+    ],
+}
+
+def _pc_rules_for_category(category):
+    return PARENTAL_RULES.get(category, [])
+
+def _pc_tagged_rules(category):
+    tag = _pc_tag(category)
+    rules = _pc_rules_for_category(category)
+    if not rules:
+        return []
+    return [tag] + rules
+
+def _pc_remove_category_rules(cfg, category):
+    tag = _pc_tag(category)
+    existing = _get_adguard_user_rules(cfg)
+    kept = []
+    skip = False
+    for rule in existing:
+        if rule.strip() == tag:
+            skip = True
+            continue
+        if skip and rule.strip().startswith("# honeytrapai-parental-"):
+            skip = False
+        if not skip:
+            kept.append(rule)
+    if len(kept) != len(existing):
+        _set_adguard_user_rules(cfg, kept)
+
+def _pc_add_category_rules(cfg, category):
+    tag = _pc_tag(category)
+    existing = _get_adguard_user_rules(cfg)
+    if tag in existing:
+        return
+    new_rules = _pc_tagged_rules(category)
+    if new_rules:
+        _set_adguard_user_rules(cfg, existing + new_rules)
+
+def _pc_apply_all(cfg, pc_cfg):
+    if not pc_cfg.get("enabled"):
+        for cat in PARENTAL_CATEGORIES:
+            _pc_remove_category_rules(cfg, cat)
+        return
+    cats_on = pc_cfg.get("categories", {})
+    for cat in PARENTAL_CATEGORIES:
+        if cats_on.get(cat, True):
+            _pc_add_category_rules(cfg, cat)
+        else:
+            _pc_remove_category_rules(cfg, cat)
+
+def _pc_apply_to_clients(cfg, pc_cfg):
+    # Stub for future per-device implementation
+    pass
+
+@app.route('/api/parental-controls', methods=['GET', 'POST'])
+@login_required
+def api_parental_controls():
+    cfg = load_config()
+
+    if request.method == 'GET':
+        pc = cfg.get("parental_controls", {
+            "enabled": False,
+            "categories": {cat: True for cat in PARENTAL_CATEGORIES},
+            "devices": [],
+            "custom_domains": [],
+        })
+        pc.setdefault("categories", {cat: True for cat in PARENTAL_CATEGORIES})
+        pc.setdefault("devices", [])
+        pc.setdefault("custom_domains", [])
+        return jsonify({"parental_controls": pc, "category_labels": PARENTAL_CATEGORIES})
+
+    data = request.get_json() or {}
+    pc = data.get("parental_controls", {})
+
+    if not isinstance(pc, dict):
+        return jsonify({"error": "Invalid payload."}), 400
+    pc.setdefault("enabled", False)
+    pc.setdefault("categories", {cat: True for cat in PARENTAL_CATEGORIES})
+    pc.setdefault("devices", [])
+    pc.setdefault("custom_domains", [])
+
+    clean_domains = []
+    for d in pc.get("custom_domains", []):
+        d = d.strip().lower()
+        if d and is_safe_host(d):
+            clean_domains.append(d)
+    pc["custom_domains"] = clean_domains
+
+    cfg["parental_controls"] = pc
+    save_config(cfg)
+
+    try:
+        _pc_apply_all(cfg, pc)
+    except Exception as e:
+        return jsonify({"error": f"Settings saved but AdGuard sync failed: {e}"}), 500
+
+    try:
+        custom_tag = "# honeytrapai-parental-custom"
+        existing = _get_adguard_user_rules(cfg)
+        kept = []
+        skip = False
+        for rule in existing:
+            if rule.strip() == custom_tag:
+                skip = True
+                continue
+            if skip and rule.strip().startswith("# honeytrapai-"):
+                skip = False
+            if not skip:
+                kept.append(rule)
+        if pc["enabled"] and clean_domains:
+            custom_rules = [custom_tag] + [f"||{d}^" for d in clean_domains]
+            kept = kept + custom_rules
+        _set_adguard_user_rules(cfg, kept)
+    except Exception as e:
+        return jsonify({"error": f"Settings saved but custom domain sync failed: {e}"}), 500
+
+    return jsonify({"status": "ok"})
+
 
 if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))

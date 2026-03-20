@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.53
+# Version: v0.3.54
 # Revised: 2026-03-20
-# Rev: 37
+# Rev: 38
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -13,6 +13,8 @@ import os
 import re
 import glob
 import json
+import time
+import random
 import hashlib
 import secrets
 import subprocess
@@ -45,6 +47,9 @@ _geo_cache = {}
 _geo_rate_lock = threading.Lock()
 _geo_rate = {"count": 0, "window_start": None}
 _GEO_RATE_LIMIT = 40
+
+# Auto OTA scheduler state — ISSUE-46
+_auto_ota_thread_started = False
 
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
@@ -206,6 +211,162 @@ def verify_password(password, stored):
         return hashlib.sha256((salt + password).encode()).hexdigest() == h
     except Exception:
         return False
+
+# --- Auto OTA helpers — ISSUE-46 ---
+
+def _get_or_init_ota_schedule():
+    """Return (hour, minute) for daily OTA check. Generate and persist if missing."""
+    cfg = load_config()
+    h = cfg.get("ota_check_hour")
+    m = cfg.get("ota_check_minute")
+    if h is None or m is None:
+        h = random.randint(2, 3)
+        m = random.randint(0, 59)
+        cfg["ota_check_hour"]   = h
+        cfg["ota_check_minute"] = m
+        save_config(cfg)
+    return int(h), int(m)
+
+def _send_ota_email(subject, body_text):
+    """Send an OTA status email using saved SMTP config. Best-effort — never raises."""
+    try:
+        if not os.path.exists(SMTP_PATH):
+            return
+        with open(SMTP_PATH) as f:
+            smtp = json.load(f)
+        if not smtp.get("host"):
+            return
+        cfg = load_config()
+        if cfg.get("email_disabled", False):
+            return
+        to_addr = cfg.get("alert_email", "").strip()
+        if not to_addr:
+            return
+
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        host      = smtp["host"]
+        port      = int(smtp.get("port", 587))
+        user      = smtp.get("username", "")
+        pw        = smtp.get("password", "")
+        from_addr = smtp.get("from_addr", user)
+        use_ssl   = smtp.get("ssl", False)
+        use_tls   = smtp.get("tls", True)
+
+        msg            = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = from_addr
+        msg["To"]      = to_addr
+        msg.attach(MIMEText(body_text, "plain"))
+
+        if use_ssl:
+            srv = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            srv = smtplib.SMTP(host, port, timeout=15)
+            srv.ehlo()
+            if use_tls:
+                srv.starttls()
+                srv.ehlo()
+        if user and pw:
+            srv.login(user, pw)
+        srv.sendmail(from_addr, [to_addr], msg.as_string())
+        srv.quit()
+    except Exception as e:
+        app.logger.warning(f"Auto OTA email failed: {e}")
+
+def _auto_ota_scheduler():
+    """Background thread: check for updates once daily at a random 2–4 AM local time.
+    Only proceeds if uptime >= 30 min and auto_ota_enabled is True."""
+    from updater import check_for_update, perform_update, get_update_status
+
+    # Wait for app to fully start
+    time.sleep(60)
+
+    while True:
+        try:
+            cfg = load_config()
+            if not cfg.get("auto_ota_enabled", True):
+                time.sleep(300)
+                continue
+
+            h, m = _get_or_init_ota_schedule()
+            now    = datetime.now()
+            target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+
+            wait_secs = (target - now).total_seconds()
+            app.logger.info(f"Auto OTA: next check at {target.strftime('%H:%M')} local "
+                            f"({int(wait_secs/3600)}h {int((wait_secs % 3600)/60)}m away)")
+            time.sleep(wait_secs)
+
+            # Re-check enabled flag after sleeping
+            cfg = load_config()
+            if not cfg.get("auto_ota_enabled", True):
+                continue
+
+            # Uptime check — only proceed if uptime >= 30 minutes
+            try:
+                with open("/proc/uptime") as f:
+                    uptime_secs = float(f.read().split()[0])
+                if uptime_secs < 1800:
+                    app.logger.info("Auto OTA: uptime < 30 min, skipping this window")
+                    time.sleep(3600)
+                    continue
+            except Exception:
+                pass
+
+            # Check for update
+            info = check_for_update(force=True)
+            if not info.get("update_available"):
+                app.logger.info("Auto OTA: already up to date")
+                continue
+
+            latest = info.get("latest_version", "unknown")
+            app.logger.info(f"Auto OTA: update available ({latest}), installing…")
+
+            # Attempt install — retry once on failure
+            for attempt in range(1, 3):
+                perform_update()
+                # Poll status for up to 3 minutes
+                deadline    = time.time() + 180
+                final_state = "unknown"
+                while time.time() < deadline:
+                    time.sleep(5)
+                    st    = get_update_status()
+                    state = st.get("state", "")
+                    if state in ("complete", "error"):
+                        final_state = state
+                        break
+
+                if final_state == "complete":
+                    new_ver = get_update_status().get("new_version", latest)
+                    app.logger.info(f"Auto OTA: updated to {new_ver}")
+                    _send_ota_email(
+                        f"HoneytrapAI updated to {new_ver}",
+                        f"Your HoneytrapAI appliance has been automatically updated.\n\n"
+                        f"New version: {new_ver}\n\n"
+                        f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
+                    )
+                    break
+                else:
+                    app.logger.warning(f"Auto OTA: install attempt {attempt} failed (state={final_state})")
+                    if attempt == 2:
+                        _send_ota_email(
+                            f"HoneytrapAI update to {latest} failed",
+                            f"Your HoneytrapAI appliance attempted to update to {latest} "
+                            f"but failed after 2 attempts.\n\n"
+                            f"You can install it manually from the dashboard.\n\n"
+                            f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
+                        )
+                    else:
+                        time.sleep(60)
+
+        except Exception as e:
+            app.logger.error(f"Auto OTA scheduler error: {e}")
+            time.sleep(3600)
 
 # --- Markdown renderer ---
 def render_markdown(text):
@@ -956,6 +1117,36 @@ def api_update_status():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/update/schedule", methods=["GET", "POST"])
+@login_required
+def api_update_schedule():
+    """ISSUE-46 — Auto OTA schedule config."""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        cfg  = load_config()
+        if "auto_ota_enabled" in data:
+            cfg["auto_ota_enabled"] = bool(data["auto_ota_enabled"])
+            save_config(cfg)
+        return jsonify({"status": "ok"})
+
+    cfg     = load_config()
+    h, m    = _get_or_init_ota_schedule()
+    enabled = cfg.get("auto_ota_enabled", True)
+
+    now    = datetime.now()
+    target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    day_str  = "today" if target.date() == now.date() else "tomorrow"
+    time_str = target.strftime("%I:%M %p").lstrip("0")
+
+    return jsonify({
+        "auto_ota_enabled": enabled,
+        "ota_check_hour":   h,
+        "ota_check_minute": m,
+        "next_check":       f"{day_str} at {time_str}",
+    })
+
 @app.route("/api/backup")
 @login_required
 def api_backup():
@@ -1005,7 +1196,6 @@ def _perform_factory_reset():
     ag_pass          = existing.get("adguard_password", "")
     lifetime_blocked = existing.get("lifetime_blocked", 0)
 
-    # ISSUE-66: clear all HoneytrapAI-managed AdGuard rules before reset
     try:
         existing_rules = _get_adguard_user_rules(existing)
         clean_rules = [r for r in existing_rules
@@ -1395,7 +1585,6 @@ def api_restore():
             os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
             with open(SMTP_PATH, "w") as sf:
                 json.dump(backup["smtp"], sf, indent=2)
-        # Re-sync AdGuard parental control rules from restored config
         cfg = load_config()
         pc  = cfg.get("parental_controls", {})
         if pc:
@@ -2091,6 +2280,18 @@ def api_parental_controls():
         return jsonify({"error": f"Settings saved but custom domain sync failed: {e}"}), 500
 
     return jsonify({"status": "ok"})
+
+
+# --- Start Auto OTA scheduler thread — ISSUE-46 ---
+def _start_auto_ota_thread():
+    global _auto_ota_thread_started
+    if not _auto_ota_thread_started:
+        _auto_ota_thread_started = True
+        t = threading.Thread(target=_auto_ota_scheduler, daemon=True, name="auto-ota")
+        t.start()
+        app.logger.info("Auto OTA scheduler thread started.")
+
+_start_auto_ota_thread()
 
 
 if __name__ == "__main__":

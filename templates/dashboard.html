@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.37
-     Revised: 2026-03-12
-     Rev: 50 -->
+     Version: v0.3.53
+     Revised: 2026-03-20
+     Rev: 56 -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -57,7 +57,6 @@
     .btn-nb-dismiss{background:none;border:1px solid #5a4a00;color:#888;border-radius:4px;
                     padding:.3rem .8rem;font-size:.78rem;cursor:pointer;flex-shrink:0}
     .btn-nb-dismiss:hover{border-color:#b8860b;color:#f0c040}
-    /* ── end ISSUE-40 ── */
     #filtering-banner{display:none;background:#2a0a0a;border-bottom:1px solid #8b0000;
                       padding:.6rem 1.2rem;align-items:center;justify-content:space-between;gap:.8rem}
     #filtering-banner.visible{display:flex}
@@ -65,7 +64,6 @@
     .btn-fb-dismiss{background:none;border:1px solid #5a0000;color:#888;border-radius:4px;
                     padding:.3rem .8rem;font-size:.78rem;cursor:pointer;flex-shrink:0}
     .btn-fb-dismiss:hover{border-color:#8b0000;color:#ff6b6b}
-    /* ── end ISSUE-15 ── */
     .container{max-width:1200px;margin:0 auto;padding:1rem;width:100%}
     .page{display:none}.page.active{display:block}
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.8rem;margin-bottom:1.2rem}
@@ -77,9 +75,41 @@
     .stat-card .val.green{color:#27ae60}
     .stat-card .val.blue{color:#3498db}
     .stat-card .lbl{font-size:.72rem;color:#888;margin-top:.2rem}
-    /* ── Lifetime blocked banner ── */
-    .lifetime-banner{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
-                     padding:1.4rem 1rem;margin-bottom:1.2rem;text-align:center}
+    /* ── Score + Lifetime combined card — ISSUE-57 ── */
+    .score-lifetime-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
+                         padding:1.2rem 1.4rem;margin-bottom:1.2rem;
+                         display:flex;align-items:center;gap:2rem;flex-wrap:wrap}
+    .score-side{flex:0 0 auto;min-width:180px}
+    .score-top{display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem}
+    .score-circle{width:64px;height:64px;border-radius:50%;display:flex;flex-direction:column;
+                  align-items:center;justify-content:center;border:3px solid #2a2a4a;
+                  flex-shrink:0;transition:border-color .4s,box-shadow .4s;
+                  cursor:default;user-select:none}
+    .score-circle.grade-a{border-color:#27ae60;box-shadow:0 0 12px rgba(39,174,96,.3)}
+    .score-circle.grade-b{border-color:#27ae60;box-shadow:0 0 12px rgba(39,174,96,.2)}
+    .score-circle.grade-c{border-color:#f39c12;box-shadow:0 0 12px rgba(243,156,18,.25)}
+    .score-circle.grade-d{border-color:#e74c3c;box-shadow:0 0 12px rgba(231,76,60,.25)}
+    .score-circle.grade-f{border-color:#e74c3c;box-shadow:0 0 12px rgba(231,76,60,.35)}
+    .score-number{font-size:1.45rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+    .score-grade-label{font-size:.65rem;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-top:.1rem}
+    .score-number.grade-a,.score-number.grade-b{color:#27ae60}
+    .score-number.grade-c{color:#f39c12}
+    .score-number.grade-d,.score-number.grade-f{color:#e74c3c}
+    .score-label-col{display:flex;flex-direction:column;gap:.1rem}
+    .score-title{font-size:.68rem;color:#555;text-transform:uppercase;letter-spacing:.08em}
+    .score-grade-word{font-size:.95rem;font-weight:700}
+    .score-grade-word.grade-a,.score-grade-word.grade-b{color:#27ae60}
+    .score-grade-word.grade-c{color:#f39c12}
+    .score-grade-word.grade-d,.score-grade-word.grade-f{color:#e74c3c}
+    .score-block-rate{font-size:.68rem;color:#555;margin-top:.1rem}
+    .score-signals{display:flex;flex-wrap:wrap;gap:.3rem .8rem}
+    .score-signal{display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:#aaa;white-space:nowrap}
+    .score-signal-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .score-signal-dot.ok{background:#27ae60}
+    .score-signal-dot.fail{background:#e74c3c}
+    .score-divider{width:1px;background:#2a2a4a;align-self:stretch;flex-shrink:0}
+    @media(max-width:600px){.score-divider{display:none}.score-lifetime-card{flex-direction:column;gap:1rem}}
+    .lifetime-side{flex:1;text-align:center;min-width:160px}
     .lifetime-label{font-size:.72rem;color:#666;text-transform:uppercase;
                     letter-spacing:.1em;margin-bottom:.5rem}
     .lifetime-number{font-size:2.6rem;font-weight:700;color:#00e676;
@@ -133,7 +163,6 @@
                  box-shadow:0 4px 20px rgba(0,0,0,.5)}
     .map-empty{text-align:center;padding:2rem 1rem;color:#555;font-size:.8rem}
     .map-count{font-size:.72rem;color:#555;margin-left:.5rem}
-    /* ── Country blocking ── */
     .country-blocked{fill:rgba(231,76,60,0.28) !important}
     #country-tooltip{position:absolute;background:#1a1a2e;border:1px solid #3a3a5a;
                       border-radius:8px;padding:.7rem 1rem;font-size:.78rem;color:#e0e0e0;
@@ -152,17 +181,22 @@
                     width:100%;margin-top:.5rem;transition:background .15s}
     .btn-ct-unblock:hover{background:#3a3a5a}
     .btn-ct-unblock:disabled{background:#555;cursor:default}
-    /* ── end map ── */
-    /* ── You Are Here marker — ISSUE-35 ── */
     .yah-pin{cursor:default;filter:drop-shadow(0 0 4px rgba(255,255,255,0.85))}
     .yah-pin .yah-outer{fill:#ffffff;stroke:#1a73e8;stroke-width:2}
     .yah-pin .yah-inner{fill:#1a73e8}
     .yah-pin .yah-line{stroke:#1a73e8;stroke-width:2;stroke-linecap:round}
+    #score-tooltip{position:fixed;background:#1a1a2e;border:1px solid #3a3a5a;border-radius:8px;
+                  padding:.7rem .9rem;font-size:.75rem;color:#e0e0e0;pointer-events:none;
+                  display:none;z-index:400;white-space:nowrap;line-height:2;min-width:220px;
+                  box-shadow:0 4px 20px rgba(0,0,0,.5)}
+    #score-tooltip .st-title{color:#f5a623;font-weight:700;margin-bottom:.3rem;font-size:.8rem}
+    #score-tooltip .st-row{display:flex;justify-content:space-between;gap:1rem;color:#aaa}
+    #score-tooltip .st-row span{color:#666}
+    #score-tooltip .st-divider{border:none;border-top:1px solid #2a2a4a;margin:.3rem 0}
     #yah-tooltip{position:fixed;background:rgba(10,14,23,0.92);border:1px solid #1a73e8;
                  color:#e0e8ff;font-size:.75rem;padding:.4rem .75rem;border-radius:6px;
                  pointer-events:none;white-space:nowrap;z-index:450;display:none;
                  box-shadow:0 2px 12px rgba(0,0,0,.5)}
-    /* ── end You Are Here ── */
     #sensor-status-bar{display:flex;align-items:center;gap:1.2rem;
                         background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                         padding:.6rem 1rem;margin-bottom:1.2rem;flex-wrap:wrap}
@@ -173,12 +207,11 @@
     .sensor-dot.grey{background:#555}
     .sensor-label{color:#aaa;border-bottom:1px dotted #444;cursor:default;position:relative}
     .sensor-label .tip{display:none;position:absolute;bottom:calc(100% + 6px);left:0;
-                       transform:none;background:#2a2a4a;color:#ccc;
-                       font-size:.7rem;line-height:1.4;white-space:nowrap;padding:.35rem .6rem;
-                       border-radius:5px;border:1px solid #3a3a5a;pointer-events:none;z-index:200}
+                       background:#2a2a4a;color:#ccc;font-size:.7rem;line-height:1.4;
+                       white-space:nowrap;padding:.35rem .6rem;border-radius:5px;
+                       border:1px solid #3a3a5a;pointer-events:none;z-index:200}
     .sensor-label .tip::after{content:'';position:absolute;top:100%;left:1rem;
-                              transform:none;border:5px solid transparent;
-                              border-top-color:#2a2a4a}
+                              border:5px solid transparent;border-top-color:#2a2a4a}
     .sensor-label:hover .tip{display:block}
     .dns-chart-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                     padding:1rem;margin-bottom:1.2rem}
@@ -191,8 +224,7 @@
     #dns-chart-canvas{width:100%;display:block;cursor:crosshair}
     #dns-chart-tooltip{position:fixed;background:#2a2a4a;border:1px solid #3a3a5a;
                        border-radius:6px;padding:.45rem .7rem;font-size:.75rem;color:#e0e0e0;
-                       pointer-events:none;display:none;z-index:300;white-space:nowrap;
-                       line-height:1.8}
+                       pointer-events:none;display:none;z-index:300;white-space:nowrap;line-height:1.8}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:800px){.grid-2{grid-template-columns:1fr}}
     .panel{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:1rem;min-width:0;overflow:hidden}
@@ -278,15 +310,12 @@
     .footer a{color:#666;text-decoration:none}.footer a:hover{color:#f5a623}
     .smtp-fields-wrap{position:relative;transition:opacity .2s}
     .smtp-fields-wrap.disabled{opacity:.35;pointer-events:none;user-select:none}
-    /* ── ISSUE-44 Domain Allowlist ── */
     .allow-btn{background:none;border:none;cursor:pointer;padding:0 0 0 .4rem;
                font-size:.85rem;line-height:1;vertical-align:middle;opacity:.3;
                transition:opacity .15s,color .15s;color:#aaa}
     .allow-btn:hover{opacity:.7}
     .allow-btn.allowed{color:#27ae60;opacity:1}
     .allow-btn.allowed:hover{color:#e74c3c;opacity:1}
-    /* ── end ISSUE-44 ── */
-    /* ── Tools page ── */
     .tool-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;
                padding:1.2rem;margin-bottom:1rem}
     .tool-card h3{font-size:.85rem;color:#f5a623;margin-bottom:.8rem;
@@ -301,6 +330,47 @@
     .tool-output.visible{display:block}
     .tool-output.success{border-color:#27ae60;color:#ccc}
     .tool-output.failure{border-color:#e74c3c;color:#e74c3c}
+    /* ── Parental Controls — ISSUE-11 ── */
+    .pc-master-row{display:flex;align-items:center;justify-content:space-between;
+                   flex-wrap:wrap;gap:.6rem;margin-bottom:1rem}
+    .pc-toggle-label{display:flex;align-items:center;gap:.6rem;cursor:pointer;
+                     font-size:.88rem;color:#e0e0e0;font-weight:600;user-select:none}
+    .pc-toggle-label input[type=checkbox]{width:16px;height:16px;accent-color:#f5a623;cursor:pointer;flex-shrink:0}
+    .pc-status-badge{font-size:.72rem;padding:.2rem .6rem;border-radius:4px;font-weight:700}
+    .pc-status-badge.on{background:#0f2a1a;color:#27ae60;border:1px solid #27ae60}
+    .pc-status-badge.off{background:#1a1a1a;color:#555;border:1px solid #333}
+    .pc-body{transition:opacity .2s}
+    .pc-body.disabled{opacity:.4;pointer-events:none;user-select:none}
+    .pc-categories-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem;margin-bottom:1rem}
+    .pc-cat-row{display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:#ccc;
+                cursor:pointer;user-select:none;padding:.35rem .5rem;border-radius:5px;
+                border:1px solid #2a2a4a;background:#12122a;transition:border-color .15s}
+    .pc-cat-row:hover{border-color:#3a3a5a}
+    .pc-cat-row input[type=checkbox]{width:14px;height:14px;accent-color:#f5a623;cursor:pointer;flex-shrink:0}
+    .pc-custom-wrap{margin-bottom:1rem}
+    .pc-custom-input-row{display:flex;gap:.5rem;margin-bottom:.4rem}
+    .pc-custom-input-row input{flex:1;background:#12122a;border:1px solid #2a2a4a;
+      border-radius:6px;padding:.45rem .7rem;color:#e0e0e0;font-size:.83rem;outline:none}
+    .pc-custom-input-row input:focus{border-color:#f5a623}
+    .pc-domain-tag{display:inline-flex;align-items:center;gap:.3rem;background:#1e1e38;
+                   border:1px solid #3a3a5a;border-radius:4px;padding:.15rem .5rem;
+                   font-size:.75rem;color:#aaa;margin:.2rem .2rem 0 0}
+    .pc-domain-tag button{background:none;border:none;cursor:pointer;color:#e74c3c;
+                          font-size:.8rem;padding:0 0 0 .2rem;opacity:.6;line-height:1}
+    .pc-domain-tag button:hover{opacity:1}
+    #pc-save-result{display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
+                    border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa}
+    /* ── SMTP provider picker ── */
+    .smtp-provider-row{margin-bottom:1rem}
+    .smtp-provider-row label{display:block;font-size:.78rem;color:#aaa;margin-bottom:.3rem}
+    .smtp-provider-row select{width:100%;background:#12122a;border:1px solid #2a2a4a;
+      border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.88rem;outline:none;cursor:pointer}
+    .smtp-provider-row select:focus{border-color:#f5a623}
+    .smtp-app-pw-warn{display:none;margin-bottom:.9rem;padding:.7rem .9rem;border-radius:6px;
+      background:#2a1f00;border:1px solid #b8860b;font-size:.78rem;color:#f0c040;line-height:1.6}
+    .smtp-app-pw-warn strong{color:#f5a623}
+    .smtp-app-pw-warn a{color:#f5a623;text-decoration:underline}
+    .smtp-app-pw-warn.visible{display:block}
   </style>
 </head>
 <body>
@@ -313,7 +383,6 @@
   </div>
 </div>
 
-<!-- Network visibility warning banner — ISSUE-40 -->
 <div id="network-banner">
   <span class="nb-text">
     ⚠️ HoneytrapAI may not be monitoring your full network. Your router may be proxying DNS queries.
@@ -362,68 +431,6 @@
     <div class="stat-card"><div class="val" id="s-dns-blocked">—</div><div class="lbl">DNS Blocked Today</div></div>
   </div>
 
-  <!-- Lifetime Blocked Counter -->
-  <div class="lifetime-banner">
-    <div class="lifetime-label">🛡️ Lifetime Ads, Trackers &amp; Threats Blocked</div>
-    <div class="lifetime-number" id="lifetime-number">0</div>
-    <div class="lifetime-sublabel">Since HoneytrapAI was installed · Never resets</div>
-  </div>
-
-  <!-- Live Threat Map -->
-  <div class="map-card">
-    <div class="map-header">
-      <span class="map-title">🌍 Live Threat Map — Last 24 Hours <span class="map-count" id="map-event-count"></span></span>
-      <div class="map-clocks">
-        <div class="map-clock-item">
-          <span class="map-clock-label">UTC</span>
-          <span class="map-clock-time" id="clock-utc">--:--:--</span>
-        </div>
-        <span class="map-clock-sep">/</span>
-        <div class="map-clock-item">
-          <span class="map-clock-label">Local</span>
-          <span class="map-clock-time" id="clock-local">--:--:--</span>
-        </div>
-      </div>
-      <div class="map-legend">
-        <button class="sev-toggle active" id="sev-btn-high"   onclick="toggleSeverity('high')"   title="Toggle High severity dots">
-          <div class="sev-toggle-dot high"></div>High
-        </button>
-        <button class="sev-toggle active" id="sev-btn-medium" onclick="toggleSeverity('medium')" title="Toggle Medium severity dots">
-          <div class="sev-toggle-dot medium"></div>Medium
-        </button>
-        <button class="sev-toggle inactive" id="sev-btn-low"  onclick="toggleSeverity('low')"    title="Toggle Low severity dots">
-          <div class="sev-toggle-dot low"></div>Low
-        </button>
-      </div>
-    </div>
-
-    <div id="threat-map-wrap">
-      <svg id="threat-map-svg" viewBox="0 0 1000 507" xmlns="http://www.w3.org/2000/svg"
-           style="background:#0a0a14;display:block;width:100%">
-        <g id="graticule-layer"></g>
-        <g id="countries-layer"></g>
-      </svg>
-      <div id="map-dot-layer"></div>
-    </div>
-    <div id="map-empty" class="map-empty" style="display:none">
-      No external threat IPs detected in the last 24 hours.
-    </div>
-
-    <p style="font-size:.72rem;color:#555;text-align:center;margin-top:.5rem">
-      Click any country to view threat count and block or unblock traffic from that country.
-    </p>
-
-    <!-- Country tooltip — absolutely positioned inside .map-card -->
-    <div id="country-tooltip" style="display:none">
-      <div class="ct-name" id="ct-name">—</div>
-      <div class="ct-row">Threats (24h): <span id="ct-threats">0</span></div>
-      <div class="ct-row" id="ct-blocked-row" style="display:none">Status: <span style="color:#e74c3c">Blocked</span></div>
-      <button class="btn-ct-block"   id="btn-ct-block"   onclick="countryToggleBlock(true)">Block Country</button>
-      <button class="btn-ct-unblock" id="btn-ct-unblock" onclick="countryToggleBlock(false)" style="display:none">Unblock Country</button>
-    </div>
-  </div>
-  <!-- /Live Threat Map -->
-
   <div id="sensor-status-bar">
     <div class="sensor-item">
       <div class="sensor-dot grey" id="dot-maltrail"></div>
@@ -452,16 +459,96 @@
     </div>
   </div>
 
+  <!-- Security Score + Lifetime Blocked — ISSUE-57 -->
+  <div class="score-lifetime-card">
+    <!-- Score — left -->
+    <div class="score-side">
+      <div class="score-top">
+        <div class="score-circle" id="score-circle"
+             onmouseenter="showScoreTooltip(event)"
+             onmousemove="moveScoreTooltip(event)"
+             onmouseleave="hideScoreTooltip()">
+          <div class="score-number" id="score-number">—</div>
+          <div class="score-grade-label" id="score-grade-label">score</div>
+        </div>
+        <div class="score-label-col">
+          <div class="score-title">Security Score</div>
+          <div class="score-grade-word" id="score-grade-word">—</div>
+          <div class="score-block-rate" id="score-block-rate"></div>
+        </div>
+      </div>
+      <div class="score-signals" id="score-signals">
+        <div class="score-signal"><div class="score-signal-dot" style="background:#333"></div><span style="color:#555">Loading…</span></div>
+      </div>
+    </div>
+    <!-- Divider -->
+    <div class="score-divider"></div>
+    <!-- Lifetime counter — right -->
+    <div class="lifetime-side">
+      <div class="lifetime-label">🛡️ Lifetime Ads, Trackers &amp; Threats Blocked</div>
+      <div class="lifetime-number" id="lifetime-number">0</div>
+      <div class="lifetime-sublabel">Since HoneytrapAI was installed · Never resets</div>
+    </div>
+  </div>
+  <!-- /Security Score + Lifetime -->
+
+  <!-- Live Threat Map -->
+  <div class="map-card">
+    <div class="map-header">
+      <span class="map-title">🌍 Live Threat Map — Last 24 Hours <span class="map-count" id="map-event-count"></span></span>
+      <div class="map-clocks">
+        <div class="map-clock-item">
+          <span class="map-clock-label">UTC</span>
+          <span class="map-clock-time" id="clock-utc">--:--:--</span>
+        </div>
+        <span class="map-clock-sep">/</span>
+        <div class="map-clock-item">
+          <span class="map-clock-label">Local</span>
+          <span class="map-clock-time" id="clock-local">--:--:--</span>
+        </div>
+      </div>
+      <div class="map-legend">
+        <button class="sev-toggle active" id="sev-btn-high"   onclick="toggleSeverity('high')"   title="Toggle High severity dots">
+          <div class="sev-toggle-dot high"></div>High
+        </button>
+        <button class="sev-toggle active" id="sev-btn-medium" onclick="toggleSeverity('medium')" title="Toggle Medium severity dots">
+          <div class="sev-toggle-dot medium"></div>Medium
+        </button>
+        <button class="sev-toggle inactive" id="sev-btn-low"  onclick="toggleSeverity('low')"    title="Toggle Low severity dots">
+          <div class="sev-toggle-dot low"></div>Low
+        </button>
+      </div>
+    </div>
+    <div id="threat-map-wrap">
+      <svg id="threat-map-svg" viewBox="0 0 1000 507" xmlns="http://www.w3.org/2000/svg"
+           style="background:#0a0a14;display:block;width:100%">
+        <g id="graticule-layer"></g>
+        <g id="countries-layer"></g>
+      </svg>
+      <div id="map-dot-layer"></div>
+    </div>
+    <div id="map-empty" class="map-empty" style="display:none">
+      No external threat IPs detected in the last 24 hours.
+    </div>
+    <p style="font-size:.72rem;color:#555;text-align:center;margin-top:.5rem">
+      Click any country to view threat count and block or unblock traffic from that country.
+    </p>
+    <div id="country-tooltip" style="display:none">
+      <div class="ct-name" id="ct-name">—</div>
+      <div class="ct-row">Threats (24h): <span id="ct-threats">0</span></div>
+      <div class="ct-row" id="ct-blocked-row" style="display:none">Status: <span style="color:#e74c3c">Blocked</span></div>
+      <button class="btn-ct-block"   id="btn-ct-block"   onclick="countryToggleBlock(true)">Block Country</button>
+      <button class="btn-ct-unblock" id="btn-ct-unblock" onclick="countryToggleBlock(false)" style="display:none">Unblock Country</button>
+    </div>
+  </div>
+  <!-- /Live Threat Map -->
+
   <div class="dns-chart-card">
     <div class="dns-chart-header">
       <span class="dns-chart-title">DNS Queries — Last 24 Hours</span>
       <div class="dns-chart-legend">
-        <div class="dns-legend-item">
-          <div class="dns-legend-dot" style="background:#3498db"></div>Total
-        </div>
-        <div class="dns-legend-item">
-          <div class="dns-legend-dot" style="background:#e74c3c"></div>Blocked
-        </div>
+        <div class="dns-legend-item"><div class="dns-legend-dot" style="background:#3498db"></div>Total</div>
+        <div class="dns-legend-item"><div class="dns-legend-dot" style="background:#e74c3c"></div>Blocked</div>
       </div>
     </div>
     <canvas id="dns-chart-canvas" height="140"></canvas>
@@ -528,72 +615,105 @@
     <h3>📧 Email &amp; Alert Settings</h3>
     <p class="settings-subhead">SMTP Configuration</p>
     <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:.9rem">
-      Required for threat alert emails. Works with any SMTP provider —
-      Gmail, Outlook, Hotmail, Live, etc.
+      Required for threat alert emails. Select your email provider below — the server settings will be filled in automatically.
     </p>
+
+    <!-- ── Provider picker ── -->
+    <div class="smtp-provider-row">
+      <label>Email Provider</label>
+      <select id="smtp-provider" onchange="smtpProviderChange(this)">
+        <option value="">— Select your email provider —</option>
+        <optgroup label="Popular Providers">
+          <option value="gmail">Gmail (Google)</option>
+          <option value="outlook">Outlook / Hotmail / Live (Microsoft)</option>
+          <option value="yahoo">Yahoo Mail</option>
+          <option value="aol">AOL Mail</option>
+          <option value="icloud">iCloud Mail (Apple)</option>
+          <option value="zoho">Zoho Mail</option>
+          <option value="fastmail">Fastmail</option>
+          <option value="protonmail">Proton Mail Bridge</option>
+          <option value="gmx">GMX Mail</option>
+          <option value="mailcom">Mail.com</option>
+          <option value="yandex">Yandex Mail</option>
+          <option value="office365">Microsoft 365 (Office 365)</option>
+        </optgroup>
+        <optgroup label="US Internet Providers">
+          <option value="att">AT&amp;T / SBC Global / Bellsouth</option>
+          <option value="comcast">Comcast / Xfinity</option>
+          <option value="cox">Cox</option>
+          <option value="spectrum">Spectrum / Charter</option>
+          <option value="verizon">Verizon</option>
+          <option value="earthlink">EarthLink</option>
+          <option value="centurylink">CenturyLink / Quantum Fiber</option>
+        </optgroup>
+        <optgroup label="Canada">
+          <option value="bell_canada">Bell Canada (bell.net / sympatico.ca)</option>
+          <option value="rogers">Rogers</option>
+          <option value="shaw">Shaw</option>
+          <option value="telus">Telus</option>
+        </optgroup>
+        <optgroup label="United Kingdom">
+          <option value="bt">BT Internet</option>
+          <option value="sky">Sky Broadband</option>
+          <option value="virgin">Virgin Media</option>
+          <option value="talktalk">TalkTalk</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option value="custom">Other / Custom SMTP Server</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- ── App password warning banner (shown for providers that require it) ── -->
+    <div class="smtp-app-pw-warn" id="smtp-app-pw-warn">
+      <!-- populated by JS -->
+    </div>
+
     <div class="smtp-fields-wrap" id="smtp-fields-wrap">
       <div class="form-row">
         <label>Alert Email Address</label>
-        <input type="email" id="cfg-email" placeholder="you@gmail.com"
-               onblur="validateEmailField(this,'cfg-email-err')">
-        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-          The email address where threat alerts will be sent.
-        </div>
+        <input type="email" id="cfg-email" placeholder="you@gmail.com" onblur="validateEmailField(this,'cfg-email-err')">
+        <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">The email address where threat alerts will be sent.</div>
         <div id="cfg-email-err" class="field-err"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem .8rem">
         <div class="form-row" style="margin:0">
           <label>SMTP Host</label>
-          <input type="text" id="smtp-host" placeholder="smtp.gmail.com"
-                 onblur="validateSmtpHost(this)">
-          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            e.g. <code style="color:#f5a623">smtp.gmail.com</code>,
-            <code style="color:#f5a623">smtp-mail.outlook.com</code>
-          </div>
+          <input type="text" id="smtp-host" placeholder="smtp.gmail.com" onblur="validateSmtpHost(this)" oninput="smtpHostManualEdit()">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">e.g. <code style="color:#f5a623">smtp.gmail.com</code>, <code style="color:#f5a623">smtp-mail.outlook.com</code></div>
           <div id="smtp-host-err" class="field-err"></div>
         </div>
         <div class="form-row" style="margin:0">
           <label>Port</label>
           <input type="number" id="smtp-port" placeholder="587">
-          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Set automatically by encryption choice.
-          </div>
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">Set automatically by encryption choice.</div>
         </div>
         <div class="form-row" style="margin:0">
           <label>Username</label>
-          <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off"
-                 onblur="validateEmailField(this,'smtp-user-err')">
+          <input type="text" id="smtp-user" placeholder="you@gmail.com" autocomplete="off" onblur="validateEmailField(this,'smtp-user-err')">
           <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">Usually your full email address.</div>
           <div id="smtp-user-err" class="field-err"></div>
         </div>
         <div class="form-row" style="margin:0">
-          <label>Password</label>
+          <label id="smtp-pass-label">Password</label>
           <input type="password" id="smtp-pass" placeholder="••••••••" autocomplete="new-password">
-          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Use an App Password if 2FA is enabled.
-          </div>
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5" id="smtp-pass-hint">Use an App Password if 2FA is enabled.</div>
         </div>
         <div class="form-row" style="margin:0">
           <label>From Address</label>
-          <input type="text" id="smtp-from" placeholder="you@gmail.com"
-                 onblur="validateFromAddr(this)">
-          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Appears in the From: field.
-          </div>
+          <input type="text" id="smtp-from" placeholder="you@gmail.com" onblur="validateFromAddr(this)">
+          <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">Appears in the From: field.</div>
           <div id="smtp-from-err" class="field-err"></div>
         </div>
         <div class="form-row" style="margin:0">
           <label>Encryption</label>
           <select id="smtp-enc" onchange="smtpEncChange(this, true)"
-                  style="width:100%;background:#12122a;border:1px solid #2a2a4a;
-                  border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
+                  style="width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
             <option value="starttls">STARTTLS — recommended (Gmail, Outlook, most providers)</option>
             <option value="ssl">SSL / TLS — older hosts, port 465</option>
             <option value="none">None — local/internal mail servers only</option>
           </select>
-          <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Encrypts credentials in transit.
-          </div>
+          <div id="smtp-enc-hint" style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5">Encrypts credentials in transit.</div>
         </div>
       </div>
     </div>
@@ -602,28 +722,19 @@
       <button class="btn-secondary" id="btn-test-email" onclick="sendTestEmail()" style="margin:0">Send Test Email</button>
       <span id="smtp-saved-indicator" style="font-size:.75rem;color:#555"></span>
     </div>
-    <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;
-                  cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
-      <input type="checkbox" id="chk-disable-email" onchange="toggleEmailDisabled(this)"
-             style="width:15px;height:15px;accent-color:#f5a623;cursor:pointer;flex-shrink:0">
+    <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.9rem;cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
+      <input type="checkbox" id="chk-disable-email" onchange="toggleEmailDisabled(this)" style="width:15px;height:15px;accent-color:#f5a623;cursor:pointer;flex-shrink:0">
       Disable Sending Alert Emails
     </label>
-    <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">
-      Threats are still detected. SMTP settings are preserved.
-    </div>
-    <div id="smtp-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
-         border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
+    <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">Threats are still detected. SMTP settings are preserved.</div>
+    <div id="smtp-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
     <hr class="settings-divider">
     <p class="settings-subhead">DNS Filtering</p>
-    <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.3rem;
-                  cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
-      <input type="checkbox" id="chk-filtering-enabled" onchange="toggleFiltering(this)"
-             style="width:15px;height:15px;accent-color:#f5a623;cursor:pointer;flex-shrink:0">
+    <label style="display:inline-flex;align-items:center;gap:.5rem;margin-top:.3rem;cursor:pointer;font-size:.82rem;color:#aaa;user-select:none">
+      <input type="checkbox" id="chk-filtering-enabled" onchange="toggleFiltering(this)" style="width:15px;height:15px;accent-color:#f5a623;cursor:pointer;flex-shrink:0">
       AdGuard DNS Filtering enabled
     </label>
-    <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">
-      When disabled, DNS queries are still logged but nothing is blocked.
-    </div>
+    <div style="font-size:.72rem;color:#666;margin-top:.3rem;line-height:1.5;margin-left:1.45rem">When disabled, DNS queries are still logged but nothing is blocked.</div>
     <hr class="settings-divider">
     <p class="settings-subhead">Alert Behaviour</p>
     <div class="form-row">
@@ -637,11 +748,55 @@
     <button class="btn-save" onclick="saveSettings()">Save Settings</button>
   </div>
 
+  <!-- ── Parental Controls — ISSUE-11 ── -->
+  <div class="settings-section" id="parental-controls-section">
+    <h3>👨‍👩‍👧 Parental Controls</h3>
+    <p style="font-size:.78rem;color:#aaa;line-height:1.6;margin-bottom:1rem">
+      Block categories of content across your entire network via AdGuard DNS filtering. Use the Save Parental Controls button after making category changes or adding custom domains.
+    </p>
+
+    <!-- Master toggle row -->
+    <div class="pc-master-row">
+      <label class="pc-toggle-label">
+        <input type="checkbox" id="pc-enabled" onchange="pcToggleMaster(this)">
+        Enable Parental Controls
+      </label>
+      <span class="pc-status-badge off" id="pc-status-badge">Off</span>
+    </div>
+
+    <!-- Body — disabled overlay when master is off -->
+    <div class="pc-body disabled" id="pc-body">
+
+      <!-- Categories -->
+      <p class="settings-subhead" style="margin-bottom:.6rem">Block Categories</p>
+      <div class="pc-categories-grid" id="pc-categories-grid">
+        <!-- populated by JS -->
+      </div>
+
+      <!-- Custom domains -->
+      <p class="settings-subhead" style="margin-bottom:.5rem">Custom Domain Blocklist</p>
+      <div class="pc-custom-wrap">
+        <div class="pc-custom-input-row">
+          <input type="text" id="pc-custom-domain" placeholder="e.g. tiktok.com"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();pcAddCustomDomain();}">
+          <button class="btn-secondary" style="margin:0;white-space:nowrap" onclick="pcAddCustomDomain()">Add Domain</button>
+        </div>
+        <div id="pc-custom-tags"></div>
+      </div>
+
+    </div><!-- /pc-body -->
+
+    <div style="display:flex;gap:.6rem;align-items:center;margin-top:.8rem;flex-wrap:wrap">
+      <button class="btn-save" onclick="saveParentalControls()">Save Parental Controls</button>
+      <span id="pc-save-result"></span>
+    </div>
+  </div>
+  <!-- /Parental Controls -->
+
   <div class="settings-section">
     <h3>🔑 Change HoneytrapAI System Password</h3>
     <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.9rem">
-      🔒 If you forget your password, the only recovery method is a
-      <strong style="color:#aaa">factory reset</strong>.
+      🔒 If you forget your password, the only recovery method is a <strong style="color:#aaa">factory reset</strong>.
     </p>
     <div class="form-row"><label>Current Password</label><input type="password" id="pw-current" placeholder="Current password"></div>
     <div class="form-row"><label>New Password</label><input type="password" id="pw-new" placeholder="Minimum 8 characters"></div>
@@ -652,15 +807,13 @@
   <div class="settings-section">
     <h3>💾 Backup &amp; Restore</h3>
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
-      <a href="/api/backup" class="btn-save" style="text-decoration:none;display:inline-block">Download Backup</a>
+      <a href="/api/backup" class="btn-save" style="text-decoration:none;display:inline-block">Save Backup</a>
       <label class="btn-secondary" style="cursor:pointer;display:inline-block">
         Restore Backup
         <input type="file" accept=".json" style="display:none" onchange="restoreBackup(this)">
       </label>
     </div>
-    <div style="font-size:.72rem;color:#666;margin-top:.5rem">
-      Backup includes all settings and SMTP configuration. Does not include threat logs.
-    </div>
+    <div style="font-size:.72rem;color:#666;margin-top:.5rem">Backup includes all settings and SMTP configuration. Does not include threat logs.</div>
   </div>
 
   <div class="settings-section danger">
@@ -671,9 +824,7 @@
     </p>
     <div style="background:#12122a;border:1px solid #e74c3c;border-radius:6px;padding:.9rem;margin-bottom:.8rem">
       <div style="font-size:.82rem;color:#e74c3c;font-weight:700;margin-bottom:.6rem">Option 1 — Reset while logged in</div>
-      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">
-        Use this if you are already logged in and want to reset to factory defaults.
-      </p>
+      <p style="font-size:.75rem;color:#666;line-height:1.6;margin-bottom:.8rem">Use this if you are already logged in and want to reset to factory defaults.</p>
       <button class="btn-danger" onclick="showResetOverlay()">Factory Reset…</button>
     </div>
     <div style="background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.9rem">
@@ -711,8 +862,7 @@
     <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end">
       <div style="flex:1;min-width:140px">
         <label style="display:block;font-size:.78rem;color:#aaa;margin-bottom:.3rem">Threat Type</label>
-        <select id="sim-type" style="width:100%;background:#12122a;border:1px solid #2a2a4a;
-          border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
+        <select id="sim-type" style="width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
           <option value="malware">Malware</option>
           <option value="c2">C2 Beacon</option>
           <option value="ransomware">Ransomware</option>
@@ -724,14 +874,11 @@
       </div>
       <div style="flex:1;min-width:140px">
         <label style="display:block;font-size:.78rem;color:#aaa;margin-bottom:.3rem">Source IP</label>
-        <input id="sim-ip" type="text" placeholder="Random" style="width:100%;background:#12122a;
-          border:1px solid #2a2a4a;border-radius:6px;padding:.55rem .8rem;
-          color:#e0e0e0;font-size:.85rem;outline:none">
+        <input id="sim-ip" type="text" placeholder="Random" style="width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;padding:.55rem .8rem;color:#e0e0e0;font-size:.85rem;outline:none">
       </div>
       <button class="btn-save" id="btn-simulate" onclick="runSimulate()" style="white-space:nowrap;align-self:flex-end">Inject Test Entry</button>
     </div>
-    <div id="sim-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;
-         border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
+    <div id="sim-result" style="display:none;margin-top:.6rem;font-size:.78rem;padding:.5rem .7rem;border-radius:5px;background:#12122a;border:1px solid #2a2a4a;color:#aaa"></div>
   </div>
 
   <div class="tool-card">
@@ -740,11 +887,8 @@
       <a href="/api/threats/export" class="btn-save" style="text-decoration:none;display:inline-block">Export Threat Log</a>
       <button class="btn-danger" style="font-size:.85rem" onclick="showPurgeConfirm()">Purge Threat Log…</button>
     </div>
-    <div style="font-size:.72rem;color:#666;margin-top:.5rem">
-      Export downloads the current threat log as a CSV file. Purge clears all recorded threat events — this cannot be undone.
-    </div>
-    <div id="purge-confirm" style="display:none;margin-top:.8rem;background:#12122a;border:1px solid #3a1a1a;
-         border-radius:6px;padding:.8rem;font-size:.82rem;color:#aaa">
+    <div style="font-size:.72rem;color:#666;margin-top:.5rem">Export downloads the current threat log as a CSV file. Purge clears all recorded threat events — this cannot be undone.</div>
+    <div id="purge-confirm" style="display:none;margin-top:.8rem;background:#12122a;border:1px solid #3a1a1a;border-radius:6px;padding:.8rem;font-size:.82rem;color:#aaa">
       Are you sure? This will permanently delete <strong style="color:#e74c3c">all threat log entries</strong>.
       <div style="display:flex;gap:.5rem;margin-top:.6rem">
         <button class="btn-danger" style="font-size:.78rem;padding:.3rem .8rem" onclick="confirmPurge()">Yes, Purge</button>
@@ -770,8 +914,7 @@
       Ping
     </h3>
     <div class="tool-input-row">
-      <input type="text" id="ping-host" placeholder="Host or IP — e.g. 8.8.8.8"
-             onkeydown="if(event.key==='Enter')runTool('ping')">
+      <input type="text" id="ping-host" placeholder="Host or IP — e.g. 8.8.8.8" onkeydown="if(event.key==='Enter')runTool('ping')">
       <button class="btn-save" onclick="runTool('ping')">Ping</button>
     </div>
     <div class="tool-output" id="out-ping"></div>
@@ -780,8 +923,7 @@
   <div class="tool-card">
     <h3>🔍 DNS Lookup</h3>
     <div class="tool-input-row">
-      <input type="text" id="dns-host" placeholder="Domain — e.g. google.com"
-             onkeydown="if(event.key==='Enter')runTool('dns')">
+      <input type="text" id="dns-host" placeholder="Domain — e.g. google.com" onkeydown="if(event.key==='Enter')runTool('dns')">
       <button class="btn-save" onclick="runTool('dns')">Lookup</button>
     </div>
     <div class="tool-output" id="out-dns"></div>
@@ -790,8 +932,7 @@
   <div class="tool-card">
     <h3>🗺️ Traceroute</h3>
     <div class="tool-input-row">
-      <input type="text" id="traceroute-host" placeholder="Host or IP — e.g. 1.1.1.1"
-             onkeydown="if(event.key==='Enter')runTool('traceroute')">
+      <input type="text" id="traceroute-host" placeholder="Host or IP — e.g. 1.1.1.1" onkeydown="if(event.key==='Enter')runTool('traceroute')">
       <button class="btn-save" onclick="runTool('traceroute')">Trace</button>
     </div>
     <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 20 hops. May take up to 60 seconds.</p>
@@ -801,10 +942,8 @@
   <div class="tool-card">
     <h3>🔎 Port Scan</h3>
     <div class="tool-input-row">
-      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1"
-             onkeydown="if(event.key==='Enter')runTool('portscan')">
-      <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25"
-             style="max-width:220px" onkeydown="if(event.key==='Enter')runTool('portscan')">
+      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1" onkeydown="if(event.key==='Enter')runTool('portscan')">
+      <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25" style="max-width:220px" onkeydown="if(event.key==='Enter')runTool('portscan')">
       <button class="btn-save" onclick="runTool('portscan')">Scan</button>
     </div>
     <p style="font-size:.72rem;color:#666;margin-bottom:.4rem">Max 50 ports per scan. Uses TCP connect — no root required.</p>
@@ -821,23 +960,20 @@
       <button class="btn-save" onclick="runWhois()">Lookup</button>
     </div>
     <div id="whois-loading" style="display:none;font-size:.8rem;color:#888">Looking up…</div>
-    <table id="whois-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
-      <tbody id="whois-tbody"></tbody>
-    </table>
+    <table id="whois-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem"><tbody id="whois-tbody"></tbody></table>
     <div id="whois-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
   </div>
+
   <div class="tool-card">
     <h3>🚫 Top Blocked Domains</h3>
     <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">The 10 most-blocked domains on your network in the last 7 days. Click ✓ next to any domain to exempt it from blocking going forward.</p>
     <div id="blocked-domains-loading" style="font-size:.8rem;color:#888">Loading blocked domains…</div>
     <table id="blocked-domains-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
-      <thead>
-        <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
-          <th style="text-align:left;padding:.4rem .6rem">Domain</th>
-          <th style="text-align:right;padding:.4rem .6rem">Blocked (7d)</th>
-          <th style="width:1px;padding:.4rem .3rem"></th>
-        </tr>
-      </thead>
+      <thead><tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
+        <th style="text-align:left;padding:.4rem .6rem">Domain</th>
+        <th style="text-align:right;padding:.4rem .6rem">Blocked (7d)</th>
+        <th style="width:1px;padding:.4rem .3rem"></th>
+      </tr></thead>
       <tbody id="blocked-domains-tbody"></tbody>
     </table>
     <div id="blocked-domains-empty" style="display:none;font-size:.8rem;color:#555">No blocked domains in the last 7 days.</div>
@@ -849,12 +985,10 @@
     <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">These domains are exempt from AdGuard blocking. Click ✕ to remove a domain from the allowlist.</p>
     <div id="allowlist-loading" style="display:none;font-size:.8rem;color:#888">Loading…</div>
     <table id="allowlist-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
-      <thead>
-        <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
-          <th style="text-align:left;padding:.4rem .6rem">Domain</th>
-          <th style="width:1px;padding:.4rem .6rem"></th>
-        </tr>
-      </thead>
+      <thead><tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
+        <th style="text-align:left;padding:.4rem .6rem">Domain</th>
+        <th style="width:1px;padding:.4rem .6rem"></th>
+      </tr></thead>
       <tbody id="allowlist-tbody"></tbody>
     </table>
     <div id="allowlist-empty" style="font-size:.8rem;color:#555">No domains are currently allowlisted.</div>
@@ -866,17 +1000,16 @@
     <p style="font-size:.72rem;color:#666;margin:.2rem 0 .8rem">All devices seen by HoneytrapAI in the last 7 days, sorted by DNS activity.</p>
     <div id="devices-loading" style="font-size:.8rem;color:#888">Loading devices…</div>
     <table id="devices-table" style="display:none;width:100%;border-collapse:collapse;font-size:.8rem">
-      <thead>
-        <tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
-          <th style="text-align:left;padding:.4rem .6rem">Hostname</th>
-          <th style="text-align:left;padding:.4rem .6rem">IP Address</th>
-          <th style="text-align:right;padding:.4rem .6rem">DNS Queries (7d)</th>
-        </tr>
-      </thead>
+      <thead><tr style="color:#f5a623;border-bottom:1px solid #2a2a4a">
+        <th style="text-align:left;padding:.4rem .6rem">Hostname</th>
+        <th style="text-align:left;padding:.4rem .6rem">IP Address</th>
+        <th style="text-align:right;padding:.4rem .6rem">DNS Queries (7d)</th>
+      </tr></thead>
       <tbody id="devices-tbody"></tbody>
     </table>
     <div id="devices-error" style="display:none;font-size:.8rem;color:#e74c3c"></div>
   </div>
+
 </div>
 </div>
 
@@ -884,15 +1017,10 @@
 <div id="reset-overlay">
   <div class="reset-modal">
     <h3>⚠️ Factory Reset</h3>
-    <p>
-      This will clear your password, all configuration, and the static IP entry.
-      The appliance will reboot and return to the setup wizard.<br><br>
-      Enter your current password to confirm.
-    </p>
+    <p>This will clear your password, all configuration, and the static IP entry. The appliance will reboot and return to the setup wizard.<br><br>Enter your current password to confirm.</p>
     <div class="form-row">
       <label>Current Password</label>
-      <input type="password" id="reset-pw" placeholder="Your dashboard password"
-             onkeydown="if(event.key==='Enter')confirmReset()">
+      <input type="password" id="reset-pw" placeholder="Your dashboard password" onkeydown="if(event.key==='Enter')confirmReset()">
     </div>
     <div id="reset-error" style="display:none;color:#e74c3c;font-size:.78rem;margin-top:.5rem"></div>
     <div class="reset-modal-actions">
@@ -902,12 +1030,21 @@
   </div>
 </div>
 
-<!-- Map dot tooltip (fixed, follows cursor) -->
 <div id="map-tooltip"></div>
-
-<!-- You Are Here tooltip — ISSUE-35 -->
+<div id="score-tooltip">
+  <div class="st-title">How your score is calculated</div>
+  <div class="st-row"><span>AdGuard Running</span> 15 pts</div>
+  <div class="st-row"><span>DNS Filtering ON</span> 15 pts</div>
+  <div class="st-row"><span>HTTPS Enabled</span> 10 pts</div>
+  <div class="st-row"><span>Password Changed</span> 10 pts</div>
+  <div class="st-row"><span>Email Notifications</span> 10 pts</div>
+  <div class="st-row"><span>Parental Controls</span> 10 pts</div>
+  <hr class="st-divider">
+  <div class="st-row"><span>Threat Block Rate (24h)</span> 0–30 pts</div>
+  <hr class="st-divider">
+  <div class="st-row"><span>A</span> 90–100 &nbsp;<span>B</span> 75–89 &nbsp;<span>C</span> 50–74 &nbsp;<span>D</span> 25–49 &nbsp;<span>F</span> 0–24</div>
+</div>
 <div id="yah-tooltip"></div>
-
 <div id="toast"></div>
 
 <div class="footer">
@@ -918,6 +1055,189 @@
 <script>
 let allEvents = [], summaryData = {}, currentFilter = 'all', offenderTab = 'types';
 let lastDnsHistory = {};
+
+// ── SMTP Provider data ────────────────────────────────────────────────────
+const SMTP_PROVIDERS = {
+  // ── Popular Providers ──
+  gmail: {
+    host: 'smtp.gmail.com', port: 587, enc: 'starttls',
+    appPwNote: '<strong>Gmail requires an App Password.</strong> Your regular Google password will not work. <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Create an App Password →</a> (Requires 2-Step Verification to be enabled on your Google account.)',
+    passLabel: 'App Password'
+  },
+  outlook: {
+    host: 'smtp-mail.outlook.com', port: 587, enc: 'starttls',
+    appPwNote: '<strong>Outlook / Hotmail / Live may require an App Password</strong> if your account uses two-step verification. <a href="https://support.microsoft.com/en-us/account-billing/using-app-passwords-with-apps-that-don-t-support-two-step-verification-5896ed9b-4263-e681-128a-a6f2979a7944" target="_blank" rel="noopener">Microsoft App Password guide →</a>',
+    passLabel: 'Password or App Password'
+  },
+  yahoo: {
+    host: 'smtp.mail.yahoo.com', port: 587, enc: 'starttls',
+    appPwNote: '<strong>Yahoo requires an App Password.</strong> Your regular Yahoo password will not work. <a href="https://help.yahoo.com/kb/generate-third-party-passwords-sln15241.html" target="_blank" rel="noopener">Generate a Yahoo App Password →</a>',
+    passLabel: 'App Password'
+  },
+  aol: {
+    host: 'smtp.aol.com', port: 587, enc: 'starttls',
+    appPwNote: '<strong>AOL requires an App Password.</strong> Your regular AOL password will not work. <a href="https://help.aol.com/articles/create-and-manage-app-password" target="_blank" rel="noopener">Generate an AOL App Password →</a>',
+    passLabel: 'App Password'
+  },
+  icloud: {
+    host: 'smtp.mail.me.com', port: 587, enc: 'starttls',
+    appPwNote: '<strong>iCloud Mail requires an App-Specific Password.</strong> Your regular Apple ID password will not work. <a href="https://support.apple.com/en-us/102654" target="_blank" rel="noopener">Generate an Apple App-Specific Password →</a> (Requires two-factor authentication on your Apple ID.)',
+    passLabel: 'App-Specific Password'
+  },
+  zoho: {
+    host: 'smtp.zoho.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  fastmail: {
+    host: 'smtp.fastmail.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  protonmail: {
+    host: '127.0.0.1', port: 587, enc: 'starttls',
+    appPwNote: '⚠️ <strong>Proton Mail Bridge must be running on this device.</strong> Bridge acts as a local SMTP relay. <a href="https://proton.me/mail/bridge" target="_blank" rel="noopener">Proton Mail Bridge download →</a> Use the Bridge-generated password, not your Proton account password.',
+    passLabel: 'Bridge Password'
+  },
+  gmx: {
+    host: 'mail.gmx.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  mailcom: {
+    host: 'smtp.mail.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  yandex: {
+    host: 'smtp.yandex.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  office365: {
+    host: 'smtp.office365.com', port: 587, enc: 'starttls',
+    appPwNote: 'If your Microsoft 365 account uses multi-factor authentication, you may need to create an App Password or enable SMTP AUTH in your admin portal.',
+    passLabel: 'Password or App Password'
+  },
+  // ── US Internet Providers ──
+  att: {
+    host: 'smtp.mail.att.net', port: 465, enc: 'ssl',
+    appPwNote: 'For AT&T email accounts including sbcglobal.net, att.net, bellsouth.net, and ameritech.net.',
+    passLabel: 'Password'
+  },
+  comcast: {
+    host: 'smtp.comcast.net', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  cox: {
+    host: 'smtp.cox.net', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  spectrum: {
+    host: 'mobile.charter.net', port: 587, enc: 'starttls',
+    appPwNote: 'For Spectrum / Charter email accounts (charter.net, spectrum.net). Use your full email address as the username.',
+    passLabel: 'Password'
+  },
+  verizon: {
+    host: 'smtp.aol.com', port: 587, enc: 'starttls',
+    appPwNote: 'Verizon email is hosted on AOL\'s mail infrastructure. <strong>An App Password is required.</strong> <a href="https://help.aol.com/articles/create-and-manage-app-password" target="_blank" rel="noopener">Generate an App Password →</a>',
+    passLabel: 'App Password'
+  },
+  earthlink: {
+    host: 'smtpauth.earthlink.net', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  centurylink: {
+    host: 'smtp.centurylink.net', port: 587, enc: 'starttls',
+    appPwNote: 'For CenturyLink / Lumen / Quantum Fiber email accounts (centurylink.net, q.com). Use your full email address as the username.',
+    passLabel: 'Password'
+  },
+  // ── Canada ──
+  bell_canada: {
+    host: 'smtphm.sympatico.ca', port: 587, enc: 'starttls',
+    appPwNote: 'For Bell Canada residential email (bell.net, sympatico.ca). Small business Bell accounts should use <code style="color:#f5a623">smtpa.bellnet.ca</code> port 465 — select Other / Custom for that.',
+    passLabel: 'Password'
+  },
+  rogers: {
+    host: 'smtp.mail.yahoo.com', port: 587, enc: 'starttls',
+    appPwNote: 'Rogers email runs on Yahoo\'s mail infrastructure. <strong>An App Password is required.</strong> <a href="https://help.yahoo.com/kb/generate-third-party-passwords-sln15241.html" target="_blank" rel="noopener">Generate a Yahoo App Password →</a>',
+    passLabel: 'App Password'
+  },
+  shaw: {
+    host: 'mail.shaw.ca', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  telus: {
+    host: 'smtp.telus.net', port: 587, enc: 'starttls',
+    appPwNote: '⚠️ <strong>Newer Telus email accounts are powered by Google.</strong> If your Telus email was migrated, select <strong>Gmail</strong> from this list instead and use your Telus email address as the username.',
+    passLabel: 'Password'
+  },
+  // ── United Kingdom ──
+  bt: {
+    host: 'mail.btinternet.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  sky: {
+    host: 'smtp.tools.sky.com', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  },
+  virgin: {
+    host: 'smtp.virginmedia.com', port: 465, enc: 'ssl',
+    appPwNote: null, passLabel: 'Password'
+  },
+  talktalk: {
+    host: 'smtp.talktalk.net', port: 587, enc: 'starttls',
+    appPwNote: null, passLabel: 'Password'
+  }
+};
+
+function smtpProviderChange(sel) {
+  const key = sel.value;
+  const warnEl = document.getElementById('smtp-app-pw-warn');
+  const passLabelEl = document.getElementById('smtp-pass-label');
+  const passHintEl = document.getElementById('smtp-pass-hint');
+
+  if (!key || key === 'custom') {
+    warnEl.innerHTML = '';
+    warnEl.classList.remove('visible');
+    if (passLabelEl) passLabelEl.textContent = 'Password';
+    if (passHintEl) passHintEl.textContent = 'Use an App Password if 2FA is enabled.';
+    return;
+  }
+
+  const p = SMTP_PROVIDERS[key];
+  if (!p) return;
+
+  // Populate fields
+  document.getElementById('smtp-host').value = p.host;
+  document.getElementById('smtp-port').value = p.port;
+  const encSel = document.getElementById('smtp-enc');
+  encSel.value = p.enc;
+  smtpEncChange(encSel, false);
+
+  // Update password label
+  if (passLabelEl) passLabelEl.textContent = p.passLabel || 'Password';
+  if (passHintEl) passHintEl.textContent = '';
+
+  // Show/hide warning banner
+  if (p.appPwNote) {
+    warnEl.innerHTML = '⚠️ ' + p.appPwNote;
+    warnEl.classList.add('visible');
+  } else {
+    warnEl.innerHTML = '';
+    warnEl.classList.remove('visible');
+  }
+}
+
+// Reset provider dropdown to "custom" when user manually edits the host field
+function smtpHostManualEdit() {
+  const sel = document.getElementById('smtp-provider');
+  if (sel.value && sel.value !== 'custom') {
+    sel.value = 'custom';
+    document.getElementById('smtp-app-pw-warn').classList.remove('visible');
+    document.getElementById('smtp-app-pw-warn').innerHTML = '';
+    const passLabelEl = document.getElementById('smtp-pass-label');
+    const passHintEl = document.getElementById('smtp-pass-hint');
+    if (passLabelEl) passLabelEl.textContent = 'Password';
+    if (passHintEl) passHintEl.textContent = 'Use an App Password if 2FA is enabled.';
+  }
+}
+// ── end SMTP provider picker ──────────────────────────────────────────────
 
 // ── Severity filter state ─────────────────────────────────────────────────
 const sevActive = { high: true, medium: true, low: false };
@@ -932,8 +1252,7 @@ function toggleSeverity(sev) {
 
 function applySeverityFilter() {
   document.querySelectorAll('#map-dot-layer .map-dot').forEach(dot => {
-    const sev = dot.dataset.severity;
-    dot.classList.toggle('sev-hidden', !sevActive[sev]);
+    dot.classList.toggle('sev-hidden', !sevActive[dot.dataset.severity]);
   });
 }
 
@@ -941,11 +1260,10 @@ function applySeverityFilter() {
 function pad2(n) { return String(n).padStart(2, '0'); }
 
 function tickClocks() {
-  const now  = new Date();
-  const utcEl = document.getElementById('clock-utc');
-  const locEl = document.getElementById('clock-local');
-  if (utcEl) utcEl.textContent = `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`;
-  if (locEl) locEl.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+  const now = new Date();
+  const u = document.getElementById('clock-utc'), l = document.getElementById('clock-local');
+  if (u) u.textContent = `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`;
+  if (l) l.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
 }
 tickClocks();
 setInterval(tickClocks, 1000);
@@ -956,11 +1274,9 @@ let _lifetimeAnimDone = false;
 function animateCounter(el, target, duration) {
   const start = performance.now();
   function step(now) {
-    const t    = Math.min((now - start) / duration, 1);
-    const ease = 1 - (1 - t) * (1 - t);
+    const t = Math.min((now - start) / duration, 1), ease = 1 - (1 - t) * (1 - t);
     el.textContent = Math.round(ease * target).toLocaleString();
-    if (t < 1) requestAnimationFrame(step);
-    else el.textContent = target.toLocaleString();
+    if (t < 1) requestAnimationFrame(step); else el.textContent = target.toLocaleString();
   }
   requestAnimationFrame(step);
 }
@@ -971,6 +1287,59 @@ function updateLifetimeCounter(n) {
   if (!_lifetimeAnimDone) { _lifetimeAnimDone = true; animateCounter(el, n, 1500); }
   else el.textContent = n.toLocaleString();
 }
+
+// ── Security Score — ISSUE-57 ─────────────────────────────────────────────
+const GRADE_WORDS = { A:'Excellent', B:'Good', C:'Fair', D:'Poor', F:'Critical' };
+
+async function loadSecurityScore() {
+  try {
+    const d = await fetch('/api/security-score').then(r => r.json());
+    const score = d.score ?? 0, grade = d.grade ?? 'F', signals = d.signals ?? {};
+    const gc = 'grade-' + grade.toLowerCase();
+
+    const circle  = document.getElementById('score-circle');
+    const numEl   = document.getElementById('score-number');
+    const lblEl   = document.getElementById('score-grade-label');
+    const wordEl  = document.getElementById('score-grade-word');
+    const rateEl  = document.getElementById('score-block-rate');
+    const sigsEl  = document.getElementById('score-signals');
+
+    circle.className = 'score-circle ' + gc;
+    numEl.className  = 'score-number '  + gc;
+    wordEl.className = 'score-grade-word ' + gc;
+    numEl.textContent  = score;
+    lblEl.textContent  = 'Grade ' + grade;
+    wordEl.textContent = GRADE_WORDS[grade] || grade;
+
+    const br = signals.block_rate;
+    if (br && br.block_pct !== null && br.block_pct !== undefined) {
+      rateEl.textContent = br.block_pct + '% blocked today';
+    } else {
+      rateEl.textContent = '';
+    }
+
+    const CONFIG_KEYS = ['adguard_running', 'adguard_filtering', 'https', 'password_changed', 'email_configured', 'parental_controls'];
+    let html = '';
+    CONFIG_KEYS.forEach(k => {
+      const s = signals[k]; if (!s) return;
+      html += `<div class="score-signal">
+        <div class="score-signal-dot ${s.ok ? 'ok' : 'fail'}"></div>
+        <span style="color:${s.ok ? '#aaa' : '#e74c3c'}">${s.label}</span>
+      </div>`;
+    });
+    if (br) {
+      const pctStr = br.block_pct !== null && br.block_pct !== undefined ? ` (${br.block_pct}%)` : '';
+      html += `<div class="score-signal">
+        <div class="score-signal-dot ${br.ok ? 'ok' : 'fail'}"></div>
+        <span style="color:${br.ok ? '#aaa' : '#e74c3c'}">${br.label}${pctStr}</span>
+      </div>`;
+    }
+    sigsEl.innerHTML = html || '<div class="score-signal"><div class="score-signal-dot fail"></div><span style="color:#555">Unavailable</span></div>';
+  } catch(e) {
+    console.error('[HTAI] security-score error', e);
+  }
+}
+// ── end ISSUE-57 ──────────────────────────────────────────────────────────
 
 // ── World Map ─────────────────────────────────────────────────────────────
 const NAME_TO_CC = {
@@ -1015,51 +1384,28 @@ const NAME_TO_CC = {
 
 function initMap() {
   const W = 1000, H = 507;
-  const projection = d3.geoEquirectangular()
-    .scale(H / Math.PI)
-    .translate([W / 2, H / 2])
-    .precision(0.1);
+  const projection = d3.geoEquirectangular().scale(H / Math.PI).translate([W/2, H/2]).precision(0.1);
   const path = d3.geoPath().projection(projection);
-
   const graticule = d3.geoGraticule().step([30, 30]);
-  d3.select('#graticule-layer')
-    .append('path')
-    .datum(graticule())
-    .attr('d', path)
-    .attr('fill', 'none')
-    .attr('stroke', '#111128')
-    .attr('stroke-width', '0.5');
-
-  return fetch('/static/countries-110m.json')
-    .then(r => r.json())
-    .then(world => {
-      const countries = topojson.feature(world, world.objects.countries);
-      d3.select('#countries-layer')
-        .selectAll('path')
-        .data(countries.features)
-        .join('path')
-        .attr('d', path)
-        .attr('fill', '#1e2035')
-        .attr('stroke', '#2d2d50')
-        .attr('stroke-width', '0.5')
-        .attr('stroke-linejoin', 'round')
-        .attr('data-cc', f => {
-          const iso = f.properties.iso_a2 || f.properties.ISO_A2 || f.properties.ISO_A2_EH || '';
-          if (iso && iso !== '-99') return iso;
-          const n = (f.properties.name || f.properties.NAME || '').trim();
-          return NAME_TO_CC[n] || '';
-        })
-        .attr('data-name', f => (f.properties.name || f.properties.NAME || ''));
-
-      wireCountryClicks();
-    })
-    .catch(err => console.warn('Map data failed to load:', err));
+  d3.select('#graticule-layer').append('path').datum(graticule())
+    .attr('d', path).attr('fill', 'none').attr('stroke', '#111128').attr('stroke-width', '0.5');
+  return fetch('/static/countries-110m.json').then(r => r.json()).then(world => {
+    const countries = topojson.feature(world, world.objects.countries);
+    d3.select('#countries-layer').selectAll('path').data(countries.features).join('path')
+      .attr('d', path).attr('fill', '#1e2035').attr('stroke', '#2d2d50')
+      .attr('stroke-width', '0.5').attr('stroke-linejoin', 'round')
+      .attr('data-cc', f => {
+        const iso = f.properties.iso_a2 || f.properties.ISO_A2 || f.properties.ISO_A2_EH || '';
+        if (iso && iso !== '-99') return iso;
+        return NAME_TO_CC[(f.properties.name || f.properties.NAME || '').trim()] || '';
+      })
+      .attr('data-name', f => (f.properties.name || f.properties.NAME || ''));
+    wireCountryClicks();
+  }).catch(err => console.warn('Map data failed to load:', err));
 }
 
-// ── Threat Map dots ───────────────────────────────────────────────────────
 function latLonToXY(lat, lon) {
-  const W = 1000, H = 507;
-  return { x: (lon + 180) / 360 * W, y: (90 - lat) / 180 * H };
+  return { x: (lon + 180) / 360 * 1000, y: (90 - lat) / 180 * 507 };
 }
 
 function renderThreatMap(events) {
@@ -1067,9 +1413,7 @@ function renderThreatMap(events) {
   const emptyEl  = document.getElementById('map-empty');
   const countEl  = document.getElementById('map-event-count');
   const tip      = document.getElementById('map-tooltip');
-
   dotLayer.innerHTML = '';
-
   if (!events || !events.length) {
     emptyEl.style.display = 'block';
     if (countEl) countEl.textContent = '';
@@ -1077,28 +1421,23 @@ function renderThreatMap(events) {
   }
   emptyEl.style.display = 'none';
   if (countEl) countEl.textContent = `(${events.length} event${events.length !== 1 ? 's' : ''})`;
-
-  const VW = 1000, VH = 507;
   events.forEach(ev => {
     if (ev.lat == null || ev.lon == null || (ev.lat === 0 && ev.lon === 0)) return;
-    const { x, y } = latLonToXY(ev.lat, ev.lon);
+    const {x, y} = latLonToXY(ev.lat, ev.lon);
     const dot = document.createElement('div');
     dot.className = `map-dot ${ev.severity}`;
     dot.dataset.severity = ev.severity;
     if (!sevActive[ev.severity]) dot.classList.add('sev-hidden');
     const sz = ev.severity === 'high' ? 10 : ev.severity === 'medium' ? 8 : 7;
-    dot.style.cssText = `width:${sz}px;height:${sz}px;left:${(x/VW)*100}%;top:${(y/VH)*100}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
+    dot.style.cssText = `width:${sz}px;height:${sz}px;left:${(x/1000)*100}%;top:${(y/507)*100}%;animation-delay:${(Math.random()*2).toFixed(2)}s`;
     dot.addEventListener('mouseenter', e => {
       const cityLine = ev.city ? `<div><span style="color:#666">City:</span> ${ev.city}</div>` : '';
-      tip.innerHTML = `
-        <div style="color:#f5a623;font-weight:700;margin-bottom:.2rem">${ev.ip}</div>
-        <div><span style="color:#666">Country:</span> ${ev.country_name}</div>
-        ${cityLine}
+      tip.innerHTML = `<div style="color:#f5a623;font-weight:700;margin-bottom:.2rem">${ev.ip}</div>
+        <div><span style="color:#666">Country:</span> ${ev.country_name}</div>${cityLine}
         <div><span style="color:#666">Trail:</span> <span style="color:#f5a623">${ev.trail}</span></div>
         <div><span style="color:#666">Severity:</span> <span class="sev-badge sev-${ev.severity}" style="font-size:.68rem">${ev.severity.toUpperCase()}</span></div>
         <div><span style="color:#666">Time:</span> ${ev.timestamp}</div>`;
-      tip.style.display = 'block';
-      positionTip(e);
+      tip.style.display = 'block'; positionTip(e);
     });
     dot.addEventListener('mousemove', positionTip);
     dot.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
@@ -1112,144 +1451,78 @@ function positionTip(e) {
   let lx = e.clientX + 14, ly = e.clientY - 10;
   if (lx + tw > window.innerWidth  - 10) lx = e.clientX - tw - 14;
   if (ly + th > window.innerHeight - 10) ly = e.clientY - th - 10;
-  tip.style.left = lx + 'px';
-  tip.style.top  = ly + 'px';
+  tip.style.left = lx + 'px'; tip.style.top = ly + 'px';
 }
 
 async function loadThreatMap() {
   try {
     const d = await fetch('/api/threat-map').then(r => r.json());
     mapDotData = d.events || [];
-    console.log('[HTAI] threat-map raw:', JSON.stringify(
-      mapDotData.map(e => ({sev: e.severity, lat: e.lat, lon: e.lon, ip: e.ip}))
-    ));
     renderThreatMap(mapDotData);
-  } catch(e) {
-    console.error('Threat map error', e);
-  }
+  } catch(e) { console.error('Threat map error', e); }
 }
 
-// ── You Are Here marker — ISSUE-35 ───────────────────────────────────────
+// ── You Are Here — ISSUE-35 ───────────────────────────────────────────────
 function renderYouAreHere(lat, lon, city) {
-  const svg = document.getElementById('threat-map-svg');
-  if (!svg) return;
-
-  const existing = svg.querySelector('.yah-pin');
-  if (existing) existing.remove();
-
-  const VW = 1000, VH = 507;
-  const x = ((lon + 180) / 360) * VW;
-  const y = ((90 - lat)  / 180) * VH;
-
+  const svg = document.getElementById('threat-map-svg'); if (!svg) return;
+  const existing = svg.querySelector('.yah-pin'); if (existing) existing.remove();
+  const x = ((lon + 180) / 360) * 1000, y = ((90 - lat) / 180) * 507;
   const ns = 'http://www.w3.org/2000/svg';
-  const g  = document.createElementNS(ns, 'g');
+  const g = document.createElementNS(ns, 'g');
   g.setAttribute('class', 'yah-pin');
   g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
-
-  const outer = document.createElementNS(ns, 'circle');
-  outer.setAttribute('class', 'yah-outer');
-  outer.setAttribute('r', '7');
-  g.appendChild(outer);
-
-  const inner = document.createElementNS(ns, 'circle');
-  inner.setAttribute('class', 'yah-inner');
-  inner.setAttribute('r', '3');
-  g.appendChild(inner);
-
+  const outer = document.createElementNS(ns, 'circle'); outer.setAttribute('class','yah-outer'); outer.setAttribute('r','7'); g.appendChild(outer);
+  const inner = document.createElementNS(ns, 'circle'); inner.setAttribute('class','yah-inner'); inner.setAttribute('r','3'); g.appendChild(inner);
   [[-13,0,-9,0],[9,0,13,0],[0,-13,0,-9],[0,9,0,13]].forEach(([x1,y1,x2,y2]) => {
-    const l = document.createElementNS(ns, 'line');
-    l.setAttribute('class', 'yah-line');
-    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
-    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
-    g.appendChild(l);
+    const l = document.createElementNS(ns,'line'); l.setAttribute('class','yah-line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2); g.appendChild(l);
   });
-
   svg.appendChild(g);
-
   const tip = document.getElementById('yah-tooltip');
   const label = city ? `📍 You are here — ${city}` : '📍 You are here';
   g.addEventListener('mouseenter', () => { tip.textContent = label; tip.style.display = 'block'; });
-  g.addEventListener('mousemove', e => {
-    tip.style.left = (e.clientX + 14) + 'px';
-    tip.style.top  = (e.clientY - 10) + 'px';
-  });
+  g.addEventListener('mousemove', e => { tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY-10)+'px'; });
   g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
 }
 
 async function fetchAndRenderYAH() {
   try {
-    const r = await fetch('/api/my-location');
-    if (!r.ok) return;
+    const r = await fetch('/api/my-location'); if (!r.ok) return;
     const d = await r.json();
     if (d.lat && d.lon) renderYouAreHere(d.lat, d.lon, d.city || '');
-  } catch(e) {
-    console.warn('[HTAI] You Are Here fetch failed:', e);
-  }
+  } catch(e) { console.warn('[HTAI] YAH fetch failed:', e); }
 }
-// ── end ISSUE-35 ──────────────────────────────────────────────────────────
 
 // ── Network visibility banner — ISSUE-40 ─────────────────────────────────
 let _netBannerDismissed = false;
-
-function dismissNetworkBanner() {
-  _netBannerDismissed = true;
-  document.getElementById('network-banner').classList.remove('visible');
-}
-
+function dismissNetworkBanner() { _netBannerDismissed = true; document.getElementById('network-banner').classList.remove('visible'); }
 async function checkNetworkVisibility() {
   if (_netBannerDismissed) return;
   try {
     const d = await fetch('/api/network-visibility').then(r => r.json());
-    const banner = document.getElementById('network-banner');
-    if (!d.visible) {
-      banner.classList.add('visible');
-    } else {
-      banner.classList.remove('visible');
-    }
-  } catch(e) {
-    console.warn('[HTAI] network-visibility check failed:', e);
-  }
+    document.getElementById('network-banner').classList.toggle('visible', !d.visible);
+  } catch(e) { console.warn('[HTAI] network-visibility check failed:', e); }
 }
-// ── end ISSUE-40 ──────────────────────────────────────────────────────────
+
 // ── DNS filtering banner — ISSUE-15 ──────────────────────────────────────
 let _filteringBannerDismissed = false;
-function dismissFilteringBanner() {
-  _filteringBannerDismissed = true;
-  document.getElementById('filtering-banner').classList.remove('visible');
-}
+function dismissFilteringBanner() { _filteringBannerDismissed = true; document.getElementById('filtering-banner').classList.remove('visible'); }
 async function checkFilteringStatus() {
   try {
     const d = await fetch('/api/filtering/status').then(r => r.json());
     const enabled = d.enabled !== false;
-    const banner = document.getElementById('filtering-banner');
-    // Update the Settings checkbox to reflect live state
     const chk = document.getElementById('chk-filtering-enabled');
     if (chk) chk.checked = enabled;
-    if (!enabled && !_filteringBannerDismissed) {
-      banner.classList.add('visible');
-    } else {
-      banner.classList.remove('visible');
-    }
-  } catch(e) {
-    console.warn('[HTAI] filtering-status check failed:', e);
-  }
+    document.getElementById('filtering-banner').classList.toggle('visible', !enabled && !_filteringBannerDismissed);
+  } catch(e) { console.warn('[HTAI] filtering-status check failed:', e); }
 }
 async function toggleFiltering(chk) {
   try {
-    const d = await fetch('/api/filtering/toggle', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({enabled: chk.checked})
-    }).then(r => r.json());
+    const d = await fetch('/api/filtering/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:chk.checked})}).then(r=>r.json());
     if (d.error) { chk.checked = !chk.checked; alert('Error: ' + d.error); return; }
-    _filteringBannerDismissed = false;
-    checkFilteringStatus();
-  } catch(e) {
-    chk.checked = !chk.checked;
-    alert('Failed to update filtering status.');
-  }
+    _filteringBannerDismissed = false; checkFilteringStatus();
+  } catch(e) { chk.checked = !chk.checked; alert('Failed to update filtering status.'); }
 }
-// ── end ISSUE-15 ──────────────────────────────────────────────────────────
 
 // ── Page & nav ────────────────────────────────────────────────────────────
 function showPage(name, btn) {
@@ -1257,14 +1530,14 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'dashboard') loadSecurityScore();
   if (name === 'settings') loadSettings();
   if (name === 'tools')    loadAllowlist();
 }
 
 function toast(msg, err) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'show' + (err ? ' error' : '');
+  t.textContent = msg; t.className = 'show' + (err ? ' error' : '');
   setTimeout(() => t.className = '', 3000);
 }
 
@@ -1280,9 +1553,8 @@ async function updateSensorStatus() {
     setSensor('dns',         s['dns']);
     const dot = document.getElementById('overall-dot');
     if (dot) {
-      dot.className = ''; void dot.offsetWidth;
-      dot.className = d.overall || 'grey';
-      const labels = {green:'All systems operational', amber:'One or more services degraded', red:'Critical service down'};
+      dot.className = ''; void dot.offsetWidth; dot.className = d.overall || 'grey';
+      const labels = {green:'All systems operational',amber:'One or more services degraded',red:'Critical service down'};
       dot.title = labels[d.overall] || 'Status unknown';
     }
   } catch(e) {
@@ -1293,8 +1565,7 @@ async function updateSensorStatus() {
 }
 
 function setSensor(name, ok) {
-  const dot = document.getElementById('dot-' + name);
-  const lbl = document.getElementById('lbl-' + name);
+  const dot = document.getElementById('dot-' + name), lbl = document.getElementById('lbl-' + name);
   if (!dot || !lbl) return;
   dot.className = 'sensor-dot ' + (ok ? 'green' : 'red');
   lbl.textContent = ok ? 'active' : 'not running';
@@ -1309,45 +1580,33 @@ async function loadStats() {
       fetch('/api/adguard/stats').then(r => r.json()).catch(() => ({})),
       fetch('/api/adguard/history').then(r => r.json()).catch(() => ({}))
     ]);
-    allEvents   = r1.events  || [];
-    summaryData = r1.summary || {};
-    document.getElementById('s-total').textContent        = summaryData.total  ?? 0;
-    document.getElementById('s-high').textContent         = summaryData.high   ?? 0;
-    document.getElementById('s-medium').textContent       = summaryData.medium ?? 0;
-    document.getElementById('s-low').textContent          = summaryData.low    ?? 0;
-    document.getElementById('s-dns-queries').textContent  = r2.num_dns_queries?.toLocaleString()       ?? '—';
-    document.getElementById('s-dns-blocked').textContent  = r2.num_blocked_filtering?.toLocaleString() ?? '—';
+    allEvents = r1.events || []; summaryData = r1.summary || {};
+    document.getElementById('s-total').textContent       = summaryData.total  ?? 0;
+    document.getElementById('s-high').textContent        = summaryData.high   ?? 0;
+    document.getElementById('s-medium').textContent      = summaryData.medium ?? 0;
+    document.getElementById('s-low').textContent         = summaryData.low    ?? 0;
+    document.getElementById('s-dns-queries').textContent = r2.num_dns_queries?.toLocaleString()        ?? '—';
+    document.getElementById('s-dns-blocked').textContent = r2.num_blocked_filtering?.toLocaleString()  ?? '—';
     if (typeof r1.lifetime_blocked === 'number') updateLifetimeCounter(r1.lifetime_blocked);
     renderAlerts(); renderOffenders();
-    lastDnsHistory = r3;
-    renderDnsChart(r3);
+    lastDnsHistory = r3; renderDnsChart(r3);
   } catch(e) { console.error('Stats error', e); }
 }
 
 function setFilter(f, btn) {
   currentFilter = f;
   document.querySelectorAll('.filter-bar .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderAlerts();
+  btn.classList.add('active'); renderAlerts();
 }
 
 function renderAlerts() {
-  const tbody    = document.getElementById('alert-tbody');
+  const tbody = document.getElementById('alert-tbody');
   const filtered = currentFilter === 'all' ? allEvents : allEvents.filter(e => e.severity === currentFilter);
   if (!filtered.length) {
-    const hasAny = allEvents.length > 0;
-    const filterLabel = currentFilter === 'all' ? '' : currentFilter + ' ';
+    const hasAny = allEvents.length > 0, fl = currentFilter === 'all' ? '' : currentFilter + ' ';
     tbody.innerHTML = hasAny
-      ? `<tr><td colspan="5"><div class="empty-state">
-           <div class="icon" style="font-size:1.4rem">🚫</div>
-           <div class="empty-title" style="color:#aaa">None Detected</div>
-           <div class="empty-sub">No ${filterLabel}severity threats in the current log.</div>
-         </div></td></tr>`
-      : `<tr><td colspan="5"><div class="empty-state">
-           <div class="icon">🐝</div>
-           <div class="empty-title">HoneytrapAI is protecting your network.</div>
-           <div class="empty-sub">No ${filterLabel}threats detected yet.</div>
-         </div></td></tr>`;
+      ? `<tr><td colspan="5"><div class="empty-state"><div class="icon" style="font-size:1.4rem">🚫</div><div class="empty-title" style="color:#aaa">None Detected</div><div class="empty-sub">No ${fl}severity threats in the current log.</div></div></td></tr>`
+      : `<tr><td colspan="5"><div class="empty-state"><div class="icon">🐝</div><div class="empty-title">HoneytrapAI is protecting your network.</div><div class="empty-sub">No ${fl}threats detected yet.</div></div></td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(e => `
@@ -1363,8 +1622,7 @@ function renderAlerts() {
 function setOffenderTab(tab, btn) {
   offenderTab = tab;
   document.querySelectorAll('.panel-title .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderOffenders();
+  btn.classList.add('active'); renderOffenders();
 }
 
 function renderOffenders() {
@@ -1374,28 +1632,15 @@ function renderOffenders() {
   if (offenderTab === 'trails')  items = summaryData.top_trails       || [];
   if (offenderTab === 'types')   items = summaryData.top_threat_types || [];
   if (!items.length) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="icon">🐝</div>
-      <div class="empty-title">Your network looks clean.</div>
-      <div class="empty-sub">No threat sources detected yet.</div>
-    </div>`; return;
+    el.innerHTML = `<div class="empty-state"><div class="icon">🐝</div><div class="empty-title">Your network looks clean.</div><div class="empty-sub">No threat sources detected yet.</div></div>`; return;
   }
-  const sevOrder = {high:3, medium:2, low:1};
-  const sorted = [...items].sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
-    return (sevOrder[b.severity] || 0) - (sevOrder[a.severity] || 0);
-  });
+  const sevOrder = {high:3,medium:2,low:1};
+  const sorted = [...items].sort((a,b) => b.count!==a.count ? b.count-a.count : (sevOrder[b.severity]||0)-(sevOrder[a.severity]||0));
   const maxCount = Math.max(...sorted.map(i => i.count), 1);
-  const sevClass = {high:'sev-high-bar', medium:'sev-medium-bar', low:'sev-low-bar'};
+  const sevClass = {high:'sev-high-bar',medium:'sev-medium-bar',low:'sev-low-bar'};
   el.innerHTML = sorted.map(i => {
-    const lbl = i.ip || i.trail || i.type || '—';
-    const pct = Math.max(Math.round((i.count / maxCount) * 100), 15);
-    const cls = sevClass[i.severity] || 'sev-default-bar';
-    return `<div class="bar-item">
-      <div class="bar-label" title="${lbl}">${lbl}</div>
-      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
-      <div class="bar-count">${i.count}</div>
-    </div>`;
+    const lbl = i.ip || i.trail || i.type || '—', pct = Math.max(Math.round((i.count/maxCount)*100),15);
+    return `<div class="bar-item"><div class="bar-label" title="${lbl}">${lbl}</div><div class="bar-track"><div class="bar-fill ${sevClass[i.severity]||'sev-default-bar'}" style="width:${pct}%"></div></div><div class="bar-count">${i.count}</div></div>`;
   }).join('');
 }
 
@@ -1403,13 +1648,12 @@ function renderOffenders() {
 let _dnsMouseMove = null, _dnsMouseLeave = null;
 
 function drawDnsChart(canvas, data) {
-  const W = canvas.getBoundingClientRect().width;
-  if (!W) return;
-  const queries = data.queries || [], blocked = data.blocked || [], hours = data.hours || [];
+  const W = canvas.getBoundingClientRect().width; if (!W) return;
+  const queries = data.queries||[], blocked = data.blocked||[], hours = data.hours||[];
   if (!queries.length) return;
-  const H = 140, dpr = window.devicePixelRatio || 1;
-  canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  const H=140, dpr=window.devicePixelRatio||1;
+  canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const PAD_L=42,PAD_R=12,PAD_T=10,PAD_B=26,cW=W-PAD_L-PAD_R,cH=H-PAD_T-PAD_B,n=queries.length;
   const maxVal=Math.max(...queries,1),rawStep=maxVal/4,mag=Math.pow(10,Math.floor(Math.log10(rawStep||1)));
   const niceStep=Math.ceil(rawStep/mag)*mag||1,yMax=niceStep*4;
@@ -1448,8 +1692,7 @@ function drawDnsChart(canvas, data) {
 }
 
 function renderDnsChart(data) {
-  const canvas = document.getElementById('dns-chart-canvas');
-  if (!canvas) return;
+  const canvas = document.getElementById('dns-chart-canvas'); if (!canvas) return;
   if (!canvas.getBoundingClientRect().width) { requestAnimationFrame(() => renderDnsChart(data)); return; }
   drawDnsChart(canvas, data);
 }
@@ -1467,595 +1710,560 @@ async function loadSettings() {
     const chk = document.getElementById('chk-disable-email');
     chk.checked = !!d.email_disabled; applyEmailDisabledState(chk.checked);
   } catch(e) {}
-  loadSmtp(); checkUpdate(false);
-  fetchDevices();
+  loadSmtp(); checkUpdate(false); fetchDevices(); loadParentalControls();
 }
 
 async function saveSettings() {
-  const payload = {
-    alert_email:     document.getElementById('cfg-email').value,
-    alert_threshold: document.getElementById('cfg-threshold').value,
-    email_disabled:  document.getElementById('chk-disable-email').checked
-  };
-  const r = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const payload = {alert_email:document.getElementById('cfg-email').value,alert_threshold:document.getElementById('cfg-threshold').value,email_disabled:document.getElementById('chk-disable-email').checked};
+  const r = await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   r.ok ? toast('Settings saved.') : toast('Error saving settings.', true);
 }
 
 async function changePassword() {
-  const payload = {
-    current:      document.getElementById('pw-current').value,
-    new_password: document.getElementById('pw-new').value,
-    confirm:      document.getElementById('pw-confirm').value
-  };
-  const r = await fetch('/api/password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const payload = {current:document.getElementById('pw-current').value,new_password:document.getElementById('pw-new').value,confirm:document.getElementById('pw-confirm').value};
+  const r = await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const d = await r.json();
-  if (r.ok) { toast('Password updated.'); ['pw-current','pw-new','pw-confirm'].forEach(id => document.getElementById(id).value = ''); }
-  else toast(d.error || 'Error updating password.', true);
+  if (r.ok) { toast('Password updated.'); ['pw-current','pw-new','pw-confirm'].forEach(id=>document.getElementById(id).value=''); }
+  else toast(d.error||'Error updating password.',true);
 }
 
 async function checkUpdate(force) {
   const msgEl=document.getElementById('update-status-msg'),lcEl=document.getElementById('update-last-check'),btnEl=document.getElementById('btn-check-update');
   if (force) { msgEl.className='checking'; msgEl.textContent='Checking for updates…'; btnEl.disabled=true; btnEl.textContent='Checking…'; }
   try {
-    const d = await fetch('/api/update/check' + (force ? '?force=1' : '')).then(r => r.json());
-    if (lcEl && d.checked_at) lcEl.textContent = 'Last checked: ' + d.checked_at;
+    const d = await fetch('/api/update/check'+(force?'?force=1':'')).then(r=>r.json());
+    if (lcEl && d.checked_at) lcEl.textContent='Last checked: '+d.checked_at;
     if (d.update_available) {
-      const cleanNotes = (d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').split('\n').find(l=>l.trim()) || '';
-      document.getElementById('update-version').textContent      = d.latest_version;
-      document.getElementById('update-notes').textContent        = cleanNotes.slice(0,80);
+      const cleanNotes=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').split('\n').find(l=>l.trim())||'';
+      document.getElementById('update-version').textContent=d.latest_version;
+      document.getElementById('update-notes').textContent=cleanNotes.slice(0,80);
       document.getElementById('update-banner').classList.add('visible');
-      document.getElementById('update-card').style.display       = 'block';
-      document.getElementById('update-card-version').textContent = d.latest_version;
-      const fullClean = (d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
-      document.getElementById('update-card-notes').textContent   = fullClean.slice(0,600);
+      document.getElementById('update-card').style.display='block';
+      document.getElementById('update-card-version').textContent=d.latest_version;
+      const fullClean=(d.release_notes||'').replace(/^#{1,3}\s+/gm,'').replace(/\*\*/g,'').replace(/`/g,'').split('\n').filter(l=>l.trim()).slice(0,8).join(' · ');
+      document.getElementById('update-card-notes').textContent=fullClean.slice(0,600);
       msgEl.className='available'; msgEl.textContent=`Update available: ${d.latest_version}`;
     } else {
-      document.getElementById('update-card').style.display = 'none';
+      document.getElementById('update-card').style.display='none';
       msgEl.className='uptodate'; msgEl.textContent='✓ Your HoneytrapAI appliance is up to date!';
     }
   } catch(e) { msgEl.className='error'; msgEl.textContent='Could not check for updates.'; }
   finally { if (btnEl) { btnEl.disabled=false; btnEl.textContent='Check Now'; } }
 }
 
-// ── OTA Update — ISSUE-14 ─────────────────────────────────────────────────
 async function installUpdate() {
   clearInterval(statsInterval);
-  const ver = (document.getElementById('update-card-version')?.textContent?.trim()) ||
-              (document.querySelector('.nav-version')?.textContent?.trim()) || '';
-  // Show holding screen immediately — no gap for the user
+  const ver=(document.getElementById('update-card-version')?.textContent?.trim())||(document.querySelector('.nav-version')?.textContent?.trim())||'';
   showInstalling(ver);
-  try { await fetch('/api/update/install', {method:'POST'}); } catch(e) {}
-  // Poll until service disappears or reports complete
-  let countdownStarted = false;
-  const poll = setInterval(async () => {
+  try { await fetch('/api/update/install',{method:'POST'}); } catch(e) {}
+  let countdownStarted=false;
+  const poll=setInterval(async()=>{
     try {
-      const d = await fetch('/api/update/status').then(r => r.json());
-      if (d.state === 'error') { clearInterval(poll); location.reload(); return; }
-      // still running — holding screen stays up
+      const d=await fetch('/api/update/status').then(r=>r.json());
+      if(d.state==='error'){clearInterval(poll);location.reload();}
     } catch(e) {
-      // Service not responding — it restarted. Transition to countdown.
-      if (!countdownStarted) { countdownStarted = true; clearInterval(poll); showUpdateCountdown(ver); }
+      if(!countdownStarted){countdownStarted=true;clearInterval(poll);showUpdateCountdown(ver);}
     }
-  }, 2000);
+  },2000);
 }
 
 function showInstalling(ver) {
-  const verLine = ver ? `<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>` : '';
-  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">Installing update…</div>${verLine}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Applying update and restarting services.<br>This will take about 30 seconds.</div><div style="margin-top:1.2rem"><svg width="32" height="32" viewBox="0 0 32 32" style="animation:spin 1.2s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><circle cx="16" cy="16" r="13" fill="none" stroke="#2a2a4a" stroke-width="3"/><path d="M16 3 A13 13 0 0 1 29 16" fill="none" stroke="#f5a623" stroke-width="3" stroke-linecap="round"/></svg></div></div></div>`;
+  const vl=ver?`<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>`:'';
+  document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">Installing update…</div>${vl}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Applying update and restarting services.<br>This will take about 30 seconds.</div><div style="margin-top:1.2rem"><svg width="32" height="32" viewBox="0 0 32 32" style="animation:spin 1.2s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><circle cx="16" cy="16" r="13" fill="none" stroke="#2a2a4a" stroke-width="3"/><path d="M16 3 A13 13 0 0 1 29 16" fill="none" stroke="#f5a623" stroke-width="3" stroke-linecap="round"/></svg></div></div></div>`;
 }
 
 function showUpdateCountdown(ver) {
-  if (ver === undefined) ver = '';
-  let countdown = 60;
-  const verLine = ver ? `<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>` : '';
-  document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">HoneytrapAI update complete.</div>${verLine}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
-  setTimeout(() => {
-    const timer = setInterval(() => {
-      countdown--;
-      const el = document.getElementById('update-countdown');
-      if (el) el.textContent = countdown;
-      if (countdown <= 0) { clearInterval(timer); location.reload(); }
-    }, 1000);
-  }, 100);
+  if(ver===undefined)ver='';
+  let countdown=60;
+  const vl=ver?`<div style="font-size:.78rem;color:#666;margin-top:.25rem">Version ${ver}</div>`:'';
+  document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.25rem">HoneytrapAI update complete.</div>${vl}<div style="color:#888;font-size:.88rem;margin-top:.5rem">Services are restarting. Reloading in <span id="update-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't reload automatically.</div></div></div>`;
+  setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('update-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.reload();}},1000);},100);
 }
-// ── end ISSUE-14 ──────────────────────────────────────────────────────────
 
 async function restoreBackup(input) {
-  const f = input.files[0]; if (!f) return;
-  const fd = new FormData(); fd.append('backup', f);
-  const r = await fetch('/api/restore', {method:'POST', body:fd});
-  r.ok ? toast('Backup restored. Refreshing…') : toast('Restore failed.', true);
-  if (r.ok) setTimeout(() => location.reload(), 1500);
+  const f=input.files[0]; if(!f)return;
+  const fd=new FormData(); fd.append('backup',f);
+  const r=await fetch('/api/restore',{method:'POST',body:fd});
+  r.ok?toast('Backup restored. Refreshing…'):toast('Restore failed.',true);
+  if(r.ok)setTimeout(()=>location.reload(),1500);
 }
 
-function showResetOverlay() { document.getElementById('reset-pw').value=''; document.getElementById('reset-error').style.display='none'; document.getElementById('reset-overlay').classList.add('visible'); setTimeout(()=>document.getElementById('reset-pw').focus(),50); }
-function hideResetOverlay() { document.getElementById('reset-overlay').classList.remove('visible'); }
-document.getElementById('reset-overlay').addEventListener('click', function(e) { if (e.target===this) hideResetOverlay(); });
+function showResetOverlay(){document.getElementById('reset-pw').value='';document.getElementById('reset-error').style.display='none';document.getElementById('reset-overlay').classList.add('visible');setTimeout(()=>document.getElementById('reset-pw').focus(),50);}
+function hideResetOverlay(){document.getElementById('reset-overlay').classList.remove('visible');}
+document.getElementById('reset-overlay').addEventListener('click',function(e){if(e.target===this)hideResetOverlay();});
 
 async function confirmReset() {
-  const pw=document.getElementById('reset-pw').value, errEl=document.getElementById('reset-error');
+  const pw=document.getElementById('reset-pw').value,errEl=document.getElementById('reset-error');
   errEl.style.display='none';
-  if (!pw) { errEl.textContent='Please enter your current password.'; errEl.style.display='block'; return; }
-  const btn=document.querySelector('.btn-confirm-reset'); btn.disabled=true; btn.textContent='Resetting…';
+  if(!pw){errEl.textContent='Please enter your current password.';errEl.style.display='block';return;}
+  const btn=document.querySelector('.btn-confirm-reset');btn.disabled=true;btn.textContent='Resetting…';
   try {
-    const r = await fetch('/api/factory-reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw})});
-    const d = await r.json();
-    if (!r.ok) { errEl.textContent=d.error||'Reset failed.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Reset & Reboot'; }
+    const r=await fetch('/api/factory-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Reset failed.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
     else {
-      hideResetOverlay(); let countdown=60;
+      hideResetOverlay();let countdown=60;
       document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,sans-serif;text-align:center;padding:2rem"><div><div style="font-size:3rem;margin-bottom:1rem">🐝</div><div style="font-size:1.2rem;color:#f5a623;font-weight:700;margin-bottom:.5rem">Factory reset complete.</div><div style="color:#888;font-size:.88rem">Redirecting in <span id="reset-countdown" style="color:#f5a623">60</span> seconds…<br><a href="http://honeytrap.local" style="color:#f5a623">Click here</a> if it doesn't redirect automatically.</div></div></div>`;
       setTimeout(()=>{const timer=setInterval(()=>{countdown--;const el=document.getElementById('reset-countdown');if(el)el.textContent=countdown;if(countdown<=0){clearInterval(timer);location.replace('http://honeytrap.local');}},1000);},100);
     }
-  } catch(e) { errEl.textContent='Network error.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Reset & Reboot'; }
+  } catch(e){errEl.textContent='Network error.';errEl.style.display='block';btn.disabled=false;btn.textContent='Reset & Reboot';}
 }
 
 // ── SMTP ──────────────────────────────────────────────────────────────────
-function smtpEncChange(sel, userTriggered) {
-  const hints = {starttls:'Encrypts credentials in transit. Required by most providers.',ssl:'Direct SSL connection. Use if your provider requires port 465.',none:'⚠ No encryption. Only use for local or internal mail servers.'};
-  const ports  = {starttls:'587', ssl:'465', none:'25'};
-  if (userTriggered) document.getElementById('smtp-port').value = ports[sel.value];
-  const hint = document.getElementById('smtp-enc-hint');
-  hint.textContent = hints[sel.value]; hint.style.color = sel.value==='none' ? '#e74c3c' : '#666';
+function smtpEncChange(sel,userTriggered){
+  const hints={starttls:'Encrypts credentials in transit. Required by most providers.',ssl:'Direct SSL connection. Use if your provider requires port 465.',none:'⚠ No encryption. Only use for local or internal mail servers.'};
+  const ports={starttls:'587',ssl:'465',none:'25'};
+  if(userTriggered)document.getElementById('smtp-port').value=ports[sel.value];
+  const hint=document.getElementById('smtp-enc-hint');
+  hint.textContent=hints[sel.value];hint.style.color=sel.value==='none'?'#e74c3c':'#666';
 }
 
-async function loadSmtp() {
+async function loadSmtp(){
   try {
-    const d = await fetch('/api/smtp').then(r => r.json());
-    if (d.host)      document.getElementById('smtp-host').value  = d.host;
-    if (d.port)      document.getElementById('smtp-port').value  = d.port;
-    if (d.username)  document.getElementById('smtp-user').value  = d.username;
-    if (d.from_addr) document.getElementById('smtp-from').value  = d.from_addr;
-    const enc = document.getElementById('smtp-enc');
-    if (d.ssl) enc.value='ssl'; else if (d.tls) enc.value='starttls'; else enc.value='none';
-    smtpEncChange(enc, false);
-    const ind = document.getElementById('smtp-saved-indicator');
-    if (d.host) { ind.textContent='✓ SMTP configured'; ind.style.color='#27ae60'; }
-  } catch(e) {}
+    const d=await fetch('/api/smtp').then(r=>r.json());
+    if(d.host)     document.getElementById('smtp-host').value=d.host;
+    if(d.port)     document.getElementById('smtp-port').value=d.port;
+    if(d.username) document.getElementById('smtp-user').value=d.username;
+    if(d.from_addr)document.getElementById('smtp-from').value=d.from_addr;
+    const enc=document.getElementById('smtp-enc');
+    if(d.ssl)enc.value='ssl';else if(d.tls)enc.value='starttls';else enc.value='none';
+    smtpEncChange(enc,false);
+    const ind=document.getElementById('smtp-saved-indicator');
+    if(d.host){ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';}
+  } catch(e){}
 }
 
-async function saveSmtp() {
-  const result=document.getElementById('smtp-result'), pw=document.getElementById('smtp-pass').value, enc=document.getElementById('smtp-enc').value;
-  const payload = {host:document.getElementById('smtp-host').value.trim(), port:parseInt(document.getElementById('smtp-port').value)||587, username:document.getElementById('smtp-user').value.trim(), from_addr:document.getElementById('smtp-from').value.trim(), tls:enc==='starttls', ssl:enc==='ssl'};
-  if (pw) payload.password = pw;
-  const r = await fetch('/api/smtp', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-  const d = await r.json(); result.style.display='block';
-  if (r.ok) { result.style.borderColor='#27ae60'; result.style.color='#27ae60'; result.textContent='✓ SMTP settings saved.'; const ind=document.getElementById('smtp-saved-indicator'); ind.textContent='✓ SMTP configured'; ind.style.color='#27ae60'; document.getElementById('smtp-pass').value=''; }
-  else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Save failed.'); }
+async function saveSmtp(){
+  const result=document.getElementById('smtp-result'),pw=document.getElementById('smtp-pass').value,enc=document.getElementById('smtp-enc').value;
+  const payload={host:document.getElementById('smtp-host').value.trim(),port:parseInt(document.getElementById('smtp-port').value)||587,username:document.getElementById('smtp-user').value.trim(),from_addr:document.getElementById('smtp-from').value.trim(),tls:enc==='starttls',ssl:enc==='ssl'};
+  if(pw)payload.password=pw;
+  const r=await fetch('/api/smtp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();result.style.display='block';
+  if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent='✓ SMTP settings saved.';const ind=document.getElementById('smtp-saved-indicator');ind.textContent='✓ SMTP configured';ind.style.color='#27ae60';document.getElementById('smtp-pass').value='';}
+  else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Save failed.');}
 }
 
-async function sendTestEmail() {
-  const btn=document.getElementById('btn-test-email'), result=document.getElementById('smtp-result'), email=document.getElementById('cfg-email').value.trim();
-  if (!email) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Enter an alert email address above first.'; result.style.display='block'; return; }
-  btn.disabled=true; btn.textContent='Sending…'; result.style.display='none';
+async function sendTestEmail(){
+  const btn=document.getElementById('btn-test-email'),result=document.getElementById('smtp-result'),email=document.getElementById('cfg-email').value.trim();
+  if(!email){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Enter an alert email address above first.';result.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Sending…';result.style.display='none';
   try {
-    const r = await fetch('/api/email/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email})});
-    const d = await r.json(); result.style.display='block';
-    if (r.ok) { result.style.borderColor='#27ae60'; result.style.color='#27ae60'; result.textContent=`✓ Test email sent to ${email}. Check your inbox.`; }
-    else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Failed to send.'); }
-  } catch(e) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Network error.'; result.style.display='block'; }
-  finally { btn.disabled=false; btn.textContent='Send Test Email'; }
+    const r=await fetch('/api/email/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();result.style.display='block';
+    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Test email sent to ${email}. Check your inbox.`;}
+    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Failed to send.');}
+  } catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Send Test Email';}
 }
 
-function applyEmailDisabledState(disabled) {
-  const wrap=document.getElementById('smtp-fields-wrap'), testBtn=document.getElementById('btn-test-email'), saveBtn=document.querySelector('button[onclick="saveSmtp()"]');
-  wrap.classList.toggle('disabled', disabled); if (testBtn) testBtn.disabled=disabled; if (saveBtn) saveBtn.disabled=disabled;
+function applyEmailDisabledState(disabled){
+  const wrap=document.getElementById('smtp-fields-wrap'),testBtn=document.getElementById('btn-test-email'),saveBtn=document.querySelector('button[onclick="saveSmtp()"]');
+  wrap.classList.toggle('disabled',disabled);if(testBtn)testBtn.disabled=disabled;if(saveBtn)saveBtn.disabled=disabled;
 }
 
-async function toggleEmailDisabled(chk) {
+async function toggleEmailDisabled(chk){
   applyEmailDisabledState(chk.checked);
-  const r = await fetch('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email_disabled:chk.checked})});
-  if (r.ok) toast(chk.checked ? 'Alert emails disabled.' : 'Alert emails enabled.');
-  else { toast('Failed to save preference.', true); chk.checked=!chk.checked; applyEmailDisabledState(chk.checked); }
+  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_disabled:chk.checked})});
+  if(r.ok)toast(chk.checked?'Alert emails disabled.':'Alert emails enabled.');
+  else{toast('Failed to save preference.',true);chk.checked=!chk.checked;applyEmailDisabledState(chk.checked);}
 }
 
-function isValidEmail(val) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()); }
-function showFieldErr(errId, msg) { const el=document.getElementById(errId); if(!el)return; el.textContent=msg; el.style.display=msg?'block':'none'; }
-function validateEmailField(input, errId) { const val=input.value.trim(); if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;} if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;} input.classList.remove('invalid');showFieldErr(errId,'');return true; }
-function validateSmtpHost(input) { const val=input.value.trim(); if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;} if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;} input.classList.remove('invalid');showFieldErr('smtp-host-err',''); }
-function validateFromAddr(input) { const val=input.value.trim(),errEl=document.getElementById('smtp-from-err'); if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;} if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;} const user=document.getElementById('smtp-user').value.trim(); if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');} }
+function isValidEmail(val){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());}
+function showFieldErr(errId,msg){const el=document.getElementById(errId);if(!el)return;el.textContent=msg;el.style.display=msg?'block':'none';}
+function validateEmailField(input,errId){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr(errId,'');return true;}if(!isValidEmail(val)){input.classList.add('invalid');showFieldErr(errId,'✗ That doesn\'t look like a valid email address.');return false;}input.classList.remove('invalid');showFieldErr(errId,'');return true;}
+function validateSmtpHost(input){const val=input.value.trim();if(!val){input.classList.remove('invalid');showFieldErr('smtp-host-err','');return;}if(val.includes('@')||val.includes(' ')||isValidEmail(val)){input.classList.add('invalid');showFieldErr('smtp-host-err','✗ Enter a server address like smtp.gmail.com — not an email address.');return;}input.classList.remove('invalid');showFieldErr('smtp-host-err','');}
+function validateFromAddr(input){const val=input.value.trim(),errEl=document.getElementById('smtp-from-err');if(!val){input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');return;}if(!isValidEmail(val)){input.classList.add('invalid');input.classList.remove('warn');errEl.className='field-err';showFieldErr('smtp-from-err','✗ That doesn\'t look like a valid email address.');return;}const user=document.getElementById('smtp-user').value.trim();if(user&&val.toLowerCase()!==user.toLowerCase()){input.classList.add('warn');input.classList.remove('invalid');errEl.className='field-warn';showFieldErr('smtp-from-err','⚠ From address doesn\'t match your username.');}else{input.classList.remove('invalid','warn');showFieldErr('smtp-from-err','');}}
+
+// ── Parental Controls — ISSUE-11 ──────────────────────────────────────────
+let _pcState = { enabled: false, categories: {}, devices: [], custom_domains: [] };
+let _pcLabels = {};
+
+async function pcToggleMaster(chk) {
+  _pcState.enabled = chk.checked;
+  const body = document.getElementById('pc-body');
+  const badge = document.getElementById('pc-status-badge');
+  body.classList.toggle('disabled', !chk.checked);
+  badge.textContent = chk.checked ? 'On' : 'Off';
+  badge.className = 'pc-status-badge ' + (chk.checked ? 'on' : 'off');
+  // Auto-save immediately, like the AdGuard filtering toggle
+  try {
+    const r = await fetch('/api/parental-controls', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({parental_controls: _pcState})
+    });
+    const data = await r.json();
+    if (r.ok) {
+      toast('Parental controls ' + (chk.checked ? 'enabled.' : 'disabled.'));
+      loadSecurityScore();
+    } else {
+      toast(data.error || 'Failed to update parental controls.', true);
+      // Revert toggle on failure
+      chk.checked = !chk.checked;
+      _pcState.enabled = chk.checked;
+      body.classList.toggle('disabled', !chk.checked);
+      badge.textContent = chk.checked ? 'On' : 'Off';
+      badge.className = 'pc-status-badge ' + (chk.checked ? 'on' : 'off');
+    }
+  } catch(e) {
+    toast('Network error.', true);
+    chk.checked = !chk.checked;
+    _pcState.enabled = chk.checked;
+    body.classList.toggle('disabled', !chk.checked);
+    badge.textContent = chk.checked ? 'On' : 'Off';
+    badge.className = 'pc-status-badge ' + (chk.checked ? 'on' : 'off');
+  }
+}
+
+async function loadParentalControls() {
+  try {
+    const d = await fetch('/api/parental-controls').then(r => r.json());
+    _pcState = d.parental_controls || { enabled: false, categories: {}, devices: [], custom_domains: [] };
+    _pcLabels = d.category_labels || {};
+    renderPcCategories();
+    renderPcCustomTags();
+    const chk = document.getElementById('pc-enabled');
+    chk.checked = !!_pcState.enabled;
+    pcToggleMaster(chk);
+  } catch(e) { console.error('[HTAI] parental-controls load error', e); }
+}
+
+function renderPcCategories() {
+  const grid = document.getElementById('pc-categories-grid');
+  grid.innerHTML = '';
+  Object.entries(_pcLabels).forEach(([cat, label]) => {
+    const checked = _pcState.categories[cat] !== false;
+    const row = document.createElement('label');
+    row.className = 'pc-cat-row';
+    row.innerHTML = `<input type="checkbox" data-cat="${cat}" ${checked ? 'checked' : ''}> ${label}`;
+    row.querySelector('input').addEventListener('change', function() {
+      _pcState.categories[this.dataset.cat] = this.checked;
+    });
+    grid.appendChild(row);
+  });
+}
+
+function renderPcCustomTags() {
+  const wrap = document.getElementById('pc-custom-tags');
+  const domains = _pcState.custom_domains || [];
+  wrap.innerHTML = '';
+  domains.forEach(d => {
+    const tag = document.createElement('span');
+    tag.className = 'pc-domain-tag';
+    tag.innerHTML = `${d}<button onclick="pcRemoveCustomDomain('${d}')" title="Remove">✕</button>`;
+    wrap.appendChild(tag);
+  });
+}
+
+function pcAddCustomDomain() {
+  const input = document.getElementById('pc-custom-domain');
+  const val = input.value.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+  if (!val) return;
+  if (!_pcState.custom_domains) _pcState.custom_domains = [];
+  if (!_pcState.custom_domains.includes(val)) {
+    _pcState.custom_domains.push(val);
+    renderPcCustomTags();
+  }
+  input.value = '';
+}
+
+function pcRemoveCustomDomain(domain) {
+  _pcState.custom_domains = (_pcState.custom_domains || []).filter(d => d !== domain);
+  renderPcCustomTags();
+}
+
+async function loadPcDevices() {
+  const list = document.getElementById('pc-devices-list');
+  try {
+    const d = await fetch('/api/devices').then(r => r.json());
+    _pcDevices = (d.devices || []).filter(dev => dev.ip !== '127.0.0.1' && dev.hostname !== 'localhost');
+    list.innerHTML = '';
+    if (!_pcDevices.length) {
+      list.innerHTML = '<div style="font-size:.78rem;color:#555">No devices seen yet.</div>';
+      return;
+    }
+    _pcDevices.forEach(dev => {
+      const selected = (_pcState.devices || []).includes(dev.ip);
+      const row = document.createElement('label');
+      row.className = 'pc-device-row';
+      const display = dev.hostname || dev.ip;
+      row.innerHTML = `<input type="checkbox" data-ip="${dev.ip}" ${selected ? 'checked' : ''}> ${display}<span class="pc-device-ip">${dev.hostname ? dev.ip : ''}</span>`;
+      row.querySelector('input').addEventListener('change', function() {
+        const ip = this.dataset.ip;
+        if (!_pcState.devices) _pcState.devices = [];
+        if (this.checked) { if (!_pcState.devices.includes(ip)) _pcState.devices.push(ip); }
+        else { _pcState.devices = _pcState.devices.filter(x => x !== ip); }
+      });
+      list.appendChild(row);
+    });
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:.78rem;color:#555">Could not load devices.</div>';
+  }
+}
+
+async function saveParentalControls() {
+  const resultEl = document.getElementById('pc-save-result');
+  resultEl.style.display = 'block';
+  resultEl.style.color = '#888';
+  resultEl.textContent = 'Saving…';
+  document.querySelectorAll('#pc-categories-grid input[data-cat]').forEach(chk => {
+    _pcState.categories[chk.dataset.cat] = chk.checked;
+  });
+  _pcState.devices = [];
+  try {
+    const r = await fetch('/api/parental-controls', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({parental_controls: _pcState})
+    });
+    const data = await r.json();
+    if (r.ok) {
+      resultEl.style.color = '#27ae60';
+      resultEl.textContent = '✓ Parental controls saved.';
+      toast('Parental controls saved.');
+    } else {
+      resultEl.style.color = '#e74c3c';
+      resultEl.textContent = '✗ ' + (data.error || 'Save failed.');
+    }
+  } catch(e) {
+    resultEl.style.color = '#e74c3c';
+    resultEl.textContent = '✗ Network error.';
+  }
+}
+// ── end ISSUE-11 ──────────────────────────────────────────────────────────
 
 // ── Simulate Threat ───────────────────────────────────────────────────────
-async function runSimulate() {
-  const btn=document.getElementById('btn-simulate'), result=document.getElementById('sim-result');
-  const type=document.getElementById('sim-type').value, ip=document.getElementById('sim-ip').value.trim();
-  btn.disabled=true; btn.textContent='Injecting…'; result.style.display='none';
+async function runSimulate(){
+  const btn=document.getElementById('btn-simulate'),result=document.getElementById('sim-result');
+  const type=document.getElementById('sim-type').value,ip=document.getElementById('sim-ip').value.trim();
+  btn.disabled=true;btn.textContent='Injecting…';result.style.display='none';
   try {
-    const r = await fetch('/api/simulate/threat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({threat_type:type, src_ip:ip||null})});
-    const d = await r.json();
-    if (r.ok) {
-      result.style.borderColor='#27ae60'; result.style.color='#27ae60';
-      result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;
-      result.style.display='block';
-      await loadStats();
-      await loadThreatMap();
-    } else { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ '+(d.error||'Injection failed.'); result.style.display='block'; }
-  } catch(e) { result.style.borderColor='#e74c3c'; result.style.color='#e74c3c'; result.textContent='✗ Network error.'; result.style.display='block'; }
-  finally { btn.disabled=false; btn.textContent='Inject Test Entry'; }
+    const r=await fetch('/api/simulate/threat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threat_type:type,src_ip:ip||null})});
+    const d=await r.json();
+    if(r.ok){result.style.borderColor='#27ae60';result.style.color='#27ae60';result.textContent=`✓ Injected: [${d.severity.toUpperCase()}] ${d.trail} from ${d.src_ip}`;result.style.display='block';await loadStats();await loadThreatMap();}
+    else{result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ '+(d.error||'Injection failed.');result.style.display='block';}
+  } catch(e){result.style.borderColor='#e74c3c';result.style.color='#e74c3c';result.textContent='✗ Network error.';result.style.display='block';}
+  finally{btn.disabled=false;btn.textContent='Inject Test Entry';}
 }
 
-function showPurgeConfirm() { document.getElementById('purge-confirm').style.display='block'; }
-function hidePurgeConfirm() { document.getElementById('purge-confirm').style.display='none'; }
+function showPurgeConfirm(){document.getElementById('purge-confirm').style.display='block';}
+function hidePurgeConfirm(){document.getElementById('purge-confirm').style.display='none';}
 
-async function confirmPurge() {
+async function confirmPurge(){
   hidePurgeConfirm();
-  const r = await fetch('/api/threats/purge', {method:'POST'});
-  if (r.ok) { allEvents=[]; summaryData={}; renderAlerts(); renderOffenders(); ['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0'); toast('Threat log purged.'); }
-  else toast('Purge failed.', true);
+  const r=await fetch('/api/threats/purge',{method:'POST'});
+  if(r.ok){allEvents=[];summaryData={};renderAlerts();renderOffenders();['s-total','s-high','s-medium','s-low'].forEach(id=>document.getElementById(id).textContent='0');toast('Threat log purged.');}
+  else toast('Purge failed.',true);
 }
 
-function runWhois() {
-    var domain = document.getElementById('whois-host').value.trim();
-    if (!domain) return;
-    var loading = document.getElementById('whois-loading');
-    var table   = document.getElementById('whois-table');
-    var tbody   = document.getElementById('whois-tbody');
-    var errEl   = document.getElementById('whois-error');
-    loading.style.display = 'block';
-    table.style.display   = 'none';
-    errEl.style.display   = 'none';
-    fetch('/api/whois?domain=' + encodeURIComponent(domain))
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        loading.style.display = 'none';
-        if (data.error) {
-          errEl.textContent    = data.error;
-          errEl.style.display  = 'block';
-          return;
-        }
-        var rows = [
-          ['Registrar',   data.registrar   || '\u2014'],
-          ['Registered',  data.created     || '\u2014'],
-          ['Expires',     data.expires     || '\u2014'],
-          ['Org',         data.org         || '\u2014'],
-          ['Country',     data.country     || '\u2014']
-        ];
-        tbody.innerHTML = '';
-        rows.forEach(function(r, i) {
-          var tr = document.createElement('tr');
-          tr.style.borderBottom = '1px solid #1e1e3a';
-          if (i % 2 === 0) tr.style.background = 'rgba(255,255,255,0.02)';
-          tr.innerHTML =
-            '<td style="padding:.4rem .6rem;color:#f5a623;width:30%">' + r[0] + '</td>' +
-            '<td style="padding:.4rem .6rem;color:#ccc;font-family:monospace;font-size:.76rem">' + r[1] + '</td>';
-          tbody.appendChild(tr);
-        });
-        table.style.display = 'table';
-      })
-      .catch(function(e) {
-        loading.style.display = 'none';
-        errEl.textContent     = 'Error: ' + e.message;
-        errEl.style.display   = 'block';
-      });
-  }
+function runWhois(){
+  var domain=document.getElementById('whois-host').value.trim(); if(!domain)return;
+  var loading=document.getElementById('whois-loading'),table=document.getElementById('whois-table'),tbody=document.getElementById('whois-tbody'),errEl=document.getElementById('whois-error');
+  loading.style.display='block';table.style.display='none';errEl.style.display='none';
+  fetch('/api/whois?domain='+encodeURIComponent(domain)).then(function(r){return r.json();}).then(function(data){
+    loading.style.display='none';
+    if(data.error){errEl.textContent=data.error;errEl.style.display='block';return;}
+    var rows=[['Registrar',data.registrar||'\u2014'],['Registered',data.created||'\u2014'],['Expires',data.expires||'\u2014'],['Org',data.org||'\u2014'],['Country',data.country||'\u2014']];
+    tbody.innerHTML='';
+    rows.forEach(function(r,i){var tr=document.createElement('tr');tr.style.borderBottom='1px solid #1e1e3a';if(i%2===0)tr.style.background='rgba(255,255,255,0.02)';tr.innerHTML='<td style="padding:.4rem .6rem;color:#f5a623;width:30%">'+r[0]+'</td><td style="padding:.4rem .6rem;color:#ccc;font-family:monospace;font-size:.76rem">'+r[1]+'</td>';tbody.appendChild(tr);});
+    table.style.display='table';
+  }).catch(function(e){loading.style.display='none';errEl.textContent='Error: '+e.message;errEl.style.display='block';});
+}
 
-async function runTool(tool) {
+async function runTool(tool){
   const hostMap={ping:'ping-host',dns:'dns-host',traceroute:'traceroute-host',portscan:'portscan-host'};
   const labelMap={ping:'Ping',dns:'Lookup',traceroute:'Trace',portscan:'Scan'};
-  const outEl=document.getElementById('out-'+tool), hostEl=document.getElementById(hostMap[tool]);
-  const btn=hostEl.closest('.tool-card').querySelector('.btn-save'), host=hostEl.value.trim();
-  if (!host) { hostEl.focus(); return; }
+  const outEl=document.getElementById('out-'+tool),hostEl=document.getElementById(hostMap[tool]);
+  const btn=hostEl.closest('.tool-card').querySelector('.btn-save'),host=hostEl.value.trim();
+  if(!host){hostEl.focus();return;}
   const payload={host};
-  if (tool==='portscan') payload.ports=document.getElementById('portscan-ports').value.trim()||'22,80,443,3000,8080';
-  btn.disabled=true; btn.textContent='Running…'; outEl.className='tool-output visible'; outEl.textContent='Running…';
+  if(tool==='portscan')payload.ports=document.getElementById('portscan-ports').value.trim()||'22,80,443,3000,8080';
+  btn.disabled=true;btn.textContent='Running…';outEl.className='tool-output visible';outEl.textContent='Running…';
   try {
-    const r = await fetch(`/api/tools/${tool}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    const d = await r.json();
-    if (d.error) { outEl.className='tool-output visible failure'; outEl.textContent='✗ '+d.error; }
-    else { outEl.className='tool-output visible '+(d.success?'success':'failure'); outEl.textContent=d.output||'(no output)'; }
-  } catch(e) { outEl.className='tool-output visible failure'; outEl.textContent='✗ Network error.'; }
-  finally { btn.disabled=false; btn.textContent=labelMap[tool]; }
+    const r=await fetch(`/api/tools/${tool}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(d.error){outEl.className='tool-output visible failure';outEl.textContent='✗ '+d.error;}
+    else{outEl.className='tool-output visible '+(d.success?'success':'failure');outEl.textContent=d.output||'(no output)';}
+  } catch(e){outEl.className='tool-output visible failure';outEl.textContent='✗ Network error.';}
+  finally{btn.disabled=false;btn.textContent=labelMap[tool];}
 }
 
-function downloadResetFile() {
+function downloadResetFile(){
   const blob=new Blob(['HoneytrapAI factory reset trigger\nPlace this file in the root of a USB drive and insert at boot.\n'],{type:'text/plain'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='honeytrap-reset.txt'; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='honeytrap-reset.txt';a.click();URL.revokeObjectURL(a.href);
 }
 
 history.pushState({page:'dashboard'},'',window.location.href);
 history.pushState({page:'dashboard'},'',window.location.href);
-window.addEventListener('popstate', () => history.pushState({page:'dashboard'},'',window.location.href));
+window.addEventListener('popstate',()=>history.pushState({page:'dashboard'},'',window.location.href));
 
 // ── Country blocking ──────────────────────────────────────────────────────
-let mapDotData       = [];
-let blockedCountries = [];
-let _ctActiveCode    = null;
+let mapDotData=[], blockedCountries=[], _ctActiveCode=null;
 
-async function loadBlockedCountries() {
-  try {
-    const d = await fetch('/api/country/blocked').then(r => r.json());
-    blockedCountries = d.blocked || [];
-    applyBlockedFills();
-  } catch(e) { console.error('loadBlockedCountries error', e); }
+async function loadBlockedCountries(){
+  try{const d=await fetch('/api/country/blocked').then(r=>r.json());blockedCountries=d.blocked||[];applyBlockedFills();}
+  catch(e){console.error('loadBlockedCountries error',e);}
 }
 
-function applyBlockedFills() {
-  document.querySelectorAll('#countries-layer path').forEach(path => {
-    const cc = path.getAttribute('data-cc');
-    if (cc && blockedCountries.includes(cc)) path.classList.add('country-blocked');
+function applyBlockedFills(){
+  document.querySelectorAll('#countries-layer path').forEach(path=>{
+    const cc=path.getAttribute('data-cc');
+    if(cc&&blockedCountries.includes(cc))path.classList.add('country-blocked');
     else path.classList.remove('country-blocked');
   });
 }
 
-function wireCountryClicks() {
-  document.querySelectorAll('#countries-layer path').forEach(path => {
-    path.style.cursor = 'pointer';
-    path.addEventListener('click', function(e) {
+function wireCountryClicks(){
+  document.querySelectorAll('#countries-layer path').forEach(path=>{
+    path.style.cursor='pointer';
+    path.addEventListener('click',function(e){
       e.stopPropagation();
-      const cc   = this.getAttribute('data-cc');
-      const name = this.getAttribute('data-name') || cc || 'Unknown';
-      if (!cc) return;
-      onCountryClick(e, cc, name);
+      const cc=this.getAttribute('data-cc'),name=this.getAttribute('data-name')||cc||'Unknown';
+      if(!cc)return; onCountryClick(e,cc,name);
     });
   });
-  document.getElementById('threat-map-wrap').addEventListener('click', function(e) {
-    if (!e.target.closest('#countries-layer')) hideCountryTooltip();
-  });
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideCountryTooltip(); });
+  document.getElementById('threat-map-wrap').addEventListener('click',function(e){if(!e.target.closest('#countries-layer'))hideCountryTooltip();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')hideCountryTooltip();});
 }
 
-function onCountryClick(e, cc, name) {
-  _ctActiveCode = cc;
-  const isBlocked   = blockedCountries.includes(cc);
-  const threatCount = mapDotData.filter(ev => ev.country_code === cc).length;
-
-  document.getElementById('ct-name').textContent    = name;
-  document.getElementById('ct-threats').textContent = threatCount;
-
-  const blockedRow = document.getElementById('ct-blocked-row');
-  blockedRow.style.display = isBlocked ? 'block' : 'none';
-
-  document.getElementById('btn-ct-block').style.display   = isBlocked ? 'none'  : 'block';
-  document.getElementById('btn-ct-unblock').style.display = isBlocked ? 'block' : 'none';
-  document.getElementById('btn-ct-block').disabled   = false;
-  document.getElementById('btn-ct-unblock').disabled = false;
-
-  const mapCard  = document.querySelector('.map-card');
-  const cardRect = mapCard.getBoundingClientRect();
-  const ct = document.getElementById('country-tooltip');
-  ct.style.left = '0'; ct.style.top = '0';
-  ct.style.display = 'block';
-
-  requestAnimationFrame(() => {
-    const tw = ct.offsetWidth  || 200;
-    const th = ct.offsetHeight || 130;
-    let lx = e.clientX - cardRect.left + 12;
-    let ly = e.clientY - cardRect.top  + 12;
-    if (lx + tw > cardRect.width  - 8) lx = e.clientX - cardRect.left - tw - 12;
-    if (ly + th > cardRect.height - 8) ly = e.clientY - cardRect.top  - th - 12;
-    ct.style.left = Math.max(4, lx) + 'px';
-    ct.style.top  = Math.max(4, ly) + 'px';
+function onCountryClick(e,cc,name){
+  _ctActiveCode=cc;
+  const isBlocked=blockedCountries.includes(cc),threatCount=mapDotData.filter(ev=>ev.country_code===cc).length;
+  document.getElementById('ct-name').textContent=name;
+  document.getElementById('ct-threats').textContent=threatCount;
+  document.getElementById('ct-blocked-row').style.display=isBlocked?'block':'none';
+  document.getElementById('btn-ct-block').style.display=isBlocked?'none':'block';
+  document.getElementById('btn-ct-unblock').style.display=isBlocked?'block':'none';
+  document.getElementById('btn-ct-block').disabled=false;
+  document.getElementById('btn-ct-unblock').disabled=false;
+  const mapCard=document.querySelector('.map-card'),cardRect=mapCard.getBoundingClientRect();
+  const ct=document.getElementById('country-tooltip');
+  ct.style.left='0';ct.style.top='0';ct.style.display='block';
+  requestAnimationFrame(()=>{
+    const tw=ct.offsetWidth||200,th=ct.offsetHeight||130;
+    let lx=e.clientX-cardRect.left+12,ly=e.clientY-cardRect.top+12;
+    if(lx+tw>cardRect.width-8)lx=e.clientX-cardRect.left-tw-12;
+    if(ly+th>cardRect.height-8)ly=e.clientY-cardRect.top-th-12;
+    ct.style.left=Math.max(4,lx)+'px';ct.style.top=Math.max(4,ly)+'px';
   });
 }
 
-function hideCountryTooltip() {
-  document.getElementById('country-tooltip').style.display = 'none';
-  _ctActiveCode = null;
-}
+function hideCountryTooltip(){document.getElementById('country-tooltip').style.display='none';_ctActiveCode=null;}
 
-async function countryToggleBlock(doBlock) {
-  if (!_ctActiveCode) return;
-  const cc     = _ctActiveCode;
-  const btnB   = document.getElementById('btn-ct-block');
-  const btnU   = document.getElementById('btn-ct-unblock');
-  const active = doBlock ? btnB : btnU;
-  active.disabled    = true;
-  active.textContent = doBlock ? 'Blocking…' : 'Unblocking…';
-
+async function countryToggleBlock(doBlock){
+  if(!_ctActiveCode)return;
+  const cc=_ctActiveCode,btnB=document.getElementById('btn-ct-block'),btnU=document.getElementById('btn-ct-unblock');
+  const active=doBlock?btnB:btnU;
+  active.disabled=true;active.textContent=doBlock?'Blocking…':'Unblocking…';
   try {
-    const endpoint = doBlock ? '/api/country/block' : '/api/country/unblock';
-    const r = await fetch(endpoint, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({country_code: cc})
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      toast(d.error || (doBlock ? 'Block failed.' : 'Unblock failed.'), true);
-      active.disabled    = false;
-      active.textContent = doBlock ? 'Block Country' : 'Unblock Country';
-      return;
-    }
-    if (doBlock) {
-      if (!blockedCountries.includes(cc)) blockedCountries.push(cc);
-      toast(`${cc} blocked — ${d.cidr_count || '?'} CIDRs pushed to AdGuard.`);
-    } else {
-      blockedCountries = blockedCountries.filter(c => c !== cc);
-      toast(`${cc} unblocked — rules removed from AdGuard.`);
-    }
-    applyBlockedFills();
-    hideCountryTooltip();
-  } catch(e) {
-    toast('Network error.', true);
-    active.disabled    = false;
-    active.textContent = doBlock ? 'Block Country' : 'Unblock Country';
-  }
+    const r=await fetch(doBlock?'/api/country/block':'/api/country/unblock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({country_code:cc})});
+    const d=await r.json();
+    if(!r.ok){toast(d.error||(doBlock?'Block failed.':'Unblock failed.'),true);active.disabled=false;active.textContent=doBlock?'Block Country':'Unblock Country';return;}
+    if(doBlock){if(!blockedCountries.includes(cc))blockedCountries.push(cc);toast(`${cc} blocked — ${d.cidr_count||'?'} CIDRs pushed to AdGuard.`);}
+    else{blockedCountries=blockedCountries.filter(c=>c!==cc);toast(`${cc} unblocked — rules removed from AdGuard.`);}
+    applyBlockedFills();hideCountryTooltip();
+  } catch(e){toast('Network error.',true);active.disabled=false;active.textContent=doBlock?'Block Country':'Unblock Country';}
 }
+
+// ── Score tooltip ─────────────────────────────────────────────────────────
+function showScoreTooltip(e) {
+  const t = document.getElementById('score-tooltip');
+  t.style.display = 'block'; moveScoreTooltip(e);
+}
+function moveScoreTooltip(e) {
+  const t = document.getElementById('score-tooltip');
+  const tw = t.offsetWidth || 240, th = t.offsetHeight || 160;
+  let lx = e.clientX + 14, ly = e.clientY - 10;
+  if (lx + tw > window.innerWidth  - 10) lx = e.clientX - tw - 14;
+  if (ly + th > window.innerHeight - 10) ly = e.clientY - th - 10;
+  t.style.left = lx + 'px'; t.style.top = ly + 'px';
+}
+function hideScoreTooltip() { document.getElementById('score-tooltip').style.display = 'none'; }
 
 // ── Init ──────────────────────────────────────────────────────────────────
-initMap().then(() => {
-  loadBlockedCountries();
-  fetchAndRenderYAH();  // ISSUE-35 — runs after map SVG is ready
-});
+initMap().then(()=>{loadBlockedCountries();fetchAndRenderYAH();});
 loadStats();
 loadThreatMap();
+loadSecurityScore();
 updateSensorStatus();
-checkNetworkVisibility();  // ISSUE-40 — check on page load
-checkFilteringStatus();    // ISSUE-15 — check on page load
-const statsInterval = setInterval(loadStats, 30000);
-setInterval(loadThreatMap, 30000);
-setInterval(updateSensorStatus, 30000);
-setInterval(checkNetworkVisibility, 300000);  // re-check every 5 min
-setInterval(checkFilteringStatus, 60000);     // re-check every 60s
+checkNetworkVisibility();
+checkFilteringStatus();
+const statsInterval=setInterval(loadStats,30000);
+setInterval(loadThreatMap,30000);
+setInterval(loadSecurityScore,60000);
+setInterval(updateSensorStatus,30000);
+setInterval(checkNetworkVisibility,300000);
+setInterval(checkFilteringStatus,60000);
 checkUpdate(false);
-  fetchBlockedDomains();
-  fetchDevices();
-  let _allowlistDomains = [];
+fetchBlockedDomains();
+fetchDevices();
+let _allowlistDomains=[];
 
-  function fetchBlockedDomains() {
-    Promise.all([
-      fetch('/api/blocked-domains').then(r => r.json()),
-      fetch('/api/allowlist').then(r => r.json())
-    ]).then(function([bdData, alData]) {
-      var loading = document.getElementById('blocked-domains-loading');
-      var table   = document.getElementById('blocked-domains-table');
-      var tbody   = document.getElementById('blocked-domains-tbody');
-      var emptyEl = document.getElementById('blocked-domains-empty');
-      var errEl   = document.getElementById('blocked-domains-error');
-      loading.style.display = 'none';
-      if (bdData.error) {
-        errEl.textContent = 'Error loading blocked domains: ' + bdData.error;
-        errEl.style.display = 'block';
-        return;
-      }
-      _allowlistDomains = alData.domains || [];
-      var domains = bdData.domains || [];
-      if (!domains.length) {
-        emptyEl.style.display = 'block';
-        return;
-      }
-      tbody.innerHTML = '';
-      domains.forEach(function(d, i) {
-        var row = document.createElement('tr');
-        row.style.borderBottom = '1px solid #1e1e3a';
-        if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
-        var isAllowed = _allowlistDomains.includes(d.domain);
-        var btnTitle  = isAllowed ? 'Allowlisted — click to remove' : 'Allow this domain';
-        row.innerHTML =
-          '<td style="padding:.4rem .6rem;font-family:monospace;font-size:.78rem">' +
-            '<span style="color:#aaa">' + d.domain + '</span>' +
-            '<button class="allow-btn' + (isAllowed ? ' allowed' : '') + '" ' +
-              'data-domain="' + d.domain + '" title="' + btnTitle + '" ' +
-              'onclick="toggleAllowlist(\'' + d.domain + '\', ' + !isAllowed + ', this)">✓</button>' +
-          '</td>' +
-          '<td style="padding:.4rem .6rem;text-align:right;color:#e74c3c">' + d.count.toLocaleString() + '</td>' +
-          '<td style="width:1px"></td>';
-        tbody.appendChild(row);
-      });
-      table.style.display = 'table';
-    }).catch(function(e) {
-      document.getElementById('blocked-domains-loading').style.display = 'none';
-      var errEl = document.getElementById('blocked-domains-error');
-      errEl.textContent = 'Error loading blocked domains: ' + e.message;
-      errEl.style.display = 'block';
+function fetchBlockedDomains(){
+  Promise.all([fetch('/api/blocked-domains').then(r=>r.json()),fetch('/api/allowlist').then(r=>r.json())]).then(function([bdData,alData]){
+    var loading=document.getElementById('blocked-domains-loading'),table=document.getElementById('blocked-domains-table'),tbody=document.getElementById('blocked-domains-tbody'),emptyEl=document.getElementById('blocked-domains-empty'),errEl=document.getElementById('blocked-domains-error');
+    loading.style.display='none';
+    if(bdData.error){errEl.textContent='Error loading blocked domains: '+bdData.error;errEl.style.display='block';return;}
+    _allowlistDomains=alData.domains||[];
+    var domains=bdData.domains||[];
+    if(!domains.length){emptyEl.style.display='block';return;}
+    tbody.innerHTML='';
+    domains.forEach(function(d,i){
+      var row=document.createElement('tr');row.style.borderBottom='1px solid #1e1e3a';if(i%2===0)row.style.background='rgba(255,255,255,0.02)';
+      var isAllowed=_allowlistDomains.includes(d.domain),btnTitle=isAllowed?'Allowlisted — click to remove':'Allow this domain';
+      row.innerHTML='<td style="padding:.4rem .6rem;font-family:monospace;font-size:.78rem"><span style="color:#aaa">'+d.domain+'</span><button class="allow-btn'+(isAllowed?' allowed':'')+'" data-domain="'+d.domain+'" title="'+btnTitle+'" onclick="toggleAllowlist(\''+d.domain+'\', '+!isAllowed+', this)">✓</button></td><td style="padding:.4rem .6rem;text-align:right;color:#e74c3c">'+d.count.toLocaleString()+'</td><td style="width:1px"></td>';
+      tbody.appendChild(row);
     });
-  }
+    table.style.display='table';
+  }).catch(function(e){document.getElementById('blocked-domains-loading').style.display='none';var errEl=document.getElementById('blocked-domains-error');errEl.textContent='Error loading blocked domains: '+e.message;errEl.style.display='block';});
+}
 
-  async function toggleAllowlist(domain, doAdd, btn) {
-    btn.disabled = true;
-    const endpoint = doAdd ? '/api/allowlist/add' : '/api/allowlist/remove';
-    try {
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({domain: domain})
-      });
-      const d = await r.json();
-      if (!r.ok) { toast((d.error || 'Error updating allowlist.'), true); btn.disabled = false; return; }
-      if (doAdd) {
-        if (!_allowlistDomains.includes(domain)) _allowlistDomains.push(domain);
-        btn.classList.add('allowed');
-        btn.title = 'Allowlisted — click to remove';
-        btn.setAttribute('onclick', 'toggleAllowlist(\'' + domain + '\', false, this)');
-        toast('✓ ' + domain + ' added to allowlist.');
-      } else {
-        _allowlistDomains = _allowlistDomains.filter(function(x) { return x !== domain; });
-        btn.classList.remove('allowed');
-        btn.title = 'Allow this domain';
-        btn.setAttribute('onclick', 'toggleAllowlist(\'' + domain + '\', true, this)');
-        toast(domain + ' removed from allowlist.');
-      }
-      loadAllowlist();
-    } catch(e) {
-      toast('Network error.', true);
-    } finally {
-      btn.disabled = false;
-    }
-  }
+async function toggleAllowlist(domain,doAdd,btn){
+  btn.disabled=true;
+  const endpoint=doAdd?'/api/allowlist/add':'/api/allowlist/remove';
+  try {
+    const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})});
+    const d=await r.json();
+    if(!r.ok){toast((d.error||'Error updating allowlist.'),true);btn.disabled=false;return;}
+    if(doAdd){if(!_allowlistDomains.includes(domain))_allowlistDomains.push(domain);btn.classList.add('allowed');btn.title='Allowlisted — click to remove';btn.setAttribute('onclick','toggleAllowlist(\''+domain+'\', false, this)');toast('✓ '+domain+' added to allowlist.');}
+    else{_allowlistDomains=_allowlistDomains.filter(function(x){return x!==domain;});btn.classList.remove('allowed');btn.title='Allow this domain';btn.setAttribute('onclick','toggleAllowlist(\''+domain+'\', true, this)');toast(domain+' removed from allowlist.');}
+    loadAllowlist();
+  } catch(e){toast('Network error.',true);}
+  finally{btn.disabled=false;}
+}
 
-  function loadAllowlist() {
-    const loading = document.getElementById('allowlist-loading');
-    const table   = document.getElementById('allowlist-table');
-    const tbody   = document.getElementById('allowlist-tbody');
-    const emptyEl = document.getElementById('allowlist-empty');
-    const errEl   = document.getElementById('allowlist-error');
-    loading.style.display = 'block';
-    table.style.display   = 'none';
-    emptyEl.style.display = 'none';
-    errEl.style.display   = 'none';
-    fetch('/api/allowlist')
-      .then(r => r.json())
-      .then(data => {
-        loading.style.display = 'none';
-        if (data.error) {
-          errEl.textContent = 'Error: ' + data.error;
-          errEl.style.display = 'block';
-          return;
-        }
-        _allowlistDomains = data.domains || [];
-        if (!_allowlistDomains.length) {
-          emptyEl.style.display = 'block';
-          return;
-        }
-        tbody.innerHTML = '';
-        _allowlistDomains.forEach(function(domain, i) {
-          const row = document.createElement('tr');
-          row.style.borderBottom = '1px solid #1e1e3a';
-          if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
-          row.innerHTML =
-            '<td style="padding:.4rem .6rem">' +
-            '<span style="font-family:monospace;font-size:.78rem;color:#aaa">' + domain + '</span>' +
-            '<button style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:.8rem;' +
-                'padding:.1rem .4rem;border-radius:3px;opacity:.6;transition:opacity .15s;margin-left:.4rem" ' +
-                'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6" ' +
-                'onclick="toggleAllowlist(\'' + domain + '\', false, this)" title="Remove from allowlist">✕</button>' +
-            '</td>';
-          tbody.appendChild(row);
-        });
-        table.style.display = 'table';
-      })
-      .catch(function(e) {
-        loading.style.display = 'none';
-        errEl.textContent = 'Error: ' + e.message;
-        errEl.style.display = 'block';
-      });
-  }
-  function fetchDevices() {
-    fetch('/api/devices')
-      .then(r => r.json())
-      .then(data => {
-        const loading = document.getElementById('devices-loading');
-        const table   = document.getElementById('devices-table');
-        const tbody   = document.getElementById('devices-tbody');
-        const errEl   = document.getElementById('devices-error');
-        if (data.error) {
-          loading.style.display = 'none';
-          errEl.textContent = 'Error loading devices: ' + data.error;
-          errEl.style.display = 'block';
-          return;
-        }
-        tbody.innerHTML = '';
-        (data.devices || []).forEach(function(d, i) {
-          const row = document.createElement('tr');
-          row.style.borderBottom = '1px solid #1e1e3a';
-          if (i % 2 === 0) row.style.background = 'rgba(255,255,255,0.02)';
-          const display = d.hostname || d.ip;
-          const sub     = d.hostname ? '<span style="color:#666;font-size:.7rem"> ' + d.ip + '</span>' : '';
-          row.innerHTML =
-            '<td style="padding:.4rem .6rem">' + display + sub + '</td>' +
-            '<td style="padding:.4rem .6rem;color:#aaa">' + (d.hostname ? d.ip : '') + '</td>' +
-            '<td style="padding:.4rem .6rem;text-align:right;color:#f5a623">' + d.queries.toLocaleString() + '</td>';
-          tbody.appendChild(row);
-        });
-        loading.style.display = 'none';
-        table.style.display   = 'table';
-      })
-      .catch(function(e) {
-        document.getElementById('devices-loading').style.display = 'none';
-        const errEl = document.getElementById('devices-error');
-        errEl.textContent = 'Error loading devices: ' + e.message;
-        errEl.style.display = 'block';
-      });
-  }
+function loadAllowlist(){
+  const loading=document.getElementById('allowlist-loading'),table=document.getElementById('allowlist-table'),tbody=document.getElementById('allowlist-tbody'),emptyEl=document.getElementById('allowlist-empty'),errEl=document.getElementById('allowlist-error');
+  loading.style.display='block';table.style.display='none';emptyEl.style.display='none';errEl.style.display='none';
+  fetch('/api/allowlist').then(r=>r.json()).then(data=>{
+    loading.style.display='none';
+    if(data.error){errEl.textContent='Error: '+data.error;errEl.style.display='block';return;}
+    _allowlistDomains=data.domains||[];
+    if(!_allowlistDomains.length){emptyEl.style.display='block';return;}
+    tbody.innerHTML='';
+    _allowlistDomains.forEach(function(domain,i){
+      const row=document.createElement('tr');row.style.borderBottom='1px solid #1e1e3a';if(i%2===0)row.style.background='rgba(255,255,255,0.02)';
+      row.innerHTML='<td style="padding:.4rem .6rem"><span style="font-family:monospace;font-size:.78rem;color:#aaa">'+domain+'</span><button style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:.8rem;padding:.1rem .4rem;border-radius:3px;opacity:.6;transition:opacity .15s;margin-left:.4rem" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6" onclick="toggleAllowlist(\''+domain+'\', false, this)" title="Remove from allowlist">✕</button></td>';
+      tbody.appendChild(row);
+    });
+    table.style.display='table';
+  }).catch(function(e){loading.style.display='none';errEl.textContent='Error: '+e.message;errEl.style.display='block';});
+}
+
+function fetchDevices(){
+  fetch('/api/devices').then(r=>r.json()).then(data=>{
+    const loading=document.getElementById('devices-loading'),table=document.getElementById('devices-table'),tbody=document.getElementById('devices-tbody'),errEl=document.getElementById('devices-error');
+    if(data.error){loading.style.display='none';errEl.textContent='Error loading devices: '+data.error;errEl.style.display='block';return;}
+    tbody.innerHTML='';
+    (data.devices||[]).forEach(function(d,i){
+      const row=document.createElement('tr');row.style.borderBottom='1px solid #1e1e3a';if(i%2===0)row.style.background='rgba(255,255,255,0.02)';
+      const display=d.hostname||d.ip,sub=d.hostname?'<span style="color:#666;font-size:.7rem"> '+d.ip+'</span>':'';
+      row.innerHTML='<td style="padding:.4rem .6rem">'+display+sub+'</td><td style="padding:.4rem .6rem;color:#aaa">'+(d.hostname?d.ip:'')+'</td><td style="padding:.4rem .6rem;text-align:right;color:#f5a623">'+d.queries.toLocaleString()+'</td>';
+      tbody.appendChild(row);
+    });
+    loading.style.display='none';table.style.display='table';
+  }).catch(function(e){document.getElementById('devices-loading').style.display='none';const errEl=document.getElementById('devices-error');errEl.textContent='Error loading devices: '+e.message;errEl.style.display='block';});
+}
 
 </script>
 </body>

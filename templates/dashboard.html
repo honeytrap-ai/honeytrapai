@@ -1,7 +1,7 @@
 <!-- HoneytrapAI — dashboard.html
-     Version: v0.3.53
+     Version: v0.3.54
      Revised: 2026-03-20
-     Rev: 56 -->
+     Rev: 57 -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -371,6 +371,7 @@
     .smtp-app-pw-warn strong{color:#f5a623}
     .smtp-app-pw-warn a{color:#f5a623;text-decoration:underline}
     .smtp-app-pw-warn.visible{display:block}
+  @media(max-width:600px){.hide-mobile{display:none}}
   </style>
 </head>
 <body>
@@ -578,7 +579,7 @@
       <div id="alert-table-wrap" style="overflow-x:auto;max-height:400px;overflow-y:auto">
         <table class="alert-table">
           <thead>
-            <tr><th>Severity</th><th>Time</th><th>Source</th><th>Trail / Domain</th><th>Info</th></tr>
+            <tr><th>Severity</th><th class="hide-mobile">Time</th><th>Source</th><th>Trail / Domain</th><th class="hide-mobile">Info</th></tr>>
           </thead>
           <tbody id="alert-tbody"></tbody>
         </table>
@@ -595,13 +596,15 @@
 
   <div class="settings-section">
     <h3>⬆️ Software Update</h3>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;gap:.4rem">
       <div>
         <div style="font-size:.82rem;color:#aaa">Current version: <span style="color:#f5a623">{{ version }}</span></div>
         <div style="font-size:.75rem;color:#666;margin-top:.2rem" id="update-last-check"></div>
       </div>
       <button class="btn-secondary" onclick="checkUpdate(true)" id="btn-check-update">Check Now</button>
     </div>
+    <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:#aaa;cursor:pointer;margin-bottom:.35rem;user-select:none"><input type="checkbox" id="auto-ota-checkbox" onchange="saveAutoOta(this.checked)" style="accent-color:#f5a623;width:14px;height:14px"> Allow Automatic Updates</label>
+    <div id="auto-ota-next" style="font-size:.75rem;color:#666;margin-bottom:.5rem;display:none"></div>
     <div id="update-status-msg" class="checking">Checking for updates…</div>
     <div id="update-card" style="display:none;background:#12122a;border:1px solid #27ae60;
          border-radius:6px;padding:.8rem;font-size:.8rem;margin-top:.8rem">
@@ -941,8 +944,8 @@
 
   <div class="tool-card">
     <h3>🔎 Port Scan</h3>
-    <div class="tool-input-row">
-      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1" onkeydown="if(event.key==='Enter')runTool('portscan')">
+    <div class="tool-input-row" style="flex-wrap:wrap;gap:.4rem">
+      <input type="text" id="portscan-host" placeholder="Host or IP — e.g. 192.168.1.1" style="flex:1;min-width:140px" onkeydown="if(event.key==='Enter')runTool('portscan')">
       <input type="text" id="portscan-ports" placeholder="Ports — e.g. 22,80,443 or 20-25" style="max-width:220px" onkeydown="if(event.key==='Enter')runTool('portscan')">
       <button class="btn-save" onclick="runTool('portscan')">Scan</button>
     </div>
@@ -1708,9 +1711,9 @@ async function loadSettings() {
     document.getElementById('cfg-email').value     = d.alert_email     || '';
     document.getElementById('cfg-threshold').value = d.alert_threshold || 'medium';
     const chk = document.getElementById('chk-disable-email');
-    chk.checked = !!d.email_disabled; applyEmailDisabledState(chk.checked);
+    loadSmtp(); checkUpdate(false); fetchDevices(); loadParentalControls(); loadUpdateSchedule();
   } catch(e) {}
-  loadSmtp(); checkUpdate(false); fetchDevices(); loadParentalControls();
+  loadSmtp(); checkUpdate(false); fetchDevices(); loadParentalControls(); loadUpdateSchedule();
 }
 
 async function saveSettings() {
@@ -1726,7 +1729,8 @@ async function changePassword() {
   if (r.ok) { toast('Password updated.'); ['pw-current','pw-new','pw-confirm'].forEach(id=>document.getElementById(id).value=''); }
   else toast(d.error||'Error updating password.',true);
 }
-
+async function loadUpdateSchedule(){try{const d=await fetch('/api/update/schedule').then(r=>r.json());const chk=document.getElementById('auto-ota-checkbox');const nxt=document.getElementById('auto-ota-next');if(chk)chk.checked=d.auto_ota_enabled!==false;if(nxt){if(d.auto_ota_enabled!==false&&d.next_check){nxt.textContent='Next automatic check: '+d.next_check;nxt.style.display='block';}else{nxt.style.display='none';}}}catch(e){}}
+async function saveAutoOta(enabled){const nxt=document.getElementById('auto-ota-next');try{await fetch('/api/update/schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto_ota_enabled:enabled})});if(nxt){if(enabled){const d=await fetch('/api/update/schedule').then(r=>r.json());if(d.next_check){nxt.textContent='Next automatic check: '+d.next_check;nxt.style.display='block';}}else{nxt.style.display='none';}}toast(enabled?'Automatic updates enabled.':'Automatic updates disabled.');}catch(e){toast('Failed to save auto-update setting.',true);}}
 async function checkUpdate(force) {
   const msgEl=document.getElementById('update-status-msg'),lcEl=document.getElementById('update-last-check'),btnEl=document.getElementById('btn-check-update');
   if (force) { msgEl.className='checking'; msgEl.textContent='Checking for updates…'; btnEl.disabled=true; btnEl.textContent='Checking…'; }
@@ -2175,6 +2179,7 @@ function moveScoreTooltip(e) {
   const tw = t.offsetWidth || 240, th = t.offsetHeight || 160;
   let lx = e.clientX + 14, ly = e.clientY - 10;
   if (lx + tw > window.innerWidth  - 10) lx = e.clientX - tw - 14;
+  if (lx < 10) lx = 10;
   if (ly + th > window.innerHeight - 10) ly = e.clientY - th - 10;
   t.style.left = lx + 'px'; t.style.top = ly + 'px';
 }

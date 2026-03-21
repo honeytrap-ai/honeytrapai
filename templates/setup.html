@@ -1,258 +1,763 @@
-<!-- HoneytrapAI — setup.html
-     Copyright (c) 2026 HoneytrapAI / Anthony Watts
-     Licensed under the MIT License — see LICENSE file for details
-     Version: v0.3.47
-     Revised: 2026-03-19 12:15 PST
-     Rev: 4 -->
 <!DOCTYPE html>
+<!-- HoneytrapAI — setup.html Rev 5 — ISSUE-10 Setup Wizard + ISSUE-58 DNS rewrite -->
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HoneytrapAI — Setup</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#0f0f1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-         display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
-    .card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:2rem;
-          width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
-    .logo-row{display:flex;align-items:center;gap:.8rem;margin-bottom:1.5rem}
-    .logo-row img{width:48px;height:48px;border-radius:8px}
-    .logo-row h1{font-size:1.3rem;color:#f5a623}
-    .logo-row .sub{font-size:.75rem;color:#888}
-    .steps{display:flex;gap:.5rem;margin-bottom:1.8rem}
-    .step{flex:1;height:4px;border-radius:2px;background:#2a2a4a}
-    .step.active{background:#f5a623}
-    .step.done{background:#27ae60}
-    h2{font-size:1rem;color:#f5a623;margin-bottom:.3rem}
-    .hint{font-size:.8rem;color:#888;margin-bottom:1.2rem;line-height:1.5}
-    label{display:block;font-size:.82rem;color:#aaa;margin-bottom:.35rem;margin-top:.9rem}
-    input[type=password],input[type=email],input[type=text],input[type=number],select{
-      width:100%;background:#12122a;border:1px solid #2a2a4a;border-radius:6px;
-      padding:.65rem .9rem;color:#e0e0e0;font-size:.9rem;outline:none;transition:border .2s}
-    input:focus,select:focus{border-color:#f5a623}
-    input[readonly]{color:#888;cursor:default}
-    .error{background:#2a1010;border:1px solid #c0392b;border-radius:6px;
-           color:#e74c3c;font-size:.82rem;padding:.5rem .8rem;margin-bottom:1rem}
-    .warning{background:#2a200a;border:1px solid #f5a623;border-radius:6px;
-             color:#f5a623;font-size:.8rem;padding:.5rem .8rem;margin-top:.8rem;line-height:1.5}
-    .info-box{background:#12122a;border:1px solid #2a2a4a;border-radius:8px;
-              padding:.9rem 1rem;font-size:.82rem;line-height:1.7;margin-bottom:1rem}
-    .info-box .row{display:flex;justify-content:space-between;align-items:center}
-    .info-box .lbl{color:#888}
-    .info-box .val{color:#f5a623;font-family:monospace;font-size:.85rem}
-    .info-box .val.missing{color:#888;font-style:italic}
-    .smtp-section{border-top:1px solid #2a2a4a;margin-top:1.2rem;padding-top:1.1rem}
-    .smtp-section h3{font-size:.85rem;color:#aaa;margin-bottom:.2rem}
-    .smtp-section .smtp-hint{font-size:.76rem;color:#666;margin-bottom:.6rem;line-height:1.5}
-    .smtp-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .7rem}
-    .smtp-grid .full{grid-column:1/-1}
-    button{width:100%;background:#f5a623;color:#1a1a2e;border:none;border-radius:6px;
-           padding:.75rem;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:1.2rem;
-           transition:background .2s}
-    button:hover{background:#e09400}
-    .btn-skip{background:transparent;border:1px solid #444;color:#888;margin-top:.6rem;font-weight:400}
-    .btn-skip:hover{background:#1e1e30;border-color:#666;color:#aaa}
-    .skip-link{display:block;text-align:center;font-size:.78rem;color:#666;
-               margin-top:.8rem;cursor:pointer;text-decoration:underline}
-    .skip-link:hover{color:#aaa}
-    .footer{margin-top:1.5rem;font-size:.72rem;color:#555;text-align:center;line-height:1.6}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HoneytrapAI — Setup</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0f0f1a;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 32px 16px 48px;
+}
+.top {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.logo { font-size: 2.4rem; }
+.brand {
+  color: #f5a623;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  margin-top: 4px;
+}
+.tagline {
+  color: #555;
+  font-size: .75rem;
+  margin-top: 3px;
+}
+.card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  padding: 32px;
+}
+.step-dots {
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #2a2a4a;
+}
+.dot.active { background: #f5a623; }
+.dot.done   { background: #a06010; }
+.step-badge {
+  display: inline-block;
+  background: #f5a623;
+  color: #000;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+.step-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.step-desc {
+  color: #888;
+  font-size: .85rem;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+label {
+  display: block;
+  font-size: .83rem;
+  color: #888;
+  margin-bottom: 6px;
+}
+input[type="password"],
+input[type="text"],
+input[type="email"],
+input[type="number"],
+select {
+  width: 100%;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-size: .9rem;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color .2s;
+  margin-bottom: 16px;
+}
+input:focus, select:focus { border-color: #f5a623; }
+.pw-wrap { position: relative; margin-bottom: 16px; }
+.pw-wrap input { margin-bottom: 0; }
+.show-pw {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .8rem;
+  color: #888;
+  margin-top: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.show-pw input[type="checkbox"] { width: auto; margin: 0; }
+.btn {
+  width: 100%;
+  background: #f5a623;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: .95rem;
+  font-weight: 700;
+  padding: 12px;
+  cursor: pointer;
+  transition: background .2s;
+  margin-top: 4px;
+}
+.btn:hover { background: #e09520; }
+.btn-outline {
+  width: 100%;
+  background: transparent;
+  color: #888;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  font-size: .88rem;
+  font-weight: 500;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+  margin-top: 10px;
+}
+.btn-outline:hover { border-color: #888; color: #ccc; }
+.btn-sm {
+  background: transparent;
+  color: #f5a623;
+  border: 1px solid #f5a623;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-sm:hover { background: rgba(245,166,35,.1); }
+.error-box {
+  background: rgba(244,67,54,.1);
+  border: 1px solid rgba(244,67,54,.35);
+  border-radius: 8px;
+  color: #f44336;
+  font-size: .85rem;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+}
+.info-box {
+  background: rgba(74,158,255,.08);
+  border: 1px solid rgba(74,158,255,.25);
+  border-radius: 8px;
+  color: #aac8f0;
+  font-size: .82rem;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+.divider {
+  border: none;
+  border-top: 1px solid #2a2a4a;
+  margin: 20px 0;
+}
+.ip-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.ip-row input { flex: 1; }
+.ip-hint {
+  font-size: .78rem;
+  color: #555;
+  margin-top: -10px;
+  margin-bottom: 14px;
+}
+
+/* ---- Timezone map step ---- */
+#map-wrap {
+  width: 100%;
+  background: #0d0d20;
+  border: 1px solid #2a2a4a;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+#map-wrap svg { display: block; width: 100%; }
+#map-loading {
+  padding: 24px;
+  text-align: center;
+  color: #555;
+  font-size: .85rem;
+}
+#tz-confirm {
+  display: none;
+  background: #12122a;
+  border: 1px solid #f5a623;
+  border-radius: 10px;
+  padding: 18px 20px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+#tz-confirm.visible { display: block; }
+#tz-confirm p { font-size: .85rem; color: #aaa; line-height: 1.5; margin-bottom: 6px; }
+#tz-clock {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f5a623;
+  font-variant-numeric: tabular-nums;
+  margin: 6px 0 4px;
+  letter-spacing: 1px;
+}
+#tz-name { font-size: .8rem; color: #888; margin-bottom: 16px; }
+.confirm-btns { display: flex; gap: 10px; justify-content: center; }
+.confirm-btns button {
+  padding: 8px 18px;
+  border-radius: 7px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+#btn-yes { background: #f5a623; color: #000; }
+#btn-yes:hover { background: #e09520; }
+#btn-no  { background: transparent; border: 1px solid #555 !important; color: #aaa; }
+#btn-no:hover { border-color: #aaa !important; color: #ddd; }
+
+/* manual TZ selector — shown after "No" */
+#tz-manual { display: none; margin-bottom: 4px; }
+#tz-manual.open { display: block; }
+#tz-manual label { margin-top: 4px; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
-<div class="card">
-  <div class="logo-row">
-    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='hg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e09400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='50,4 93,27 93,73 50,96 7,73 7,27' fill='%231a1a2e' stroke='url(%23hg)' stroke-width='4'/%3E%3Cpath d='M50 22 L72 32 L72 56 C72 68 50 78 50 78 C50 78 28 68 28 56 L28 32 Z' fill='%23e09400' opacity='0.15' stroke='url(%23hg)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M44 48 L44 44 C44 40.7 56 40.7 56 44 L56 48' fill='none' stroke='%23f5a623' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='40' y='48' width='20' height='15' rx='2.5' fill='%23f5a623'/%3E%3Ccircle cx='50' cy='54' r='2.5' fill='%231a1a2e'/%3E%3Crect x='48.5' y='54' width='3' height='4' rx='1' fill='%231a1a2e'/%3E%3Cellipse cx='72' cy='26' rx='5.5' ry='4' fill='%23f5a623'/%3E%3Cline x1='70' y1='23.5' x2='70' y2='28.5' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Cline x1='73' y1='23' x2='73' y2='29' stroke='%231a1a2e' stroke-width='1.5'/%3E%3Ccircle cx='77' cy='26' r='2.5' fill='%23f5a623'/%3E%3Cellipse cx='70' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(-20 70 21)'/%3E%3Cellipse cx='74' cy='21' rx='4' ry='2.5' fill='white' opacity='0.7' transform='rotate(20 74 21)'/%3E%3Cline x1='77' y1='23.5' x2='79' y2='20' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3Cline x1='78' y1='24' x2='81' y2='22' stroke='%23f5a623' stroke-width='1' stroke-linecap='round'/%3E%3C%2Fsvg%3E"
-         alt="HoneytrapAI">
-    <div>
-      <h1>HoneytrapAI Setup</h1>
-      <div class="sub">NO CLOUD · NO SUBSCRIPTION · NO MONTHLY FEES</div>
-    </div>
-  </div>
 
-  <div class="steps">
-    <div class="step {% if step >= 1 %}{% if step > 1 %}done{% else %}active{% endif %}{% endif %}"></div>
-    <div class="step {% if step >= 2 %}{% if step > 2 %}done{% else %}active{% endif %}{% endif %}"></div>
-    <div class="step {% if step >= 3 %}active{% endif %}"></div>
+<div class="top">
+  <div class="logo">🐝</div>
+  <div class="brand">HoneytrapAI</div>
+  <div class="tagline">No cloud. No subscription. No monthly fees. Ever.</div>
+</div>
+
+<div class="card">
+
+  <!-- Step dots -->
+  <div class="step-dots">
+    <div class="dot {% if step >= 1 %}{% if step > 1 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 2 %}{% if step > 2 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 3 %}{% if step > 3 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 4 %}{% if step > 4 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 5 %}active{% endif %}"></div>
   </div>
 
   {% if error %}
-  <div class="error">{{ error }}</div>
+  <div class="error-box">{{ error }}</div>
   {% endif %}
 
-  {# ── Step 1 — Password ─────────────────────────────── #}
+  <!-- ======================================================= -->
+  <!-- STEP 1 — Password                                        -->
+  <!-- ======================================================= -->
   {% if step == 1 %}
-  <h2>Step 1 of 3 — Set Dashboard Password</h2>
-  <p class="hint">Choose a password to protect your HoneytrapAI dashboard. Minimum 8 characters.</p>
-  <form method="POST" action="/setup">
+  <div class="step-badge">Step 1 of 5</div>
+  <div class="step-title">Create your password</div>
+  <div class="step-desc">Choose a strong password to protect your HoneytrapAI dashboard. At least 8 characters.</div>
+
+  <form method="post">
     <input type="hidden" name="step" value="1">
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" autofocus placeholder="Minimum 8 characters">
-    <label for="confirm">Confirm Password</label>
-    <input type="password" id="confirm" name="confirm" placeholder="Repeat password">
-    <button type="submit">Continue →</button>
+
+    <label>Password</label>
+    <div class="pw-wrap">
+      <input type="password" name="password" id="pw1" autocomplete="new-password" required minlength="8">
+    </div>
+    <label class="show-pw" for="show1">
+      <input type="checkbox" id="show1" onchange="togglePw('pw1', this)"> Show password
+    </label>
+
+    <label style="margin-top:16px;">Verify password</label>
+    <div class="pw-wrap">
+      <input type="password" name="confirm" id="pw2" autocomplete="new-password" required minlength="8">
+    </div>
+    <label class="show-pw" for="show2">
+      <input type="checkbox" id="show2" onchange="togglePw('pw2', this)"> Show password
+    </label>
+
+    <button type="submit" class="btn" style="margin-top:20px;">Continue →</button>
   </form>
-
-  {# ── Step 2 — Static IP ────────────────────────────── #}
-  {% elif step == 2 %}
-  <h2>Step 2 of 3 — Static IP Address</h2>
-  <p class="hint">
-    A static IP keeps your appliance reachable at a predictable address.
-    Your current network settings were detected below.
-  </p>
-
-  <div class="info-box">
-    <div class="row">
-      <span class="lbl">Current IP</span>
-      <span class="val {% if not net.ip %}missing{% endif %}">
-        {{ net.ip if net.ip else "not detected" }}
-      </span>
-    </div>
-    <div class="row">
-      <span class="lbl">Subnet</span>
-      <span class="val {% if not net.network %}missing{% endif %}">
-        {{ net.network if net.network else "not detected" }}
-      </span>
-    </div>
-    <div class="row">
-      <span class="lbl">Gateway</span>
-      <span class="val {% if not net.gateway %}missing{% endif %}">
-        {{ net.gateway if net.gateway else "not detected" }}
-      </span>
-    </div>
-    <div class="row">
-      <span class="lbl">DNS</span>
-      <span class="val {% if not net.dns %}missing{% endif %}">
-        {{ net.dns if net.dns else "not detected" }}
-      </span>
-    </div>
-  </div>
-
-  <form method="POST" action="/setup" id="ip-form">
-    <input type="hidden" name="step" value="2">
-    <input type="hidden" name="action" value="save" id="form-action">
-
-    <label for="static_ip">Static IP Address</label>
-    <input type="text" id="static_ip" name="static_ip"
-           value="{{ net.ip }}"
-           placeholder="e.g. {{ net.ip if net.ip else '192.168.1.100' }}"
-           autofocus>
-
-    <button type="submit">Set Static IP →</button>
-    <button type="button" class="btn-skip" onclick="skipStep()">Skip (not recommended)</button>
-  </form>
-
-  <div class="warning" id="skip-warning" style="display:none">
-    ⚠ Without a static IP, your appliance address may change after a reboot, breaking
-    dashboard access and DNS routing. Are you sure?
-    <br><br>
-    <button type="button" style="margin-top:0;padding:.5rem;font-size:.8rem"
-            onclick="confirmSkip()">Yes, skip static IP</button>
-  </div>
-
-  <script>
-    function skipStep() {
-      var w = document.getElementById('skip-warning');
-      w.style.display = w.style.display === 'none' ? 'block' : 'none';
-    }
-    function confirmSkip() {
-      document.getElementById('form-action').value = 'skip';
-      document.getElementById('ip-form').submit();
-    }
-  </script>
-
-  {# ── Step 3 — Email + SMTP ─────────────────────────── #}
-  {% elif step == 3 %}
-  <h2>Step 3 of 3 — Email Alerts</h2>
-  <p class="hint">
-    Configure where threat alert emails are sent and how to deliver them.
-    All fields are optional — you can finish this from Settings after setup.
-  </p>
-  <form method="POST" action="/setup" id="step3-form">
-    <input type="hidden" name="step" value="3">
-
-    <label for="alert_email">Alert Email Address</label>
-    <input type="email" id="alert_email" name="alert_email"
-           placeholder="you@example.com" autofocus>
-
-    <!-- SMTP section -->
-    <div class="smtp-section">
-      <h3>📧 SMTP Configuration</h3>
-      <p class="smtp-hint">
-        Works with any provider — Gmail, Outlook, Mailgun, Postmark, etc.<br>
-        For Gmail, use an <a href="https://myaccount.google.com/apppasswords"
-          style="color:#f5a623" target="_blank">App Password</a> with 2FA enabled.
-      </p>
-      <div class="smtp-grid">
-        <div>
-          <label for="smtp_host">SMTP Host</label>
-          <input type="text" id="smtp_host" name="smtp_host"
-                 placeholder="smtp.gmail.com">
-        </div>
-        <div>
-          <label for="smtp_port">Port</label>
-          <input type="number" id="smtp_port" name="smtp_port"
-                 placeholder="587" value="587">
-        </div>
-        <div>
-          <label for="smtp_user">Username</label>
-          <input type="text" id="smtp_user" name="smtp_user"
-                 placeholder="you@gmail.com" autocomplete="off">
-        </div>
-        <div>
-          <label for="smtp_pass">Your Email Account Password</label>
-          <input type="password" id="smtp_pass" name="smtp_pass"
-                 placeholder="••••••••" autocomplete="new-password">
-        </div>
-        <div class="full">
-          <label for="smtp_from">From Address</label>
-          <input type="text" id="smtp_from" name="smtp_from"
-                 placeholder="honeytrapai@yourdomain.com">
-        </div>
-        <div class="full">
-          <label for="smtp_enc">Encryption</label>
-          <select id="smtp_enc" name="smtp_enc" onchange="smtpEncChange(this)">
-            <option value="starttls" selected>STARTTLS — recommended (Gmail, Outlook, most providers)</option>
-            <option value="ssl">SSL / TLS — older hosts, port 465</option>
-            <option value="none">None — local/internal mail servers only</option>
-          </select>
-          <div id="smtp-enc-hint" style="font-size:.73rem;color:#666;margin-top:.3rem;line-height:1.5">
-            Encrypts your login credentials in transit. Required by almost all email providers.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <button type="submit">Complete Setup →</button>
-    <span class="skip-link" onclick="skipAll()">Skip for now</span>
-  </form>
-
-  <script>
-    function smtpEncChange(sel) {
-      var port = document.getElementById('smtp_port');
-      var hint = document.getElementById('smtp-enc-hint');
-      var hints = {
-        starttls: 'Encrypts your login credentials in transit. Required by almost all email providers.',
-        ssl:      'Direct SSL connection. Use if your provider specifically requires port 465.',
-        none:     '⚠ No encryption. Only use for local or internal mail servers on a trusted network.'
-      };
-      var ports = { starttls: '587', ssl: '465', none: '25' };
-      port.value = ports[sel.value];
-      hint.textContent = hints[sel.value];
-      hint.style.color = sel.value === 'none' ? '#e74c3c' : '#666';
-    }
-    function skipAll() {
-      ['alert_email','smtp_host','smtp_user','smtp_pass','smtp_from'].forEach(function(id) {
-        document.getElementById(id).value = '';
-      });
-      document.getElementById('step3-form').submit();
-    }
-  </script>
   {% endif %}
 
-  <div class="footer">
-    HoneytrapAI · No cloud · No subscription · No monthly fees. Ever.
+  <!-- ======================================================= -->
+  <!-- STEP 2 — Timezone                                        -->
+  <!-- ======================================================= -->
+  {% if step == 2 %}
+  <div class="step-badge">Step 2 of 5</div>
+  <div class="step-title">Confirm your location</div>
+  <div class="step-desc">We've located your device on the map. Confirm the timezone is correct so alerts and logs show the right time.</div>
+
+  <div id="map-wrap">
+    <div id="map-loading">Locating your device…</div>
+    <svg id="tz-map" viewBox="0 0 560 220" preserveAspectRatio="xMidYMid meet"></svg>
   </div>
-</div>
+
+  <div id="tz-confirm">
+    <p>Our Internet locator shows you on the map.<br>The local time at your location is:</p>
+    <div id="tz-clock">--:--:--</div>
+    <div id="tz-name">Detecting…</div>
+    <div class="confirm-btns">
+      <button id="btn-yes" onclick="confirmTz()">Yes, that's right</button>
+      <button id="btn-no"  onclick="showManual()">No, let me choose</button>
+    </div>
+  </div>
+
+  <div id="tz-manual">
+    <label>Select your timezone</label>
+    <select id="tz-select" onchange="onManualSelect(this.value)"></select>
+  </div>
+
+  <form method="post" id="tz-form">
+    <input type="hidden" name="step" value="2">
+    <input type="hidden" name="timezone" id="tz-hidden" value="">
+    <button type="submit" class="btn" id="tz-submit" disabled>Confirm timezone →</button>
+  </form>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 3 — Static IP                                       -->
+  <!-- ======================================================= -->
+  {% if step == 3 %}
+  <div class="step-badge">Step 3 of 5</div>
+  <div class="step-title">Set a fixed IP address</div>
+  <div class="step-desc">
+    Assigning a fixed IP ensures your HoneytrapAI is always at the same address.
+    Your current network is <strong style="color:#e0e0e0;">{{ net.network }}</strong>.
+    Leave blank to skip and keep your current address.
+  </div>
+
+  {% if net.ip %}
+  <div class="info-box">Current address: <strong>{{ net.ip }}</strong> — you can use this or choose another in the same subnet.</div>
+  {% endif %}
+
+  <form method="post">
+    <input type="hidden" name="step" value="3">
+    <label>Fixed IP address</label>
+    <input type="text" name="static_ip" placeholder="e.g. {{ net.ip or '192.168.1.199' }}" value="{{ net.ip or '' }}">
+    <div class="ip-hint">Must be within {{ net.network or 'your subnet' }}</div>
+    <button type="submit" name="action" value="save" class="btn">Save and continue →</button>
+    <button type="submit" name="action" value="skip" class="btn-outline">Skip — set later</button>
+  </form>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 4 — Email alerts                                    -->
+  <!-- ======================================================= -->
+  {% if step == 4 %}
+  <div class="step-badge">Step 4 of 5</div>
+  <div class="step-title">Set up email alerts</div>
+  <div class="step-desc">Get notified when threats are detected on your network. You can configure this now or skip and set it up later from the dashboard.</div>
+
+  <form method="post">
+    <input type="hidden" name="step" value="4">
+
+    <label>Alert email address</label>
+    <input type="email" name="alert_email" placeholder="you@example.com">
+
+    <label>SMTP host</label>
+    <input type="text" name="smtp_host" placeholder="smtp.gmail.com">
+    <label>SMTP port</label>
+    <input type="number" name="smtp_port" value="587" min="1" max="65535">
+    <label>Username</label>
+    <input type="text" name="smtp_user" placeholder="you@gmail.com" autocomplete="off">
+    <label>From address</label>
+    <input type="text" name="smtp_from" placeholder="HoneytrapAI <you@gmail.com>">
+    <label>Password</label>
+    <input type="password" name="smtp_pass" autocomplete="new-password">
+    <label>Encryption</label>
+    <select name="smtp_enc">
+      <option value="starttls" selected>STARTTLS (port 587)</option>
+      <option value="ssl">SSL/TLS (port 465)</option>
+      <option value="none">None</option>
+    </select>
+
+    <button type="submit" name="action" value="save" class="btn">Finish setup →</button>
+    <button type="submit" name="action" value="skip" class="btn-outline">Skip — set up later</button>
+  </form>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 5 — Finalizing                                      -->
+  <!-- ======================================================= -->
+  {% if step == 5 %}
+  <div class="step-badge">Step 5 of 5</div>
+  <div class="step-title">Finalizing your setup</div>
+  <div class="step-desc">Configuring your dashboard URL. This only takes a moment.</div>
+
+  <div id="finalize-spinner" style="text-align:center;padding:24px 0;">
+    <div style="font-size:2rem;animation:spin 1.2s linear infinite;display:inline-block;">⚙️</div>
+    <div style="color:#888;font-size:.85rem;margin-top:10px;">Configuring dashboard URL…</div>
+  </div>
+
+  <div id="finalize-success" style="display:none;">
+    <div class="info-box" style="border-color:rgba(80,200,120,.35);background:rgba(80,200,120,.08);color:#7dd87d;">
+      ✅ Setup complete!<br><br>
+      Your HoneytrapAI Dashboard is ready now. Bookmark this URL for easy access from any device on your home network:<br>
+      <strong style="color:#7dd87d;">https://dashboard.honeytrap.ai</strong>
+    </div>
+    <a href="https://dashboard.honeytrap.ai" class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">
+      Go to dashboard →
+    </a>
+  </div>
+
+  <div id="finalize-warning" style="display:none;">
+    <div class="info-box" style="border-color:rgba(255,180,0,.35);background:rgba(255,180,0,.08);color:#f5c842;" id="finalize-warning-msg">
+      ⚠️ Could not configure dashboard URL automatically.
+    </div>
+    <button class="btn" id="finalize-retry-btn" onclick="runFinalize()" style="margin-top:8px;">Retry</button>
+    <a href="/dashboard" class="btn-outline" style="display:block;text-align:center;text-decoration:none;margin-top:10px;">
+      Skip for now — go to dashboard
+    </a>
+  </div>
+  {% endif %}
+
+</div><!-- .card -->
+
+<script>
+/* ---- Password visibility toggle ---- */
+function togglePw(id, cb) {
+  var el = document.getElementById(id);
+  if (el) el.type = cb.checked ? 'text' : 'password';
+}
+
+/* ================================================================
+   STEP 2 — Timezone map
+   ================================================================ */
+(function () {
+  if (!document.getElementById('tz-map')) return;
+
+  var detectedTz = '';
+  var confirmedTz = '';
+  var clockInterval = null;
+
+  /* ---- Live clock ---- */
+  function startClock(tz) {
+    if (clockInterval) clearInterval(clockInterval);
+    function tick() {
+      try {
+        var t = new Date().toLocaleTimeString('en-US', {
+          timeZone: tz,
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+          hour12: false
+        });
+        document.getElementById('tz-clock').textContent = t;
+      } catch(e) {
+        document.getElementById('tz-clock').textContent = '--:--:--';
+      }
+    }
+    tick();
+    clockInterval = setInterval(tick, 1000);
+  }
+
+  /* ---- Show confirmation popup ---- */
+  function showConfirm(tz, lat, lon) {
+    detectedTz = tz;
+    document.getElementById('tz-name').textContent = tz;
+    startClock(tz);
+    document.getElementById('tz-confirm').classList.add('visible');
+  }
+
+  /* ---- "Yes, that's right" ---- */
+  window.confirmTz = function() {
+    var tz = detectedTz || document.getElementById('tz-select').value;
+    if (!tz) return;
+    document.getElementById('tz-hidden').value = tz;
+    document.getElementById('tz-submit').disabled = false;
+    document.getElementById('tz-confirm').classList.remove('visible');
+    document.getElementById('tz-submit').textContent = 'Confirm: ' + tz + ' →';
+  };
+
+  /* ---- "No, let me choose" ---- */
+  window.showManual = function() {
+    document.getElementById('tz-confirm').classList.remove('visible');
+    if (clockInterval) clearInterval(clockInterval);
+    var manual = document.getElementById('tz-manual');
+    manual.classList.add('open');
+    /* populate select if not already done */
+    var sel = document.getElementById('tz-select');
+    if (sel.options.length === 0) {
+      populateTzSelect(sel, detectedTz);
+    } else {
+      if (detectedTz) sel.value = detectedTz;
+    }
+    onManualSelect(sel.value);
+  };
+
+  window.onManualSelect = function(tz) {
+    if (!tz) return;
+    document.getElementById('tz-hidden').value = tz;
+    document.getElementById('tz-submit').disabled = false;
+    document.getElementById('tz-submit').textContent = 'Confirm: ' + tz + ' →';
+  };
+
+  /* ---- Populate timezone grouped select ---- */
+  function populateTzSelect(sel, preselect) {
+    var zones = [
+      "Africa/Abidjan","Africa/Accra","Africa/Addis_Ababa","Africa/Algiers","Africa/Asmara",
+      "Africa/Bamako","Africa/Bangui","Africa/Banjul","Africa/Bissau","Africa/Blantyre",
+      "Africa/Brazzaville","Africa/Bujumbura","Africa/Cairo","Africa/Casablanca","Africa/Ceuta",
+      "Africa/Conakry","Africa/Dakar","Africa/Dar_es_Salaam","Africa/Djibouti","Africa/Douala",
+      "Africa/El_Aaiun","Africa/Freetown","Africa/Gaborone","Africa/Harare","Africa/Johannesburg",
+      "Africa/Juba","Africa/Kampala","Africa/Khartoum","Africa/Kigali","Africa/Kinshasa",
+      "Africa/Lagos","Africa/Libreville","Africa/Lome","Africa/Luanda","Africa/Lubumbashi",
+      "Africa/Lusaka","Africa/Malabo","Africa/Maputo","Africa/Maseru","Africa/Mbabane",
+      "Africa/Mogadishu","Africa/Monrovia","Africa/Nairobi","Africa/Ndjamena","Africa/Niamey",
+      "Africa/Nouakchott","Africa/Ouagadougou","Africa/Porto-Novo","Africa/Sao_Tome",
+      "Africa/Tripoli","Africa/Tunis","Africa/Windhoek",
+      "America/Adak","America/Anchorage","America/Anguilla","America/Antigua","America/Araguaina",
+      "America/Argentina/Buenos_Aires","America/Argentina/Catamarca","America/Argentina/Cordoba",
+      "America/Argentina/Jujuy","America/Argentina/La_Rioja","America/Argentina/Mendoza",
+      "America/Argentina/Rio_Gallegos","America/Argentina/Salta","America/Argentina/San_Juan",
+      "America/Argentina/San_Luis","America/Argentina/Tucuman","America/Argentina/Ushuaia",
+      "America/Aruba","America/Asuncion","America/Atikokan","America/Bahia","America/Bahia_Banderas",
+      "America/Barbados","America/Belem","America/Belize","America/Blanc-Sablon","America/Boa_Vista",
+      "America/Bogota","America/Boise","America/Cambridge_Bay","America/Campo_Grande","America/Cancun",
+      "America/Caracas","America/Cayenne","America/Cayman","America/Chicago","America/Chihuahua",
+      "America/Costa_Rica","America/Creston","America/Cuiaba","America/Curacao","America/Danmarkshavn",
+      "America/Dawson","America/Dawson_Creek","America/Denver","America/Detroit","America/Dominica",
+      "America/Edmonton","America/Eirunepe","America/El_Salvador","America/Fort_Nelson","America/Fortaleza",
+      "America/Glace_Bay","America/Godthab","America/Goose_Bay","America/Grand_Turk","America/Grenada",
+      "America/Guadeloupe","America/Guatemala","America/Guayaquil","America/Guyana","America/Halifax",
+      "America/Havana","America/Hermosillo","America/Indiana/Indianapolis","America/Indiana/Knox",
+      "America/Indiana/Marengo","America/Indiana/Petersburg","America/Indiana/Tell_City",
+      "America/Indiana/Vevay","America/Indiana/Vincennes","America/Indiana/Winamac","America/Inuvik",
+      "America/Iqaluit","America/Jamaica","America/Juneau","America/Kentucky/Louisville",
+      "America/Kentucky/Monticello","America/Kralendijk","America/La_Paz","America/Lima",
+      "America/Los_Angeles","America/Lower_Princes","America/Maceio","America/Managua",
+      "America/Manaus","America/Marigot","America/Martinique","America/Matamoros","America/Mazatlan",
+      "America/Menominee","America/Merida","America/Metlakatla","America/Mexico_City","America/Miquelon",
+      "America/Moncton","America/Monterrey","America/Montevideo","America/Montserrat","America/Nassau",
+      "America/New_York","America/Nipigon","America/Nome","America/Noronha","America/North_Dakota/Beulah",
+      "America/North_Dakota/Center","America/North_Dakota/New_Salem","America/Ojinaga","America/Panama",
+      "America/Pangnirtung","America/Paramaribo","America/Phoenix","America/Port-au-Prince",
+      "America/Port_of_Spain","America/Porto_Velho","America/Puerto_Rico","America/Punta_Arenas",
+      "America/Rainy_River","America/Rankin_Inlet","America/Recife","America/Regina","America/Resolute",
+      "America/Rio_Branco","America/Santarem","America/Santiago","America/Santo_Domingo",
+      "America/Sao_Paulo","America/Scoresbysund","America/Sitka","America/St_Barthelemy",
+      "America/St_Johns","America/St_Kitts","America/St_Lucia","America/St_Thomas","America/St_Vincent",
+      "America/Swift_Current","America/Tegucigalpa","America/Thule","America/Thunder_Bay",
+      "America/Tijuana","America/Toronto","America/Tortola","America/Vancouver","America/Whitehorse",
+      "America/Winnipeg","America/Yakutat","America/Yellowknife",
+      "Antarctica/Casey","Antarctica/Davis","Antarctica/DumontDUrville","Antarctica/Macquarie",
+      "Antarctica/Mawson","Antarctica/McMurdo","Antarctica/Palmer","Antarctica/Rothera",
+      "Antarctica/Syowa","Antarctica/Troll","Antarctica/Vostok",
+      "Arctic/Longyearbyen",
+      "Asia/Aden","Asia/Almaty","Asia/Amman","Asia/Anadyr","Asia/Aqtau","Asia/Aqtobe",
+      "Asia/Ashgabat","Asia/Atyrau","Asia/Baghdad","Asia/Bahrain","Asia/Baku","Asia/Bangkok",
+      "Asia/Barnaul","Asia/Beirut","Asia/Bishkek","Asia/Brunei","Asia/Chita","Asia/Choibalsan",
+      "Asia/Colombo","Asia/Damascus","Asia/Dhaka","Asia/Dili","Asia/Dubai","Asia/Dushanbe",
+      "Asia/Famagusta","Asia/Gaza","Asia/Hebron","Asia/Ho_Chi_Minh","Asia/Hong_Kong","Asia/Hovd",
+      "Asia/Irkutsk","Asia/Jakarta","Asia/Jayapura","Asia/Jerusalem","Asia/Kabul","Asia/Kamchatka",
+      "Asia/Karachi","Asia/Kathmandu","Asia/Khandyga","Asia/Kolkata","Asia/Krasnoyarsk",
+      "Asia/Kuala_Lumpur","Asia/Kuching","Asia/Kuwait","Asia/Macau","Asia/Magadan","Asia/Makassar",
+      "Asia/Manila","Asia/Muscat","Asia/Nicosia","Asia/Novokuznetsk","Asia/Novosibirsk","Asia/Omsk",
+      "Asia/Oral","Asia/Phnom_Penh","Asia/Pontianak","Asia/Pyongyang","Asia/Qatar","Asia/Qostanay",
+      "Asia/Qyzylorda","Asia/Riyadh","Asia/Sakhalin","Asia/Samarkand","Asia/Seoul","Asia/Shanghai",
+      "Asia/Singapore","Asia/Srednekolymsk","Asia/Taipei","Asia/Tashkent","Asia/Tbilisi",
+      "Asia/Tehran","Asia/Thimphu","Asia/Tokyo","Asia/Tomsk","Asia/Ulaanbaatar","Asia/Urumqi",
+      "Asia/Ust-Nera","Asia/Vientiane","Asia/Vladivostok","Asia/Yakutsk","Asia/Yangon",
+      "Asia/Yekaterinburg","Asia/Yerevan",
+      "Atlantic/Azores","Atlantic/Bermuda","Atlantic/Canary","Atlantic/Cape_Verde",
+      "Atlantic/Faroe","Atlantic/Madeira","Atlantic/Reykjavik","Atlantic/South_Georgia",
+      "Atlantic/St_Helena","Atlantic/Stanley",
+      "Australia/Adelaide","Australia/Brisbane","Australia/Broken_Hill","Australia/Currie",
+      "Australia/Darwin","Australia/Eucla","Australia/Hobart","Australia/Lindeman",
+      "Australia/Lord_Howe","Australia/Melbourne","Australia/Perth","Australia/Sydney",
+      "Europe/Amsterdam","Europe/Andorra","Europe/Astrakhan","Europe/Athens","Europe/Belgrade",
+      "Europe/Berlin","Europe/Bratislava","Europe/Brussels","Europe/Bucharest","Europe/Budapest",
+      "Europe/Busingen","Europe/Chisinau","Europe/Copenhagen","Europe/Dublin","Europe/Gibraltar",
+      "Europe/Guernsey","Europe/Helsinki","Europe/Isle_of_Man","Europe/Istanbul","Europe/Jersey",
+      "Europe/Kaliningrad","Europe/Kiev","Europe/Kirov","Europe/Lisbon","Europe/Ljubljana",
+      "Europe/London","Europe/Luxembourg","Europe/Madrid","Europe/Malta","Europe/Mariehamn",
+      "Europe/Minsk","Europe/Monaco","Europe/Moscow","Europe/Nicosia","Europe/Oslo","Europe/Paris",
+      "Europe/Podgorica","Europe/Prague","Europe/Riga","Europe/Rome","Europe/Samara","Europe/San_Marino",
+      "Europe/Sarajevo","Europe/Saratov","Europe/Simferopol","Europe/Skopje","Europe/Sofia",
+      "Europe/Stockholm","Europe/Tallinn","Europe/Tirane","Europe/Ulyanovsk","Europe/Uzhgorod",
+      "Europe/Vaduz","Europe/Vatican","Europe/Vienna","Europe/Vilnius","Europe/Volgograd",
+      "Europe/Warsaw","Europe/Zagreb","Europe/Zaporozhye","Europe/Zurich",
+      "Indian/Antananarivo","Indian/Chagos","Indian/Christmas","Indian/Cocos","Indian/Comoro",
+      "Indian/Kerguelen","Indian/Mahe","Indian/Maldives","Indian/Mauritius","Indian/Mayotte",
+      "Indian/Reunion",
+      "Pacific/Apia","Pacific/Auckland","Pacific/Bougainville","Pacific/Chatham","Pacific/Chuuk",
+      "Pacific/Easter","Pacific/Efate","Pacific/Enderbury","Pacific/Fakaofo","Pacific/Fiji",
+      "Pacific/Funafuti","Pacific/Galapagos","Pacific/Gambier","Pacific/Guadalcanal","Pacific/Guam",
+      "Pacific/Honolulu","Pacific/Kiritimati","Pacific/Kosrae","Pacific/Kwajalein","Pacific/Majuro",
+      "Pacific/Marquesas","Pacific/Midway","Pacific/Nauru","Pacific/Niue","Pacific/Norfolk",
+      "Pacific/Noumea","Pacific/Pago_Pago","Pacific/Palau","Pacific/Pitcairn","Pacific/Pohnpei",
+      "Pacific/Port_Moresby","Pacific/Rarotonga","Pacific/Saipan","Pacific/Tahiti","Pacific/Tarawa",
+      "Pacific/Tongatapu","Pacific/Wake","Pacific/Wallis",
+      "UTC"
+    ];
+
+    /* Group by region */
+    var groups = {};
+    zones.forEach(function(z) {
+      var region = z.split('/')[0];
+      if (!groups[region]) groups[region] = [];
+      groups[region].push(z);
+    });
+
+    Object.keys(groups).sort().forEach(function(region) {
+      var og = document.createElement('optgroup');
+      og.label = region;
+      groups[region].forEach(function(z) {
+        var opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z.split('/').slice(1).join('/').replace(/_/g, ' ');
+        if (z === preselect) opt.selected = true;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
+    });
+  }
+
+  /* ---- Draw world map ---- */
+  function drawMap(lat, lon) {
+    var svg = d3.select('#tz-map');
+    var w = 560, h = 220;
+
+    var projection = d3.geoNaturalEarth1()
+      .scale(88)
+      .translate([w / 2, h / 2]);
+    var path = d3.geoPath().projection(projection);
+
+    /* Load countries-110m.json (served by Flask /static/) */
+    d3.json('/static/countries-110m.json').then(function(world) {
+      document.getElementById('map-loading').style.display = 'none';
+      var countries = topojson.feature(world, world.objects.countries);
+
+      svg.append('rect')
+        .attr('width', w).attr('height', h)
+        .attr('fill', '#0d0d20');
+
+      svg.append('g')
+        .selectAll('path')
+        .data(countries.features)
+        .enter().append('path')
+          .attr('d', path)
+          .attr('fill', '#1e2040')
+          .attr('stroke', '#2a2a5a')
+          .attr('stroke-width', 0.4);
+
+      /* You Are Here marker */
+      var pt = projection([lon, lat]);
+      if (pt) {
+        /* Pulse ring */
+        svg.append('circle')
+          .attr('cx', pt[0]).attr('cy', pt[1])
+          .attr('r', 10)
+          .attr('fill', 'none')
+          .attr('stroke', '#f5a623')
+          .attr('stroke-width', 1.2)
+          .attr('opacity', 0.5);
+
+        /* Bee dot */
+        svg.append('circle')
+          .attr('cx', pt[0]).attr('cy', pt[1])
+          .attr('r', 5)
+          .attr('fill', '#f5a623')
+          .attr('stroke', '#0d0d20')
+          .attr('stroke-width', 1.5);
+      }
+
+    }).catch(function() {
+      document.getElementById('map-loading').textContent = 'Map unavailable — please select timezone below.';
+      showManual();
+    });
+  }
+
+  /* ---- Init: fetch /api/my-location ---- */
+  fetch('/api/my-location')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(data.error);
+      var lat = data.lat, lon = data.lon, tz = data.timezone || '';
+      drawMap(lat, lon);
+      if (tz) {
+        showConfirm(tz, lat, lon);
+      } else {
+        /* No tz from ip-api — go straight to manual */
+        document.getElementById('map-loading').style.display = 'none';
+        showManual();
+      }
+    })
+    .catch(function() {
+      document.getElementById('map-loading').textContent = 'Could not detect location — please select timezone below.';
+      showManual();
+    });
+
+})();
+
+/* ================================================================
+   STEP 5 — Finalize: DNS rewrite
+   ================================================================ */
+function runFinalize() {
+  document.getElementById('finalize-spinner').style.display  = 'block';
+  document.getElementById('finalize-success').style.display  = 'none';
+  document.getElementById('finalize-warning').style.display  = 'none';
+
+  fetch('/api/setup/finalize', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+    setTimeout(function() {
+      document.getElementById('finalize-spinner').style.display = 'none';
+      if (data.status === 'ok') {
+        document.getElementById('finalize-success').style.display = 'block';
+      } else {
+        var msg = data.message || 'Could not configure dashboard URL automatically. You can add the DNS rewrite manually from the dashboard.';
+        document.getElementById('finalize-warning-msg').innerHTML = '⚠️ ' + msg;
+        document.getElementById('finalize-warning').style.display = 'block';
+      }
+    }, 2000);
+  })
+    .catch(function() {
+      document.getElementById('finalize-spinner').style.display = 'none';
+      document.getElementById('finalize-warning-msg').innerHTML = '⚠️ Could not reach the setup API. You can retry or skip and add the DNS rewrite manually from the dashboard.';
+      document.getElementById('finalize-warning').style.display = 'block';
+    });
+}
+
+/* Skip button — mark setup complete without DNS rewrite, then go to dashboard */
+var skipBtn = document.getElementById('finalize-retry-btn');
+document.querySelectorAll('a[href="/dashboard"]').forEach(function(el) {
+  if (el.textContent.indexOf('Skip') !== -1) {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      fetch('/api/setup/skip-finalize', { method: 'POST' })
+        .finally(function() { window.location.href = '/dashboard'; });
+    });
+  }
+});
+
+if (document.getElementById('finalize-spinner')) {
+  runFinalize();
+}
+</script>
+
 </body>
 </html>

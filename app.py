@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.54
-# Revised: 2026-03-20
-# Rev: 38
+# Version: v0.3.56
+# Revised: 2026-03-21
+# Rev: 39
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -327,6 +327,13 @@ def _auto_ota_scheduler():
             latest = info.get("latest_version", "unknown")
             app.logger.info(f"Auto OTA: update available ({latest}), installing…")
 
+            # Write flag file before restarting — email sent on next startup
+            pending_path = os.path.join(os.path.dirname(CONFIG_PATH), "auto_ota_pending.json")
+            try:
+                with open(pending_path, "w") as f:
+                    json.dump({"expected_version": latest}, f)
+            except Exception as e:
+                app.logger.warning(f"Auto OTA: could not write pending flag: {e}")
             # Attempt install — retry once on failure
             for attempt in range(1, 3):
                 perform_update()
@@ -340,28 +347,12 @@ def _auto_ota_scheduler():
                     if state in ("complete", "error"):
                         final_state = state
                         break
-
                 if final_state == "complete":
-                    new_ver = get_update_status().get("new_version", latest)
-                    app.logger.info(f"Auto OTA: updated to {new_ver}")
-                    _send_ota_email(
-                        f"HoneytrapAI updated to {new_ver}",
-                        f"Your HoneytrapAI appliance has been automatically updated.\n\n"
-                        f"New version: {new_ver}\n\n"
-                        f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
-                    )
+                    app.logger.info(f"Auto OTA: service restarting, email will send on startup.")
                     break
                 else:
                     app.logger.warning(f"Auto OTA: install attempt {attempt} failed (state={final_state})")
-                    if attempt == 2:
-                        _send_ota_email(
-                            f"HoneytrapAI update to {latest} failed",
-                            f"Your HoneytrapAI appliance attempted to update to {latest} "
-                            f"but failed after 2 attempts.\n\n"
-                            f"You can install it manually from the dashboard.\n\n"
-                            f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
-                        )
-                    else:
+                    if attempt < 2:
                         time.sleep(60)
 
         except Exception as e:
@@ -2281,6 +2272,49 @@ def api_parental_controls():
 
     return jsonify({"status": "ok"})
 
+# --- Auto OTA startup email check — ISSUE-46 ---
+def _check_auto_ota_pending():
+    """On startup, check if an auto OTA was in progress before restart.
+    If update_status.json shows complete/error and auto_ota_pending.json exists,
+    send the outcome email and delete the flag file."""
+    import os
+    pending_path = os.path.join(os.path.dirname(CONFIG_PATH), "auto_ota_pending.json")
+    if not os.path.exists(pending_path):
+        return
+    try:
+        with open(pending_path) as f:
+            pending = json.load(f)
+        expected_ver = pending.get("expected_version", "unknown")
+        from updater import get_update_status
+        st    = get_update_status()
+        state = st.get("state", "")
+        if state == "complete":
+            new_ver = st.get("new_version", expected_ver)
+            app.logger.info(f"Auto OTA startup check: update to {new_ver} confirmed complete, sending email.")
+            _send_ota_email(
+                f"HoneytrapAI updated to {new_ver}",
+                f"Your HoneytrapAI appliance has been automatically updated.\n\n"
+                f"New version: {new_ver}\n\n"
+                f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
+            )
+        elif state == "error":
+            app.logger.warning(f"Auto OTA startup check: update to {expected_ver} failed, sending email.")
+            _send_ota_email(
+                f"HoneytrapAI update to {expected_ver} failed",
+                f"Your HoneytrapAI appliance attempted to update to {expected_ver} "
+                f"but failed after 2 attempts.\n\n"
+                f"You can install it manually from the dashboard.\n\n"
+                f"No cloud. No subscription. No monthly fees. Ever.\n— HoneytrapAI"
+            )
+        else:
+            app.logger.info(f"Auto OTA startup check: status is '{state}', no email sent.")
+    except Exception as e:
+        app.logger.error(f"Auto OTA startup check error: {e}")
+    finally:
+        try:
+            os.remove(pending_path)
+        except Exception:
+            pass
 
 # --- Start Auto OTA scheduler thread — ISSUE-46 ---
 def _start_auto_ota_thread():
@@ -2291,6 +2325,7 @@ def _start_auto_ota_thread():
         t.start()
         app.logger.info("Auto OTA scheduler thread started.")
 
+_check_auto_ota_pending()
 _start_auto_ota_thread()
 
 

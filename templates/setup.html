@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- HoneytrapAI — setup.html Rev 5 — ISSUE-10 Setup Wizard + ISSUE-58 DNS rewrite -->
+<!-- HoneytrapAI — setup.html Rev 11 — Step 6 back button; Step 7 DNS text update; Step 8 "Hit Run" text update -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -43,7 +43,7 @@ body {
   border-radius: 12px;
   width: 100%;
   max-width: 560px;
-  padding: 32px;
+  padding: 20px 32px 32px;
 }
 .step-dots {
   display: flex;
@@ -127,6 +127,9 @@ input:focus, select:focus { border-color: #f5a623; }
   cursor: pointer;
   transition: background .2s;
   margin-top: 4px;
+  text-align: center;
+  text-decoration: none;
+  display: block;
 }
 .btn:hover { background: #e09520; }
 .btn-outline {
@@ -141,8 +144,28 @@ input:focus, select:focus { border-color: #f5a623; }
   cursor: pointer;
   transition: border-color .2s, color .2s;
   margin-top: 10px;
+  text-align: center;
+  text-decoration: none;
+  display: block;
 }
 .btn-outline:hover { border-color: #888; color: #ccc; }
+.btn-back {
+  width: 100%;
+  background: transparent;
+  color: #555;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 500;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+  margin-top: 10px;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+.btn-back:hover { border-color: #555; color: #aaa; }
 .btn-sm {
   background: transparent;
   color: #f5a623;
@@ -191,6 +214,216 @@ input:focus, select:focus { border-color: #f5a623; }
   margin-top: -10px;
   margin-bottom: 14px;
 }
+
+/* ---- Welcome step feature list ---- */
+.feature-list {
+  list-style: none;
+  margin: 0 0 20px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feature-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: .88rem;
+  color: #ccc;
+  line-height: 1.4;
+}
+.feature-list li .fi {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ---- "How it works" modal ---- */
+.how-link {
+  display: inline-block;
+  font-size: .82rem;
+  color: #f5a623;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 20px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.how-link:hover { color: #e09520; }
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  max-width: 480px;
+  width: 100%;
+  padding: 28px;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 14px; right: 16px;
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 1.3rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover { color: #aaa; }
+.modal-title {
+  font-size: .95rem;
+  font-weight: 700;
+  color: #f5a623;
+  margin-bottom: 14px;
+}
+.modal-box p {
+  font-size: .85rem;
+  color: #aaa;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.modal-box p:last-child { margin-bottom: 0; }
+.modal-box strong { color: #e0e0e0; }
+
+/* ---- Terms step ---- */
+.terms-scroll {
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 16px 18px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  font-size: .82rem;
+  color: #aaa;
+  line-height: 1.7;
+}
+.terms-scroll h2 {
+  color: #e0e0e0;
+  font-size: .9rem;
+  margin: 14px 0 4px;
+}
+.terms-scroll h2:first-child { margin-top: 0; }
+.terms-scroll ul {
+  padding-left: 18px;
+  margin: 4px 0 10px;
+}
+.terms-scroll li { margin-bottom: 4px; }
+.terms-accept-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: .85rem;
+  color: #ccc;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.terms-accept-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 2px 0 0;
+  cursor: pointer;
+  accent-color: #f5a623;
+}
+
+/* ---- Step 7 test pills ---- */
+.pill-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.pill {
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 20px;
+  color: #ccc;
+  font-size: .78rem;
+  font-weight: 500;
+  padding: 5px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color .2s, color .2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.pill:hover { border-color: #f5a623; color: #f5a623; }
+.pill::after { content: "↗"; font-size: .68rem; opacity: .6; }
+
+/* ---- Advisory boxes (Step 7) ---- */
+.advisory-box {
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.advisory-box .ab-title {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #f5a623;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.advisory-box p {
+  font-size: .85rem;
+  color: #aaa;
+  line-height: 1.5;
+}
+.advisory-box p strong { color: #ddd; }
+
+/* ---- Step 8 simulator steps ---- */
+.sim-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sim-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.sim-step-num {
+  background: #f5a623;
+  color: #000;
+  font-size: .75rem;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.sim-steps li p {
+  font-size: .88rem;
+  color: #ccc;
+  line-height: 1.5;
+}
+.sim-steps li p strong { color: #e0e0e0; }
 
 /* ---- Timezone map step ---- */
 #map-wrap {
@@ -242,7 +475,6 @@ input:focus, select:focus { border-color: #f5a623; }
 #btn-no  { background: transparent; border: 1px solid #555 !important; color: #aaa; }
 #btn-no:hover { border-color: #aaa !important; color: #ddd; }
 
-/* manual TZ selector — shown after "No" */
 #tz-manual { display: none; margin-bottom: 4px; }
 #tz-manual.open { display: block; }
 #tz-manual label { margin-top: 4px; }
@@ -252,37 +484,131 @@ input:focus, select:focus { border-color: #f5a623; }
 </head>
 <body>
 
-<div class="top">
-  <div class="logo">🐝</div>
-  <div class="brand">HoneytrapAI</div>
-  <div class="tagline">No cloud. No subscription. No monthly fees. Ever.</div>
-</div>
-
 <div class="card">
 
-  <!-- Step dots -->
+  <!-- Step dots — Step 0 has no dots; Steps 1–8 have 8 dots -->
+  {% if step > 0 %}
   <div class="step-dots">
     <div class="dot {% if step >= 1 %}{% if step > 1 %}done{% else %}active{% endif %}{% endif %}"></div>
     <div class="dot {% if step >= 2 %}{% if step > 2 %}done{% else %}active{% endif %}{% endif %}"></div>
     <div class="dot {% if step >= 3 %}{% if step > 3 %}done{% else %}active{% endif %}{% endif %}"></div>
     <div class="dot {% if step >= 4 %}{% if step > 4 %}done{% else %}active{% endif %}{% endif %}"></div>
-    <div class="dot {% if step >= 5 %}active{% endif %}"></div>
+    <div class="dot {% if step >= 5 %}{% if step > 5 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 6 %}{% if step > 6 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 7 %}{% if step > 7 %}done{% else %}active{% endif %}{% endif %}"></div>
+    <div class="dot {% if step >= 8 %}active{% endif %}"></div>
   </div>
+  {% endif %}
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
   {% endif %}
 
   <!-- ======================================================= -->
-  <!-- STEP 1 — Password                                        -->
+  <!-- STEP 0 — Welcome                                         -->
+  <!-- ======================================================= -->
+  {% if step == 0 %}
+  <div style="text-align:center;font-size:2rem;margin-bottom:6px;">🛡️</div>
+  <div class="step-title" style="text-align:center;font-size:1.25rem;margin-bottom:6px;">Welcome to HoneytrapAI</div>
+  <div class="step-desc" style="text-align:center;margin-bottom:24px;">
+    Your home network security appliance. Everything runs on this device — your data never leaves your home.<br><span style="color:#555;font-size:.75rem;">No cloud. No subscription. No monthly fees. Ever.</span>
+  </div>
+
+  <ul class="feature-list">
+    <li>
+      <span class="fi">🔍</span>
+      <span><strong style="color:#e0e0e0;">Watches every device on your network</strong> — phones, laptops, smart TVs, and IoT gadgets.</span>
+    </li>
+    <li>
+      <span class="fi">🚫</span>
+      <span><strong style="color:#e0e0e0;">Blocks ads, trackers, and malicious sites</strong> before they ever reach your devices.</span>
+    </li>
+    <li>
+      <span class="fi">🔔</span>
+      <span><strong style="color:#e0e0e0;">Alerts you when something suspicious happens</strong> — so you know, even when you're not home.</span>
+    </li>
+    <li>
+      <span class="fi">☁️</span>
+      <span><strong style="color:#e0e0e0;">No cloud, no subscription, no monthly fees.</strong> Everything stays on your device. Always.</span>
+    </li>
+  </ul>
+
+  <button type="button" class="how-link" onclick="openHow()">How does it work?</button>
+
+  <!-- How it works modal -->
+  <div class="modal-overlay" id="how-modal" onclick="closeHowOutside(event)">
+    <div class="modal-box">
+      <button type="button" class="modal-close" onclick="closeHow()">✕</button>
+      <div class="modal-title">How does it work?</div>
+      <p>Every device on your network — your phone, your laptop, your smart TV — needs to look up website addresses before it can connect to them. That lookup is called a <strong>DNS request</strong>. DNS works like a phone book — you look up a name and get back a number. That number tells your browser where to go on the Internet.</p>
+      <p>HoneytrapAI sits in the middle of that process. When a device asks "where is badsite.com?", HoneytrapAI checks it against known threat lists and blocks it if it's dangerous — before any connection is made.</p>
+      <p>For this to work, <strong>HoneytrapAI needs to be your network's DNS server</strong>. The setup wizard will walk you through that. It also means that if a device is using its own private DNS (sometimes called DNS-over-HTTPS or DoH), HoneytrapAI won't be able to see or protect that device's traffic.</p>
+    </div>
+  </div>
+
+  <form method="post">
+    <input type="hidden" name="step" value="0">
+    <button type="submit" class="btn">Let's get started →</button>
+  </form>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 1 — Terms of Service                                -->
   <!-- ======================================================= -->
   {% if step == 1 %}
-  <div class="step-badge">Step 1 of 5</div>
+  <div class="step-badge">Step 1 of 8</div>
+  <div class="step-title">Terms of Service</div>
+  <div class="step-desc">Please read and accept the HoneytrapAI Terms of Service to continue.</div>
+
+  <div class="terms-scroll">
+    <h2>Use at Your Own Risk</h2>
+    <p>HoneytrapAI is provided as-is. It is a security monitoring tool, not a guarantee of security. No software can protect against all threats.</p>
+
+    <h2>No Warranty</h2>
+    <p>HoneytrapAI is provided without warranty of any kind — express, implied, or statutory. We make no guarantees about uptime, accuracy of threat detection, or fitness for any particular purpose.</p>
+
+    <h2>Privacy — Your Data Stays on Your Device</h2>
+    <p>HoneytrapAI does not transmit your network data, DNS logs, threat events, or personal information to any external server. All processing happens locally on your appliance.</p>
+    <ul>
+      <li>IP geolocation uses the public ip-api.com service (source IPs of detected threats only — not your devices)</li>
+      <li>OTA update checks contact GitHub to compare version numbers only — no usage data is sent</li>
+      <li>MaxMind GeoLite2 database is downloaded directly to your device and used locally</li>
+    </ul>
+
+    <h2>Acceptable Use</h2>
+    <p>You may only use HoneytrapAI on networks you own or have explicit authorization to monitor. Unauthorized use on networks you do not control may violate applicable law.</p>
+
+    <h2>Limitation of Liability</h2>
+    <p>To the fullest extent permitted by law, HoneytrapAI and its creators shall not be liable for any damages arising from your use of this product, including but not limited to loss of data, network disruptions, or security incidents.</p>
+
+    <h2>Open Source Components</h2>
+    <p>HoneytrapAI incorporates open source software including AdGuard Home (GPL-3.0) and Maltrail. Their respective licenses apply to those components. AdGuard Home is downloaded to your device during setup in compliance with GPL-3.0.</p>
+
+    <h2>Changes to These Terms</h2>
+    <p>Terms may be updated with new firmware releases. Continued use after an update constitutes acceptance of the revised terms.</p>
+  </div>
+
+  <form method="post" id="terms-form">
+    <input type="hidden" name="step" value="1">
+    <label class="terms-accept-row" for="terms-check">
+      <input type="checkbox" id="terms-check" name="terms_accepted" value="yes" onchange="updateTermsBtn()">
+      I have read and agree to the HoneytrapAI Terms of Service.
+    </label>
+    <button type="submit" class="btn" id="terms-submit-btn" disabled>Accept and continue →</button>
+  </form>
+  <a href="/setup?step=0" class="btn-back">← Back</a>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 2 — Password                                        -->
+  <!-- ======================================================= -->
+  {% if step == 2 %}
+  <div class="step-badge">Step 2 of 8</div>
   <div class="step-title">Create your password</div>
   <div class="step-desc">Choose a strong password to protect your HoneytrapAI dashboard. At least 8 characters.</div>
 
   <form method="post">
-    <input type="hidden" name="step" value="1">
+    <input type="hidden" name="step" value="2">
 
     <label>Password</label>
     <div class="pw-wrap">
@@ -302,13 +628,14 @@ input:focus, select:focus { border-color: #f5a623; }
 
     <button type="submit" class="btn" style="margin-top:20px;">Continue →</button>
   </form>
+  <a href="/setup?step=1" class="btn-back">← Back</a>
   {% endif %}
 
   <!-- ======================================================= -->
-  <!-- STEP 2 — Timezone                                        -->
+  <!-- STEP 3 — Timezone                                        -->
   <!-- ======================================================= -->
-  {% if step == 2 %}
-  <div class="step-badge">Step 2 of 5</div>
+  {% if step == 3 %}
+  <div class="step-badge">Step 3 of 8</div>
   <div class="step-title">Confirm your location</div>
   <div class="step-desc">We've located your device on the map. Confirm the timezone is correct so alerts and logs show the right time.</div>
 
@@ -333,22 +660,21 @@ input:focus, select:focus { border-color: #f5a623; }
   </div>
 
   <form method="post" id="tz-form">
-    <input type="hidden" name="step" value="2">
+    <input type="hidden" name="step" value="3">
     <input type="hidden" name="timezone" id="tz-hidden" value="">
     <button type="submit" class="btn" id="tz-submit" disabled>Confirm timezone →</button>
   </form>
+  <a href="/setup?step=2" class="btn-back">← Back</a>
   {% endif %}
 
   <!-- ======================================================= -->
-  <!-- STEP 3 — Static IP                                       -->
+  <!-- STEP 4 — Static IP                                       -->
   <!-- ======================================================= -->
-  {% if step == 3 %}
-  <div class="step-badge">Step 3 of 5</div>
+  {% if step == 4 %}
+  <div class="step-badge">Step 4 of 8</div>
   <div class="step-title">Set a fixed IP address</div>
   <div class="step-desc">
-    Assigning a fixed IP ensures your HoneytrapAI is always at the same address.
-    Your current network is <strong style="color:#e0e0e0;">{{ net.network }}</strong>.
-    Leave blank to skip and keep your current address.
+    Giving your HoneytrapAI a fixed address means it's always reachable at the same location on your network. We've pre-filled your current address below — just click Save and continue unless you need a different one.
   </div>
 
   {% if net.ip %}
@@ -356,25 +682,26 @@ input:focus, select:focus { border-color: #f5a623; }
   {% endif %}
 
   <form method="post">
-    <input type="hidden" name="step" value="3">
+    <input type="hidden" name="step" value="4">
     <label>Fixed IP address</label>
     <input type="text" name="static_ip" placeholder="e.g. {{ net.ip or '192.168.1.199' }}" value="{{ net.ip or '' }}">
-    <div class="ip-hint">Must be within {{ net.network or 'your subnet' }}</div>
+    <div class="ip-hint">Must be on the same network as your router (e.g. 192.168.1.x)</div>
     <button type="submit" name="action" value="save" class="btn">Save and continue →</button>
     <button type="submit" name="action" value="skip" class="btn-outline">Skip — set later</button>
   </form>
+  <a href="/setup?step=3" class="btn-back">← Back</a>
   {% endif %}
 
   <!-- ======================================================= -->
-  <!-- STEP 4 — Email alerts                                    -->
+  <!-- STEP 5 — Email alerts                                    -->
   <!-- ======================================================= -->
-  {% if step == 4 %}
-  <div class="step-badge">Step 4 of 5</div>
+  {% if step == 5 %}
+  <div class="step-badge">Step 5 of 8</div>
   <div class="step-title">Set up email alerts</div>
   <div class="step-desc">Get notified when threats are detected on your network. You can configure this now or skip and set it up later from the dashboard.</div>
 
   <form method="post">
-    <input type="hidden" name="step" value="4">
+    <input type="hidden" name="step" value="5">
 
     <label>Alert email address</label>
     <input type="email" name="alert_email" placeholder="you@example.com">
@@ -396,16 +723,17 @@ input:focus, select:focus { border-color: #f5a623; }
       <option value="none">None</option>
     </select>
 
-    <button type="submit" name="action" value="save" class="btn">Finish setup →</button>
+    <button type="submit" name="action" value="save" class="btn">Continue →</button>
     <button type="submit" name="action" value="skip" class="btn-outline">Skip — set up later</button>
   </form>
+  <a href="/setup?step=4" class="btn-back">← Back</a>
   {% endif %}
 
   <!-- ======================================================= -->
-  <!-- STEP 5 — Finalizing                                      -->
+  <!-- STEP 6 — Finalizing                                      -->
   <!-- ======================================================= -->
-  {% if step == 5 %}
-  <div class="step-badge">Step 5 of 5</div>
+  {% if step == 6 %}
+  <div class="step-badge">Step 6 of 8</div>
   <div class="step-title">Finalizing your setup</div>
   <div class="step-desc">Configuring your dashboard URL. This only takes a moment.</div>
 
@@ -416,13 +744,11 @@ input:focus, select:focus { border-color: #f5a623; }
 
   <div id="finalize-success" style="display:none;">
     <div class="info-box" style="border-color:rgba(80,200,120,.35);background:rgba(80,200,120,.08);color:#7dd87d;">
-      ✅ Setup complete!<br><br>
-      Your HoneytrapAI Dashboard is ready now. Bookmark this URL for easy access from any device on your home network:<br>
-      <strong style="color:#7dd87d;">https://dashboard.honeytrap.ai</strong>
+      ✅ Almost there!<br><br>
+      Your dashboard URL is configured. Two last steps before you go live, to help you understand how HoneytrapAI works.
     </div>
-    <a href="https://dashboard.honeytrap.ai" class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">
-      Go to dashboard →
-    </a>
+    <a href="/setup?step=7" class="btn" style="margin-top:8px;">Next →</a>
+    <a href="/setup?step=5" class="btn-back">← Back</a>
   </div>
 
   <div id="finalize-warning" style="display:none;">
@@ -430,10 +756,100 @@ input:focus, select:focus { border-color: #f5a623; }
       ⚠️ Could not configure dashboard URL automatically.
     </div>
     <button class="btn" id="finalize-retry-btn" onclick="runFinalize()" style="margin-top:8px;">Retry</button>
-    <a href="/dashboard" class="btn-outline" style="display:block;text-align:center;text-decoration:none;margin-top:10px;">
-      Skip for now — go to dashboard
-    </a>
+    <a href="/setup?step=7" class="btn-outline" style="margin-top:10px;">Skip for now — continue</a>
+    <a href="/setup?step=5" class="btn-back">← Back</a>
   </div>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 7 — Before you go                                   -->
+  <!-- ======================================================= -->
+  {% if step == 7 %}
+  <div class="step-badge">Step 7 of 8</div>
+  <div class="step-title">Before you go</div>
+  <div class="step-desc" style="margin-bottom:14px;">A couple of things to know before you start using your dashboard.</div>
+
+  <div class="advisory-box" style="padding:12px 14px;margin-bottom:10px;">
+    <div class="ab-title">📡 Point your router to HoneytrapAI</div>
+    <p>Your router needs to use HoneytrapAI as its primary DNS server. Set the primary DNS to <strong>{{ device_ip or 'your HoneytrapAI IP address' }}</strong>. Good secondary DNS choices are Cloudflare at <strong>1.1.1.1</strong> or Google at <strong>8.8.8.8</strong>. Not sure how? Web search "change DNS server" plus your router's brand name, or check our help section in the dashboard.</p>
+  </div>
+
+  <div class="advisory-box" style="padding:12px 14px;margin-bottom:10px;">
+    <div class="ab-title">🔒 Avoid private DNS on your devices</div>
+    <p>Some phones and browsers have a setting called <strong>Private DNS</strong>, <strong>Secure DNS</strong>, or <strong>DNS-over-HTTPS</strong>. If enabled, it bypasses HoneytrapAI. Turn it off on any browser you want covered — with HoneytrapAI working, you'll actually be safer!</p>
+  </div>
+
+  <hr class="divider" style="margin:12px 0;">
+
+  <div class="step-title" style="font-size:.95rem;margin-bottom:4px;">Test your connection</div>
+  <div class="step-desc" style="margin-bottom:10px;">Open a few sites below — they should load normally but without ads. You'll see the blocked counts in your dashboard.</div>
+
+  <div class="pill-row" style="margin-bottom:12px;">
+    <a class="pill" href="#" onclick="window.open('https://cnn.com','_blank','noopener');return false;">cnn.com</a>
+    <a class="pill" href="#" onclick="window.open('https://foxnews.com','_blank','noopener');return false;">foxnews.com</a>
+    <a class="pill" href="#" onclick="window.open('https://speedtest.net','_blank','noopener');return false;">speedtest.net</a>
+    <a class="pill" href="#" onclick="window.open('https://weather.com','_blank','noopener');return false;">weather.com</a>
+  </div>
+
+  <div class="info-box" style="margin-bottom:14px;">
+    <strong>Tip:</strong> If a site gets blocked unexpectedly, add it to your allowlist under <strong>Settings → Domain Allowlist</strong>.
+  </div>
+
+  <a href="/setup?step=8" class="btn">Next →</a>
+  <a href="/setup?step=6" class="btn-back">← Back</a>
+  {% endif %}
+
+  <!-- ======================================================= -->
+  <!-- STEP 8 — See it in action                                -->
+  <!-- ======================================================= -->
+  {% if step == 8 %}
+  <div class="step-badge">Step 8 of 8</div>
+  <div class="step-title">See it in action</div>
+  <div class="step-desc">Your dashboard may look quiet at first — that's normal. Here's how to fire off some test threats so you can see HoneytrapAI doing its job.</div>
+
+  <ul class="sim-steps">
+    <li>
+      <span class="sim-step-num">1</span>
+      <p>From your dashboard, click the <strong>Tools</strong> tab in the navigation.</p>
+    </li>
+    <li>
+      <span class="sim-step-num">2</span>
+      <p>Find the <strong>Threat Simulator</strong> and choose a threat type — or run them all.</p>
+    </li>
+    <li>
+      <span class="sim-step-num">3</span>
+      <p>      Hit <strong>Inject Test Entry</strong>. Then click on the <strong>Dashboard</strong> tab. Within a few seconds you'll see threat dots appear on the world map and entries populate the threat log.</p>
+    </li>
+    <li>
+      <span class="sim-step-num">4</span>
+      <p>If you set up email alerts, check your inbox — you should get a notification too.</p>
+    </li>
+  </ul>
+
+  <div class="info-box">
+    These are simulated threats generated locally on your device. Nothing actually leaves your network. They're safe to run anytime.
+  </div>
+
+  <div id="go-dashboard-wrap">
+    <button class="btn" onclick="goToDashboard()" id="go-dashboard-btn">Go to Dashboard →</button>
+  </div>
+
+  <div id="dashboard-links" style="display:none;margin-top:16px;">
+    <div class="info-box" style="border-color:rgba(80,200,120,.35);background:rgba(80,200,120,.08);color:#7dd87d;margin-bottom:16px;">
+      ✅ Setup complete! Choose how to open your dashboard:
+    </div>
+    <a href="https://dashboard.honeytrap.ai/dashboard" class="btn" style="margin-bottom:10px;">
+      Open dashboard.honeytrap.ai →
+    </a>
+    <a href="https://{{ device_ip or '192.168.1.199' }}/dashboard" class="btn-outline">
+      Open by IP address ({{ device_ip or '192.168.1.199' }}) →
+    </a>
+    <div style="margin-top:12px;font-size:.75rem;color:#555;line-height:1.5;text-align:center;">
+      Use the IP address link if the named URL doesn't open.<br>Your browser may show a security warning on the IP link — click through it.
+    </div>
+  </div>
+
+  <a href="/setup?step=7" class="btn-back" id="step8-back">← Back</a>
   {% endif %}
 
 </div><!-- .card -->
@@ -445,17 +861,33 @@ function togglePw(id, cb) {
   if (el) el.type = cb.checked ? 'text' : 'password';
 }
 
+/* ---- Welcome step expandable ---- */
+function openHow() {
+  document.getElementById('how-modal').classList.add('open');
+}
+function closeHow() {
+  document.getElementById('how-modal').classList.remove('open');
+}
+function closeHowOutside(e) {
+  if (e.target === document.getElementById('how-modal')) closeHow();
+}
+
+/* ---- Terms step — enable submit only when checkbox checked ---- */
+function updateTermsBtn() {
+  var cb  = document.getElementById('terms-check');
+  var btn = document.getElementById('terms-submit-btn');
+  if (cb && btn) btn.disabled = !cb.checked;
+}
+
 /* ================================================================
-   STEP 2 — Timezone map
+   STEP 3 — Timezone map
    ================================================================ */
 (function () {
   if (!document.getElementById('tz-map')) return;
 
   var detectedTz = '';
-  var confirmedTz = '';
   var clockInterval = null;
 
-  /* ---- Live clock ---- */
   function startClock(tz) {
     if (clockInterval) clearInterval(clockInterval);
     function tick() {
@@ -474,15 +906,13 @@ function togglePw(id, cb) {
     clockInterval = setInterval(tick, 1000);
   }
 
-  /* ---- Show confirmation popup ---- */
-  function showConfirm(tz, lat, lon) {
+  function showConfirm(tz) {
     detectedTz = tz;
     document.getElementById('tz-name').textContent = tz;
     startClock(tz);
     document.getElementById('tz-confirm').classList.add('visible');
   }
 
-  /* ---- "Yes, that's right" ---- */
   window.confirmTz = function() {
     var tz = detectedTz || document.getElementById('tz-select').value;
     if (!tz) return;
@@ -492,13 +922,11 @@ function togglePw(id, cb) {
     document.getElementById('tz-submit').textContent = 'Confirm: ' + tz + ' →';
   };
 
-  /* ---- "No, let me choose" ---- */
   window.showManual = function() {
     document.getElementById('tz-confirm').classList.remove('visible');
     if (clockInterval) clearInterval(clockInterval);
     var manual = document.getElementById('tz-manual');
     manual.classList.add('open');
-    /* populate select if not already done */
     var sel = document.getElementById('tz-select');
     if (sel.options.length === 0) {
       populateTzSelect(sel, detectedTz);
@@ -515,7 +943,6 @@ function togglePw(id, cb) {
     document.getElementById('tz-submit').textContent = 'Confirm: ' + tz + ' →';
   };
 
-  /* ---- Populate timezone grouped select ---- */
   function populateTzSelect(sel, preselect) {
     var zones = [
       "Africa/Abidjan","Africa/Accra","Africa/Addis_Ababa","Africa/Algiers","Africa/Asmara",
@@ -614,14 +1041,12 @@ function togglePw(id, cb) {
       "UTC"
     ];
 
-    /* Group by region */
     var groups = {};
     zones.forEach(function(z) {
       var region = z.split('/')[0];
       if (!groups[region]) groups[region] = [];
       groups[region].push(z);
     });
-
     Object.keys(groups).sort().forEach(function(region) {
       var og = document.createElement('optgroup');
       og.label = region;
@@ -636,72 +1061,41 @@ function togglePw(id, cb) {
     });
   }
 
-  /* ---- Draw world map ---- */
   function drawMap(lat, lon) {
     var svg = d3.select('#tz-map');
     var w = 560, h = 220;
-
-    var projection = d3.geoNaturalEarth1()
-      .scale(88)
-      .translate([w / 2, h / 2]);
+    var projection = d3.geoNaturalEarth1().scale(88).translate([w/2, h/2]);
     var path = d3.geoPath().projection(projection);
 
-    /* Load countries-110m.json (served by Flask /static/) */
     d3.json('/static/countries-110m.json').then(function(world) {
       document.getElementById('map-loading').style.display = 'none';
       var countries = topojson.feature(world, world.objects.countries);
 
-      svg.append('rect')
-        .attr('width', w).attr('height', h)
-        .attr('fill', '#0d0d20');
+      svg.append('rect').attr('width', w).attr('height', h).attr('fill', '#0d0d20');
+      svg.append('g').selectAll('path').data(countries.features).enter().append('path')
+        .attr('d', path).attr('fill', '#1e2040').attr('stroke', '#2a2a5a').attr('stroke-width', 0.4);
 
-      svg.append('g')
-        .selectAll('path')
-        .data(countries.features)
-        .enter().append('path')
-          .attr('d', path)
-          .attr('fill', '#1e2040')
-          .attr('stroke', '#2a2a5a')
-          .attr('stroke-width', 0.4);
-
-      /* You Are Here marker */
       var pt = projection([lon, lat]);
       if (pt) {
-        /* Pulse ring */
-        svg.append('circle')
-          .attr('cx', pt[0]).attr('cy', pt[1])
-          .attr('r', 10)
-          .attr('fill', 'none')
-          .attr('stroke', '#f5a623')
-          .attr('stroke-width', 1.2)
-          .attr('opacity', 0.5);
-
-        /* Bee dot */
-        svg.append('circle')
-          .attr('cx', pt[0]).attr('cy', pt[1])
-          .attr('r', 5)
-          .attr('fill', '#f5a623')
-          .attr('stroke', '#0d0d20')
-          .attr('stroke-width', 1.5);
+        svg.append('circle').attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 10)
+          .attr('fill', 'none').attr('stroke', '#f5a623').attr('stroke-width', 1.2).attr('opacity', 0.5);
+        svg.append('circle').attr('cx', pt[0]).attr('cy', pt[1]).attr('r', 5)
+          .attr('fill', '#f5a623').attr('stroke', '#0d0d20').attr('stroke-width', 1.5);
       }
-
     }).catch(function() {
       document.getElementById('map-loading').textContent = 'Map unavailable — please select timezone below.';
       showManual();
     });
   }
 
-  /* ---- Init: fetch /api/my-location ---- */
   fetch('/api/my-location')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.error) throw new Error(data.error);
-      var lat = data.lat, lon = data.lon, tz = data.timezone || '';
-      drawMap(lat, lon);
-      if (tz) {
-        showConfirm(tz, lat, lon);
+      drawMap(data.lat, data.lon);
+      if (data.timezone) {
+        showConfirm(data.timezone);
       } else {
-        /* No tz from ip-api — go straight to manual */
         document.getElementById('map-loading').style.display = 'none';
         showManual();
       }
@@ -710,31 +1104,30 @@ function togglePw(id, cb) {
       document.getElementById('map-loading').textContent = 'Could not detect location — please select timezone below.';
       showManual();
     });
-
 })();
 
 /* ================================================================
-   STEP 5 — Finalize: DNS rewrite
+   STEP 6 — Finalize: DNS rewrite
    ================================================================ */
 function runFinalize() {
-  document.getElementById('finalize-spinner').style.display  = 'block';
-  document.getElementById('finalize-success').style.display  = 'none';
-  document.getElementById('finalize-warning').style.display  = 'none';
+  document.getElementById('finalize-spinner').style.display = 'block';
+  document.getElementById('finalize-success').style.display = 'none';
+  document.getElementById('finalize-warning').style.display = 'none';
 
   fetch('/api/setup/finalize', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-    setTimeout(function() {
-      document.getElementById('finalize-spinner').style.display = 'none';
-      if (data.status === 'ok') {
-        document.getElementById('finalize-success').style.display = 'block';
-      } else {
-        var msg = data.message || 'Could not configure dashboard URL automatically. You can add the DNS rewrite manually from the dashboard.';
-        document.getElementById('finalize-warning-msg').innerHTML = '⚠️ ' + msg;
-        document.getElementById('finalize-warning').style.display = 'block';
-      }
-    }, 2000);
-  })
+      setTimeout(function() {
+        document.getElementById('finalize-spinner').style.display = 'none';
+        if (data.status === 'ok') {
+          document.getElementById('finalize-success').style.display = 'block';
+        } else {
+          var msg = data.message || 'Could not configure dashboard URL automatically. You can add the DNS rewrite manually from the dashboard.';
+          document.getElementById('finalize-warning-msg').innerHTML = '⚠️ ' + msg;
+          document.getElementById('finalize-warning').style.display = 'block';
+        }
+      }, 2000);
+    })
     .catch(function() {
       document.getElementById('finalize-spinner').style.display = 'none';
       document.getElementById('finalize-warning-msg').innerHTML = '⚠️ Could not reach the setup API. You can retry or skip and add the DNS rewrite manually from the dashboard.';
@@ -742,17 +1135,24 @@ function runFinalize() {
     });
 }
 
-/* Skip button — mark setup complete without DNS rewrite, then go to dashboard */
-var skipBtn = document.getElementById('finalize-retry-btn');
-document.querySelectorAll('a[href="/dashboard"]').forEach(function(el) {
-  if (el.textContent.indexOf('Skip') !== -1) {
-    el.addEventListener('click', function(e) {
-      e.preventDefault();
-      fetch('/api/setup/skip-finalize', { method: 'POST' })
-        .finally(function() { window.location.href = '/dashboard'; });
+/* ================================================================
+   STEP 8 — Go to Dashboard: complete setup + authenticate
+   ================================================================ */
+function goToDashboard() {
+  var btn = document.getElementById('go-dashboard-btn');
+  if (btn) { btn.textContent = 'Finishing up…'; btn.disabled = true; }
+  fetch('/api/setup/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    .then(function() {
+      document.getElementById('go-dashboard-wrap').style.display = 'none';
+      document.getElementById('step8-back').style.display = 'none';
+      document.getElementById('dashboard-links').style.display = 'block';
+    })
+    .catch(function() {
+      document.getElementById('go-dashboard-wrap').style.display = 'none';
+      document.getElementById('step8-back').style.display = 'none';
+      document.getElementById('dashboard-links').style.display = 'block';
     });
-  }
-});
+}
 
 if (document.getElementById('finalize-spinner')) {
   runFinalize();

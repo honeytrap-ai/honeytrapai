@@ -1,7 +1,7 @@
 # HoneytrapAI — app.py
-# Version: v0.3.56
-# Revised: 2026-03-21
-# Rev: 39
+# Version: v0.3.57
+# Revised: 2026-03-22
+# Rev: 49
 # Copyright (c) 2026 HoneytrapAI / Anthony Watts — MIT License
 #!/usr/bin/env python3
 """
@@ -581,33 +581,53 @@ def change_password():
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
     cfg = load_config()
+
+    # Parse step first — needed before any redirect logic
+    step = int(request.args.get("step", request.form.get("step", 0)))
+
+    # Redirect to login once setup is fully complete
     if cfg.get("setup_complete"):
         return redirect(url_for("login"))
 
     error = None
-    step  = int(request.form.get("step", 1))
     net   = get_network_info()
 
     if request.method == "POST":
+        # Step 0 — Welcome: advance to step 1 (Terms)
+        if step == 0:
+            step = 1
 
-        if step == 1:
+        # Step 1 — Terms of Service
+        elif step == 1:
+            accepted = request.form.get("terms_accepted", "")
+            if accepted != "yes":
+                error = "You must accept the Terms of Service to continue."
+                step = 1
+            else:
+                cfg["terms_accepted"] = True
+                save_config(cfg)
+                step = 2
+
+        # Step 2 — Password
+        elif step == 2:
             password = request.form.get("password", "")
             confirm  = request.form.get("confirm", "")
             if len(password) < 8:
-                error = "Password must be at least 8 characters."; step = 1
+                error = "Password must be at least 8 characters."; step = 2
             elif password != confirm:
-                error = "Passwords do not match."; step = 1
+                error = "Passwords do not match."; step = 2
             else:
-                cfg["password_hash"] = hash_password(password)
+                cfg["password_hash"]    = hash_password(password)
                 cfg["password_changed"] = True
-                save_config(cfg); step = 2
+                save_config(cfg); step = 3
 
-        elif step == 2:
+        # Step 3 — Timezone
+        elif step == 3:
             tz = request.form.get("timezone", "").strip()
             if not tz:
-                error = "Please confirm your timezone before continuing."; step = 2
+                error = "Please confirm your timezone before continuing."; step = 3
             elif not re.match(r'^[A-Za-z_]+(/[A-Za-z_]+){0,2}$', tz) and tz != "UTC":
-                error = "Invalid timezone selected."; step = 2
+                error = "Invalid timezone selected."; step = 3
             else:
                 try:
                     subprocess.run(
@@ -615,27 +635,28 @@ def setup():
                         capture_output=True, text=True, timeout=10, check=True
                     )
                 except Exception as e:
-                    error = f"Could not set timezone: {e}"; step = 2
+                    error = f"Could not set timezone: {e}"; step = 3
                 if not error:
                     cfg["timezone"] = tz
                     save_config(cfg)
-                    step = 3
+                    step = 4
 
-        elif step == 3:
+        # Step 4 — Static IP
+        elif step == 4:
             action = request.form.get("action", "save")
             if action == "skip":
                 cfg["static_ip_skipped"] = True
                 cfg["interface"] = "eth0"
-                save_config(cfg); step = 4
+                save_config(cfg); step = 5
             else:
                 entered_ip = request.form.get("static_ip", "").strip()
                 if not entered_ip:
-                    error = "Please enter an IP address, or choose Skip."; step = 3
+                    error = "Please enter an IP address, or choose Skip."; step = 4
                 elif not validate_same_subnet(entered_ip, net["network"]):
                     error = (
                         f"'{entered_ip}' is not a valid address within your subnet "
                         f"({net['network']}). Please enter an IP in that range."
-                    ); step = 3
+                    ); step = 4
                 else:
                     try:
                         set_static_ip(
@@ -648,44 +669,92 @@ def setup():
                         cfg["static_ip_skipped"] = False
                         cfg["gateway"]           = net["gateway"]
                         cfg["interface"]         = "eth0"
-                        save_config(cfg); step = 4
+                        save_config(cfg); step = 5
                     except Exception as e:
-                        error = f"Could not write static IP configuration: {e}"; step = 3
+                        error = f"Could not write static IP configuration: {e}"; step = 4
 
-        elif step == 4:
-            alert_email = request.form.get("alert_email", "").strip()
-            cfg["alert_email"]    = alert_email
-            cfg["setup_complete"] = True
-            cfg["setup_date"]     = datetime.utcnow().isoformat()
-            save_config(cfg)
+        # Step 5 — Email alerts
+        elif step == 5:
+            action = request.form.get("action", "save")
+            if action == "skip":
+                step = 6
+            else:
+                alert_email = request.form.get("alert_email", "").strip()
+                cfg["alert_email"] = alert_email
+                save_config(cfg)
 
-            smtp_host = request.form.get("smtp_host", "").strip()
-            if smtp_host:
-                smtp = {}
-                if os.path.exists(SMTP_PATH):
-                    with open(SMTP_PATH) as f:
-                        smtp = json.load(f)
-                smtp["host"]      = smtp_host
-                smtp["port"]      = int(request.form.get("smtp_port", 587) or 587)
-                smtp["username"]  = request.form.get("smtp_user", "").strip()
-                smtp["from_addr"] = request.form.get("smtp_from", "").strip()
-                enc = request.form.get("smtp_enc", "starttls")
-                smtp["tls"] = enc == "starttls"
-                smtp["ssl"] = enc == "ssl"
-                pw = request.form.get("smtp_pass", "").strip()
-                if pw:
-                    smtp["password"] = pw
-                os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
-                with open(SMTP_PATH, "w") as f:
-                    json.dump(smtp, f, indent=2)
+                smtp_host = request.form.get("smtp_host", "").strip()
+                if smtp_host:
+                    smtp = {}
+                    if os.path.exists(SMTP_PATH):
+                        with open(SMTP_PATH) as f:
+                            smtp = json.load(f)
+                    smtp["host"]      = smtp_host
+                    smtp["port"]      = int(request.form.get("smtp_port", 587) or 587)
+                    smtp["username"]  = request.form.get("smtp_user", "").strip()
+                    smtp["from_addr"] = request.form.get("smtp_from", "").strip()
+                    enc = request.form.get("smtp_enc", "starttls")
+                    smtp["tls"] = enc == "starttls"
+                    smtp["ssl"] = enc == "ssl"
+                    pw = request.form.get("smtp_pass", "").strip()
+                    if pw:
+                        smtp["password"] = pw
+                    os.makedirs(os.path.dirname(SMTP_PATH), exist_ok=True)
+                    with open(SMTP_PATH, "w") as f:
+                        json.dump(smtp, f, indent=2)
 
-            session["authenticated"] = True
-            return redirect(url_for("dashboard"))
+                step = 6
 
     return render_template(
         "setup.html", step=step, error=error,
         version=get_version(), net=net,
+        device_ip=cfg.get("static_ip") or net.get("ip", ""),
     )
+
+@app.route("/api/setup/finalize", methods=["POST"])
+def api_setup_finalize():
+    """ISSUE-58 — add AdGuard DNS rewrite for dashboard.honeytrap.ai.
+    Called from Step 6. Does NOT mark setup_complete — that happens at /api/setup/complete."""
+    try:
+        net = get_network_info()
+        local_ip = net.get("ip", "")
+        if not local_ip:
+            return jsonify({"status": "warning", "message": "Could not detect local IP address. Add the DNS rewrite manually from the dashboard."}), 200
+
+        cfg = load_config()
+        status, body = _ag_request(
+            cfg, "POST", "/control/rewrite/add",
+            {"domain": "dashboard.honeytrap.ai", "answer": local_ip}
+        )
+
+        if status in (200, 201, 204):
+            return jsonify({"status": "ok", "ip": local_ip})
+        else:
+            return jsonify({"status": "warning", "message": f"AdGuard returned status {status}. Add the DNS rewrite manually from the dashboard."}), 200
+    except Exception as e:
+        return jsonify({"status": "warning", "message": f"Could not reach AdGuard: {e}. Add the DNS rewrite manually from the dashboard."}), 200
+
+@app.route("/api/setup/skip-finalize", methods=["POST"])
+def api_setup_skip_finalize():
+    """ISSUE-58 — user skipped Step 6 DNS rewrite. Does NOT mark setup_complete."""
+    return jsonify({"status": "ok"})
+
+@app.route("/api/setup/complete", methods=["POST"])
+def api_setup_complete():
+    """Mark setup as fully complete. Called when user clicks Go to Dashboard on Step 8.
+    Sets setup_complete, terms_accepted, setup_date, and authenticates the session."""
+    try:
+        cfg = load_config()
+        cfg["setup_complete"]  = True
+        cfg["terms_accepted"]  = True
+        cfg["setup_date"]      = datetime.utcnow().isoformat()
+        save_config(cfg)
+        session["authenticated"] = True
+        session.permanent = True
+        app.permanent_session_lifetime = timedelta(days=30)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/dashboard")
 @login_required
@@ -1813,6 +1882,54 @@ def api_network_visibility():
     _net_visibility_cache = (result, now)
     return jsonify(result)
 
+
+# --- DoH detection — dashboard Rev 59 ---
+
+@app.route('/api/doh-check')
+@login_required
+def api_doh_check():
+    """Detect whether the requesting client is bypassing HoneytrapAI via DoH."""
+    client_ip = request.remote_addr
+
+    if client_ip and client_ip.startswith("::ffff:"):
+        client_ip = client_ip[7:]
+
+    if not client_ip or is_private_ip(client_ip) is False:
+        return jsonify({"doh_likely": False, "queries_seen": -1})
+
+    try:
+        import urllib.request as _ur, base64 as _b64
+        cfg     = load_config()
+        ag_user = cfg.get("adguard_user", "admin")
+        ag_pass = cfg.get("adguard_password", "")
+        token   = _b64.b64encode(f"{ag_user}:{ag_pass}".encode()).decode()
+
+        url = f"http://127.0.0.1:3000/control/querylog?limit=300&search={client_ip}"
+        req = _ur.Request(url, headers={"Authorization": f"Basic {token}"})
+        with _ur.urlopen(req, timeout=5) as r:
+            data = json.loads(r.read())
+
+        entries = data.get("data", [])
+        cutoff  = datetime.utcnow() - timedelta(minutes=5)
+        recent  = 0
+        for entry in entries:
+            ts_raw = entry.get("time", "")
+            if not ts_raw:
+                continue
+            try:
+                ts = datetime.strptime(ts_raw[:19], "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                continue
+            if ts >= cutoff:
+                recent += 1
+
+        doh_likely = (recent == 0)
+        return jsonify({"doh_likely": doh_likely, "queries_seen": recent})
+
+    except Exception as e:
+        app.logger.warning(f"DoH check failed: {e}")
+        return jsonify({"doh_likely": False, "queries_seen": -1, "error": str(e)})
+
 # --- Top blocked domains — ISSUE-17 ---
 
 @app.route('/api/blocked-domains')
@@ -1977,14 +2094,6 @@ def api_filtering_toggle():
         return jsonify({"error": str(e)}), 502
 
 # --- Security Score — ISSUE-57 ---
-# Scoring breakdown (100pts total):
-#   AdGuard Running        15pts
-#   DNS Filtering ON       15pts
-#   HTTPS Enabled          10pts
-#   Password Changed       10pts
-#   Email Notifications    10pts
-#   Parental Controls      10pts
-#   Threat Block Rate 24h   0-30pts
 
 @app.route('/api/security-score')
 @login_required
@@ -2274,9 +2383,7 @@ def api_parental_controls():
 
 # --- Auto OTA startup email check — ISSUE-46 ---
 def _check_auto_ota_pending():
-    """On startup, check if an auto OTA was in progress before restart.
-    If update_status.json shows complete/error and auto_ota_pending.json exists,
-    send the outcome email and delete the flag file."""
+    """On startup, check if an auto OTA was in progress before restart."""
     import os
     pending_path = os.path.join(os.path.dirname(CONFIG_PATH), "auto_ota_pending.json")
     if not os.path.exists(pending_path):

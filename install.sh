@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # HoneytrapAI — Installer for Raspberry Pi 4B (Raspberry Pi OS Lite 64-bit)
 # Also compatible with Debian 12/13 ARM64
-# Version: v0.3.49
-# Revised: 2026-03-19
-# Rev: 9
+# Version: v0.3.58
+# Revised: 2026-03-22
+# Rev: 10
 # Usage: sudo bash install.sh
 # No cloud. No subscription. No monthly fees. Ever.
 
 set -euo pipefail
 HONEYTRAPAI_VERSION=$(cat VERSION)
+INSTALL_REV="Rev: 10"
 APP_DIR="/opt/honeytrapai"
 SERVICE_USER="honeytrapai"
 LOG_DIR="/var/log/maltrail"
@@ -25,6 +26,8 @@ error()   { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 section() { echo -e "\n${YELLOW}━━━ $* ━━━${NC}"; }
 
 [[ $EUID -ne 0 ]] && error "Run as root: sudo bash install.sh"
+
+echo -e "${GREEN}🐝 HoneytrapAI Installer — Version: ${HONEYTRAPAI_VERSION}  ${INSTALL_REV}${NC}"
 
 section "1. System update"
 apt-get update -qq
@@ -208,22 +211,9 @@ echo "127.0.0.1 honeytrapai" >> /etc/hosts
 sudo mkdir -p /etc/nginx/sites-available
 sudo mkdir -p /etc/nginx/sites-enabled
 
-section "8. Set timezone"
-DEFAULT_TZ="UTC"
-echo ""
-echo "Available timezones can be listed with: timedatectl list-timezones"
-echo "Examples: America/Los_Angeles, America/New_York, America/Chicago, America/Denver, Europe/London"
-read -r -p "Enter timezone [${DEFAULT_TZ}]: " USER_TZ
-USER_TZ="${USER_TZ:-$DEFAULT_TZ}"
-
-if timedatectl list-timezones | grep -qx "$USER_TZ"; then
-    timedatectl set-timezone "$USER_TZ"
-    info "Timezone set to $USER_TZ"
-else
-    warn "Invalid timezone '$USER_TZ' — defaulting to $DEFAULT_TZ"
-    timedatectl set-timezone "$DEFAULT_TZ"
-    info "Timezone set to $DEFAULT_TZ"
-fi
+section "8. Set timezone (UTC default)"
+timedatectl set-timezone UTC
+info "Timezone set to UTC"
 
 section "9. Generate self-signed TLS certificate"
 CERT_DIR="/etc/ssl/honeytrapai"
@@ -288,9 +278,26 @@ info "nginx configured (HTTPS on 443, HTTP redirects to HTTPS)"
 section "11. Configure mDNS (honeytrap.local)"
 hostname honeytrapai
 echo "honeytrapai" > /etc/hostname
+
+# Avahi service file — advertises HTTP on port 80 as honeytrap.local
+# This allows browsers and devices on the LAN to discover the setup wizard
+# at http://honeytrap.local without knowing the device IP address.
+mkdir -p /etc/avahi/services
+cat > /etc/avahi/services/honeytrapai.service << 'EOF'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">HoneytrapAI on %h</name>
+  <service>
+    <type>_http._tcp</type>
+    <port>80</port>
+  </service>
+</service-group>
+EOF
+
 systemctl enable avahi-daemon
-systemctl start avahi-daemon
-info "mDNS configured — device accessible at https://honeytrap.local"
+systemctl restart avahi-daemon
+info "mDNS configured — device accessible at http://honeytrap.local"
 
 section "12. Configure logrotate"
 # create 0644 root root — Maltrail sensor (root) writes dated logs world-readable
@@ -503,15 +510,9 @@ section "Installation complete!"
 echo ""
 echo -e "${GREEN}🐝 HoneytrapAI $HONEYTRAPAI_VERSION is installed and running.${NC}"
 echo ""
-echo "  Dashboard:  https://honeytrap.local"
-echo "  Local IP:   https://$(hostname -I | awk '{print $1}')"
+echo "  Setup wizard: http://honeytrap.local"
+echo "  Local IP:     http://$(hostname -I | awk '{print $1}')/setup"
 echo ""
-echo "  Note: Your browser will show a security warning — this is expected."
-echo "  The device uses a self-signed certificate. You can safely proceed."
-echo "  To remove this warning, visit https://$(hostname -I | awk '{print $1}')/ca.crt"
-echo "  to download and install the device certificate on your browser."
-echo ""
-echo "  Next step: point your router's Primary DNS to this device's IP"
-echo "  Then visit the dashboard to complete setup."
+echo "  Open your browser and go to http://honeytrap.local to begin setup."
 echo ""
 echo "  No cloud. No subscription. No monthly fees. Ever."
